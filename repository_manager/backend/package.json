@@ -1,0 +1,40 @@
+{
+  "name": "wallet-backend",
+  "version": "1.0.0",
+  "main": "./build/index.js",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./build/index.js",
+    "dev": "concurrently \"tsc -w\" \"nodemon ./build/index.js\""
+  },
+  "author": "Debashish Buragohain",
+  "dependencies": {
+    "@project-serum/anchor": "^0.26.0",
+    "@solana/wallet-standard-features": "^1.2.0",
+    "@solana/wallet-standard-util": "^1.1.1",
+    "bs58": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "gun": "^0.2020.1240",
+    "lodash": "^4.17.21",
+    "lowdb": "^7.0.1",
+    "luxon": "^3.5.0",
+    "morgan": "^1.10.0",
+    "tweetnacl": "^1.0.3",
+    "uuid": "^11.0.2",
+    "yup": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/lodash": "^4.17.13",
+    "@types/luxon": "^3.4.2",
+    "@types/morgan": "^1.9.9",
+    "concurrently": "^9.1.0",
+    "nodemon": "^3.1.7",
+    "typescript": "^5.6.3"
+  }
+}
