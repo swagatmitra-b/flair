@@ -5,17 +5,17 @@
 import { Response, RequestHandler } from "express";
 import { verifySIWSsignin } from "../../lib/auth/siws/verifySignIn";
 import type { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
+import { Web3AuthHandlerCreator } from "./context";
 
-export const siwsAuth: RequestHandler = (req, res, next) => {
+// siws authentiction to check if we are signed in or not
+export const siwsAuth: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
+    const { allowSkipCheck, action } = ctx;
+
     const authHeader = req.header('Authorization');
-    if (!authHeader) {
-        res.status(401)
-            .send({ error: { message: 'Missing authorization header.' } });
-        return;
-    }
-
+    authHeader!.replace('siws', "");   // remove the verificaton strategy from the header
+    
     // get the verifiers now
-    const { input, output } = JSON.parse(Buffer.from(authHeader, 'base64').toString('utf-8'));
+    const { input, output } = JSON.parse(Buffer.from(authHeader!, 'base64').toString('utf-8'));
     const formattedInput: SolanaSignInInput = input;
     const formattedOutput: SolanaSignInOutput = output;
 
@@ -24,8 +24,14 @@ export const siwsAuth: RequestHandler = (req, res, next) => {
         return;
     }
 
+    // if the given action is different the specifid action
+    // so the SIWS allows only for general sign in pathways. For special permissions we have to use the general pathway only
+    if (!allowSkipCheck && action !== 'signin') {
+        res.status(401).send({ error: { message: 'Unauthorized action. Please sign the permission.' } });
+    }
+
     // if authorized, attach the authorized public key in the locals property of the response
-    res.locals.pubKey = formattedInput.address?.toString();    
+    res.locals.pubKey = formattedInput.address?.toString();
     next();
 }
 

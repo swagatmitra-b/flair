@@ -4,12 +4,17 @@
 // as well as stores the tokens that are received from the authentication endpoint
 // Debashish Buragohain
 
+// we create the Umi object after a successful sign in
+
 import { web3 } from "@project-serum/anchor";
 import b58 from 'bs58';
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getSignInData } from "./siws";
 import { SolanaSignInInput } from "@solana/wallet-standard-features";
 import { createSignInMessageText } from "../createsSignInMessageText";
+import { useUmi } from "../../components/UmiProvider";
+import { useAdapter } from "../../components/AdapterProvider";
+import { initializeUmi } from "../nft/umi";
 
 export type MessageSigner = {
     signMessage(message: Uint8Array): Promise<Uint8Array>;
@@ -89,8 +94,16 @@ export class MemoryStoredTokenGen {
         'Content-Type': 'application/json'
       }
     }).then(r => r.json());
+
     if (verified.success) {
       console.log('Sign In succesful.');
+      
+      // create the Umi object here
+      const { adapter } = useAdapter();
+      const { setUmi  } = useUmi();
+      const umi = await initializeUmi(adapter);
+      setUmi(umi);
+
       MemoryStoredTokenGen.getInstance().setToken(authToken);    
     }
     else throw new Error('Could not sign in.');

@@ -1,2 +1,2 @@
 export * from './auth.js';
-export * from './posts.js';
+export * from './repo.js';

@@ -46,7 +46,7 @@ const siwsRequest = async (
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer siws${token}`
         },
         body: (data) ? JSON.stringify(data) : undefined,
         method: method ? method : data ? "POST" : "GET"
@@ -95,7 +95,7 @@ const genRequest = async (
         headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
+            'Authorization': `Bearer universal${authToken}`
         },
         body: (data) ? JSON.stringify(data) : undefined,
         method: method ? method : data ? "POST" : "GET"

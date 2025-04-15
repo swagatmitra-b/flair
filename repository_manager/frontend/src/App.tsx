@@ -5,6 +5,8 @@ import { FC, useCallback, useMemo } from "react";
 import {
   ConnectionProvider,
   WalletProvider,
+  useWallet,
+  useConnection
 } from "@solana/wallet-adapter-react";
 import { Adapter, WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import {
@@ -19,15 +21,17 @@ import { clusterApiUrl } from "@solana/web3.js";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "react-query";
 import "@solana/wallet-adapter-react-ui/styles.css";
+
 import { AutoConnectProvider } from './components/AutoConnectProvider';
 import { siwsSignIn } from "./lib/auth/siws";
-import { useSiwsSupport } from "./components/SiwsSupportProvider";
+import { useSiwsSupport, SiwsSupportProvider } from "./components/SiwsSupportProvider";
+import { UmiProvider } from "./components/UmiProvider";
+import { AdapterProvider, useAdapter } from "./components/AdapterProvider";
 // import { genSignIn } from './lib/auth/general';
 // import { TLog } from './types';
 
 // pages
 import Home from './pages/Home';
-import { SiwsSupportProvider } from "./components/SiwsSupportProvider";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +52,9 @@ export const App: FC = () => {
   // the autoConnect is the legacy sign + message workflow
   const autoSignIn = useCallback(async (adapter: Adapter) => {
     const { setSiwsSupport } = useSiwsSupport();
+    const { setAdapter } = useAdapter();    
+    setAdapter(adapter);      // save the adapter in the context
+
     if (!('signIn' in adapter)) {
       setSiwsSupport(true);   // the wallet supports siws
       return true;
@@ -75,24 +82,28 @@ export const App: FC = () => {
   }, [])
 
   return (
-    <SiwsSupportProvider>
-      <AutoConnectProvider>
-        <QueryClientProvider client={queryClient}>
-          <ConnectionProvider endpoint={endpoint}>
-            <WalletProvider wallets={wallets}
-              onError={onWalletError}
-              autoConnect={autoSignIn}>
-              <WalletModalProvider>
-                <Router>
-                  <Routes>
-                    <Route path='/' element={<Home></Home>}></Route>
-                  </Routes>
-                </Router>
-              </WalletModalProvider>
-            </WalletProvider>
-          </ConnectionProvider>
-        </QueryClientProvider>
-      </AutoConnectProvider>
-    </SiwsSupportProvider>
+    <AdapterProvider>
+      <UmiProvider>
+        <SiwsSupportProvider>
+          <AutoConnectProvider>
+            <QueryClientProvider client={queryClient}>
+              <ConnectionProvider endpoint={endpoint}>
+                <WalletProvider wallets={wallets}
+                  onError={onWalletError}
+                  autoConnect={autoSignIn}>
+                  <WalletModalProvider>
+                    <Router>
+                      <Routes>
+                        <Route path='/' element={<Home></Home>}></Route>
+                      </Routes>
+                    </Router>
+                  </WalletModalProvider>
+                </WalletProvider>
+              </ConnectionProvider>
+            </QueryClientProvider>
+          </AutoConnectProvider>
+        </SiwsSupportProvider>
+      </UmiProvider>
+    </AdapterProvider>
   )
 }
