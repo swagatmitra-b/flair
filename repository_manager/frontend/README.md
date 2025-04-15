@@ -1,3 +1,3 @@
-# Federity Wallet authentication Frontend
+# Flair Wallet authentication Frontend
 
 Simple frontend for Solana authentication.

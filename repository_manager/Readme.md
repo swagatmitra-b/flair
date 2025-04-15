@@ -1,6 +1,6 @@
-# Federity Overview 
+# Flair Overview 
 
-Federity is basically a blockchain-based GitHub for collaborative machine learning 
+Flair is basically a blockchain-based GitHub for collaborative machine learning 
 on super sensitive data (e.g., Hospital patient's data) 
 
 You can train ML models on your private data, but nobody else can access this 
