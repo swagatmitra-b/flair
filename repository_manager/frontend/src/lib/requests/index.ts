@@ -9,13 +9,9 @@ import b58 from 'bs58';
 
 // SIWS request function
 // creating a dedicated request function that sends the authorization headers along with the request
-const siwsRequest = async <T>(
-    contents: {
-        method?: string,         // the method used for the http request
-        url: string,            // relative url of the request
-        data?: T                // e.g. fields we want to fetch from database
-    }) => {
-    const { method, url, data } = contents;
+const siwsRequest = async (
+    contents: requestParams) => {
+    const { method, url, data, action } = contents;
 
     // try to reuse existing token
     let { input, output } = MemoryStoredTokenSiws.getInstance();
@@ -44,8 +40,8 @@ const siwsRequest = async <T>(
         }
     }
 
-    // text encode the headers for transmission to the backend
-    const token = btoa(JSON.stringify({ input, output }));
+    // base64 encode the headers for transmission to the backend
+    const token = btoa(JSON.stringify({ input, output, action }));
     return await fetch(url, {
         headers: {
             'Accept': 'application/json',
@@ -62,15 +58,10 @@ const siwsRequest = async <T>(
 
 // general workflow requests
 // dedicated authenticated request function for general sign in
-const genRequest = async <T>(
-    contents: {
-        method?: string;
-        url: string;
-        data?: T
-    }
+const genRequest = async (
+    contents: requestParams
 ) => {
-    const { method, url, data } = contents;
-
+    const { method, url, data } = contents;    
     let authToken;
     // signin is the action equivalent to SIWS authentication in the general workflow
     // Try to reuse existing token.
@@ -113,12 +104,15 @@ const genRequest = async <T>(
         .catch(err => console.error(`Error sending auth token to backend: ${err}`));
 };
 
-// a general request involves all the general functionalities
-export const request = async <T>(contents: {
+export interface requestParams {
     method?: string,
     url: string,
-    data?: T
-}) => {
+    data?: string,
+    action: string          // action is necessary for all requests now
+}
+
+// a general request involves all the general functionalities
+export const request = async (contents: requestParams) => {
     // if we are connected using SIWS
     if (MemoryStoredTokenSiws.getInstance().output) {
         return await siwsRequest(contents);

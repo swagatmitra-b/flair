@@ -1,10 +1,10 @@
-import express from 'express';
+import { Router } from 'express';
 import * as yup from 'yup';
 import { v4 as uuidv4 } from 'uuid';
 import { rw, r } from '../lib/drivers/database.js';
 import { postSchema } from '../models/post.js';
-import { authorizedPk, web3Auth } from '../middleware/web3Auth.js';
-const postsRouter = express.Router();
+import { authorizedPk, web3Auth } from '../middleware/auth/web3Auth.js';
+const postsRouter = Router();
 postsRouter.get('/', web3Auth({ action: 'posts:get-all', allowSkipCheck: true }), async (_req, res) => {
     const pk = authorizedPk(res);
     // this needs to be changed so that the data is fetched using gun.js also

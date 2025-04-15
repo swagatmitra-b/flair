@@ -5,7 +5,6 @@ import nacl from 'tweetnacl';
 import { PublicKey } from '@solana/web3.js';
 import { Response, RequestHandler } from 'express';
 import b58 from 'bs58';
-import { TextDecoder } from 'util';
 import { DateTime } from 'luxon';
 
 /**
@@ -46,9 +45,32 @@ type Web3AuthHandlerCreator = (
  * contents of the message.
  */
 
+
+type extrcatedABNF = {
+  action: string,
+  expiryTime: string
+}
+const extractFromABNF = (message: string): extrcatedABNF => {
+  const msgArray = message.split('\n');
+  let action = '';
+  let expiryTime = '';
+  for (const field of msgArray) {
+    if (field.includes('Action:')) {
+      const [, extractedAction] = field.split(' ');
+      action = extractedAction;
+    }
+    if (field.includes('Expiration Time:')) {
+      const [, extractedExpiry] = field.split(' ');
+      expiryTime = extractedExpiry;
+    }
+  }
+  return { action, expiryTime };
+}
+
 // not just the validity of the signature but also its expiry and if the signature matches the action
 export const web3Auth: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
-  const { action, allowSkipCheck } = ctx;
+  const { allowSkipCheck } = ctx;
+  const givenAction = ctx.action;
   const authHeader = req.header('Authorization');
   if (!authHeader) {
     res
@@ -72,20 +94,23 @@ export const web3Auth: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
     return;
   }
 
-  // if signature valid then check whether the token is expired or not
-  const contents = JSON.parse(new TextDecoder().decode(b58.decode(msg))) as {
-    action: string;
-    exp: number;
-  };
+  // extract the action and expiry components here itself
 
-  if (DateTime.local().toUTC().toUnixInteger() > contents.exp) {
+  // if signature valid then check whether the token is expired or not
+  // const contents = JSON.parse(new TextDecoder().decode(b58.decode(msg))) as {
+  //   action: string;
+  //   exp: number;
+  // };
+  const { action, expiryTime } = extractFromABNF(msg);
+
+  if (Date.now() > new Date(expiryTime).getMilliseconds()) {
     res.status(401).send({ error: { message: 'Expired signature' } });
     return;
   }
 
-  const skipActionCheck = allowSkipCheck && contents.action === 'signin';
+  const skipActionCheck = allowSkipCheck && action === 'signin';
   console.log('💎', {
-    action: contents.action,
+    action,
     allowSkipCheck,
     skipActionCheck,
   });
@@ -93,7 +118,7 @@ export const web3Auth: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
   // the skip action check is the last check and checks whether the action that has been signed matches the action that is provided to be performed
   // skip action check skips this action though. so we can essentially do a skip action on every action, but we have allowed the skip action to be
   // available only for the GET request from the server.
-  if (!skipActionCheck && contents.action !== action) {
+  if (!skipActionCheck && action !== givenAction) {
     res.status(401).send({ error: { message: 'Invalid action' } });
     return;
   }

@@ -1,13 +1,9 @@
 // SIWS authentication router
 // Debashish Buragohain
-
 import { Router } from "express";
 import { createSignInData, verifySIWSsignin } from '../lib/auth/siws/index.js';
 import { verifyGenSignIn } from "../lib/auth/general/index.js";
-import { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
-
 const authRouter = Router();
-
 // similar to JWT and the way we did with the general Solana authentication we need to send the sign in token every time we send
 // a request to the backend.
 // this needs to be a get request
@@ -15,7 +11,6 @@ authRouter.get('/signin', async (req, res) => {
     const signInInputData = createSignInData();
     res.json(signInInputData);
 });
-
 // sign in is the only endpoint where we send the headers as a body for the first time verification
 authRouter.post('/signin', (req, res) => {
     // not supporting the special request as of now
@@ -41,7 +36,7 @@ authRouter.post('/signin', (req, res) => {
     // siws sign in
     else if (body.input) {
         try {
-            const deconstructPayload: { input: SolanaSignInInput, output: SolanaSignInOutput } = body;
+            const deconstructPayload = body;
             if (!verifySIWSsignin(deconstructPayload.input, deconstructPayload.output)) {
                 console.error('Sign In Verification Failed!');
                 res.status(400).json({ success: false });
@@ -57,5 +52,4 @@ authRouter.post('/signin', (req, res) => {
         }
     }
 });
-
 export { authRouter };

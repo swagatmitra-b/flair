@@ -9,7 +9,7 @@ import b58 from 'bs58';
 import { useWallet } from "@solana/wallet-adapter-react";
 import { getSignInData } from "./siws";
 import { SolanaSignInInput } from "@solana/wallet-standard-features";
-import { createSignInMessageText, SolanaSignInInputWithRequiredFields } from "@solana/wallet-standard-util";
+import { createSignInMessageText } from "../createsSignInMessageText";
 
 export type MessageSigner = {
     signMessage(message: Uint8Array): Promise<Uint8Array>;
@@ -55,10 +55,6 @@ export class MemoryStoredTokenGen {
     return `${pk}.${msg}.${sig}`;
   };
 
-  // type checker to check for empty fields in the sign in input
-  export const isSignInInputWithRequriedFields = (data: SolanaSignInInput): data is SolanaSignInInputWithRequiredFields => {
-    return !!data.domain && !!data.address
-  }
 
   // creates the sign in token and signs in and stores in memory
   export const genSignIn = async () => {
@@ -66,12 +62,20 @@ export class MemoryStoredTokenGen {
     await connect();
     const {publicKey, signMessage} = useWallet();
     if (!publicKey || !signMessage) throw new Error(`Could not connect to wallet.`);
+    
     const signInData: SolanaSignInInput = await getSignInData();        // fetch the sign in data from the backend
-    // store the sign in input that was sent from the backend
-    if (!isSignInInputWithRequriedFields(signInData)) {                 // convert to required fields type data
-      throw new Error(`Invalid sign-in data: 'domain' and 'address' are required.`);
-    }
-    const signInMessage: string = createSignInMessageText(signInData);
+    
+    // !-- uncomment if using SIWS message generation
+    // const isSignInInputWithRequriedFields = (data: SolanaSignInInput): data is SolanaSignInInputWithRequiredFields => {
+    //   return !!data.domain && !!data.address
+    // }
+    // if (!isSignInInputWithRequriedFields(signInData)) {              // convert to required fields type data
+    //   throw new Error(`Invalid sign-in data: 'domain' and 'address' are required.`);
+    // }
+
+    let signInMessage: string = createSignInMessageText(signInData, 'signin');
+    // add the action to this sign in message    
+    signInMessage += '\n'
     const authToken = await createAuthToken(signInMessage, {
       publicKey,
       signMessage

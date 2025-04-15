@@ -1,19 +1,22 @@
+// Non SIWS ABNF-like message generation
 // Message construction using the ABNF format
 // this is usually defined in the same function name from @solana/wallet-standard-utils
 // Debashish Buragohain
 
 import type { SolanaSignInInput } from '@solana/wallet-standard-features'
 
-export function createSignInMessageText(input: SolanaSignInInput): string {
+export function createSignInMessageText(input: SolanaSignInInput, action: string): string {
     let message = `${input.domain} wants you to sign in with your Solana account:\n`;
     message += `${input.address}`;
 
     if (input.statement) {
         message += `\n\n${input.statement}`;
     }
-
     const fields: string[] = [];
-    if (input.uri) {
+    // action must be pushed as a mandatory action for Non SIWS actions and special requests
+    // though not in the ABNF message format, this is included becasue we are using the traditional message verification and not SIWS
+    fields.push(`Action: ${action}`);
+    if (input.uri) {        
         fields.push(`URI: ${input.uri}`);
     }
     if (input.version) {
