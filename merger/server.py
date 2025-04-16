@@ -1,7 +1,12 @@
+from flwr.server import ServerConfig, start_server
 from flwr.server.strategy import FedAvg
+from flwr.server.client_proxy import ClientProxy
 from flower_async.async_strategy import AsynchronousStrategy
 from flower_async.async_client_manager import AsyncClientManager
 from flower_async.async_server import AsyncServer
+
+
+from simulated_client import SimulatedClient
 
 # Parameters to customize based on your application
 TOTAL_SAMPLES = 10000                 # Approx. total number of samples across clients (adjust based on your dataset)
@@ -44,4 +49,23 @@ server = AsyncServer(
     base_conf_dict=base_conf_dict
 )
 
-history = server.fit(num_rounds=5, timeout=60)
+# create a single client manager instance
+client_manager = AsyncClientManager(),
+
+# register the clients with the client manager
+for i in range(1):
+    cid = str(i)
+    simulated_client = SimulatedClient(cid)
+    client_proxy = ClientProxy(cid=cid)
+    client_manager.register(client_proxy)
+
+
+config = ServerConfig(num_rounds=1)
+# start the flower server using the original start server method
+start_server(
+    # server_address='0.0.0.0:2004',
+    config=config,
+    server=server,
+    client_manager=client_manager,
+)
+

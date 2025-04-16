@@ -46,5 +46,8 @@ def register_simulated_clients(client_manager: AsyncClientManager, num_clients: 
 
 # Example usage: instantiate the async client manager and register simulated clients.
 if __name__ == "__main__":
+    from flwr.client import start_client
+    client_id = str(random.randint(1, 10000))
+    client = SimulatedClient(client_id)
     client_manager = AsyncClientManager()
     register_simulated_clients(client_manager, num_clients=10)
