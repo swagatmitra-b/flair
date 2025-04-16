@@ -5,7 +5,7 @@ import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 
-import { authRouter, postsRouter } from './routes/index.js';
+import { authRouter, repoRouter } from './routes/index.js';
 
 const PORT = process.env.PORT!;
 
@@ -19,10 +19,8 @@ app.use(express.json());
 // SIWS authentication implemented at this position
 app.use('/auth', authRouter);
 
-// normal routes defined herefafter
-
 // Routes
-app.use('/posts', postsRouter);
+app.use('/repo', repoRouter);
 
 // Handle 404
 app.all('*', (req, res, next) => {

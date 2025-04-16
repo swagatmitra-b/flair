@@ -1,6 +1,5 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
@@ -23,15 +22,19 @@ enum CommitStatus {
   PENDING
   REJECTED
   MERGED
+  MERGERCOMMIT    // the merger commit is the commit that is created after the pending commits have been merged
 }
 
 model Repository {
   id             String    @id @default(auto()) @map("_id") @db.ObjectId
+  repoHash       String
   creator        String // creator will also be a wallet address only
   framework      Framework // framework remains constant for a repository
-  contributorIds String[]  @db.ObjectId
-  metadata       Json?
-  fileUri        String // The uri of the inital model (preferably in S3 storage)
+  writeAccessIds String[]  @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
+  adminIds       String[]  @default([]) // list of admins that can give and revoke write permissions and delete the repository
+  contributorIds String[]  @default([]) // initialized
+  metadata       Json? // optional metadata that needs to be added
+  fileUri        String? // The uri of the inital model, set only after the first commit when the model is uploaded
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @default(now()) // timestamp of the latest update
   branches       Branch[] // a single repository might contain serveral branches
@@ -41,8 +44,9 @@ model Repository {
 model Branch {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String // name of the branch
+  branchHash   String
   description  String? // description of the branch's purpose
-  initalParams String // base64 encoded model parameters for the initial model
+  latestParams String? // base64 encoded model parameters for the latest mode parameters
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) // timestamp of the last commit
   commits      Commit[] // commits in that branch
@@ -54,19 +58,23 @@ model Branch {
 // a single commit happens from only a single person
 // not like the way currently federated learning happens
 model Commit {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  status         CommitStatus // the status of this particuar commit
-  contributor    String // wallet address of the contributor  
-  message        String // commit message
-  paramHash      String // hash of the parmeters for the commit
-  params         Params? // the param is stored as a separate model
-  createdAt      DateTime     @default(now()) // when the commit was created  
-  localAccuracy  String
-  localLoss      String
-  mergedAccuracy String? // updated only after the commit has been merged
-  mergedLoss     String?
-  branchId       String       @db.ObjectId
-  branch         Branch       @relation(fields: [branchId], references: [id])
+  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  commitHash         String
+  previousCommitHash String
+  status             CommitStatus // the status of this particuar commit
+  rejectedMessage    String? // (Optional) why the commit was rejected in case it was rejected.
+  contributor        String // wallet address of the contributor  
+  message            String // commit message
+  paramHash          String // hash of the parmeters for the commit
+  params             Params? // the param is stored as a separate model
+  createdAt          DateTime      @default(now()) // when the commit was created  
+  localAccuracy      String
+  localLoss          String
+  // mergedParams       MergedParams?
+  mergedAccuracy     String? // updated only after the commit has been merged
+  mergedLoss         String?
+  branchId           String        @db.ObjectId
+  branch             Branch        @relation(fields: [branchId], references: [id])
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
@@ -77,3 +85,11 @@ model Params {
   commitId  String  @unique @db.ObjectId // needs to be unique for a one to one relationship
   commit    Commit  @relation(fields: [commitId], references: [id])
 }
+
+// the merged parameter schema has been removed and every merge will result in a new Accept commit
+// model MergedParams {
+//   id       String @id @default(auto()) @map("_id") @db.ObjectId
+//   params   String // base64 encoded blosc compressed parameters after the model has been merged
+//   commitId String @unique @db.ObjectId
+//   commit   Commit @relation(fields: [commitId], references: [id])
+// }
