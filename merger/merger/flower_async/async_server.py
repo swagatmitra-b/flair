@@ -45,10 +45,10 @@ from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
 import flwr.server.strategy.aggregate as agg
 from flwr.server.server import Server
-from flower_async.async_history import AsyncHistory
+from merger.flower_async.async_history import AsyncHistory
 
-from flower_async.async_client_manager import AsyncClientManager
-from flower_async.async_strategy import AsynchronousStrategy
+from merger.flower_async.async_client_manager import AsyncClientManager
+from merger.flower_async.async_strategy import AsynchronousStrategy
 
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
@@ -177,7 +177,7 @@ class AsyncServer(Server):
         self.save_model()
         elapsed = end_time - start_time
         log(INFO, "FL finished in %s", elapsed)
-        return history
+        return history, elapsed
     
     def save_model(self):
         # Save the model

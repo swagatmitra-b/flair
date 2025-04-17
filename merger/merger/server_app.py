@@ -1,4 +1,6 @@
-"""merger: A Flower / PyTorch app."""
+# merger for Flair: based on the async flower server wrapper
+# Debashish Buragohain
+
 
 from flwr.common import Context, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
@@ -6,9 +8,9 @@ from merger.task import Net, get_weights
 
 from flwr.server import ServerConfig, start_server
 from flwr.server.strategy import FedAvg
-from flower_async.async_strategy import AsynchronousStrategy
-from flower_async.async_client_manager import AsyncClientManager
-from flower_async.async_server import AsyncServer
+from merger.flower_async.async_strategy import AsynchronousStrategy
+from merger.flower_async.async_client_manager import AsyncClientManager
+from merger.flower_async.async_server import AsyncServer
 
 
 # Parameters to customize based on your application
@@ -51,7 +53,8 @@ def server_fn(context: Context):
         "client_local_delay": False,
         "dataset_seed": 42,
         "data_loading_strategy": "fixed_nr",
-        "n_last_samples_for_data_loading_fit": 100
+        "n_last_samples_for_data_loading_fit": 100,
+        "is_streaming": False,        
     }        
         
     config = ServerConfig(num_rounds=num_rounds)
@@ -73,8 +76,7 @@ def server_fn(context: Context):
         base_conf_dict=base_conf_dict
     )
     
-    return ServerAppComponents(strategy=strategy, 
-                               config=config,
+    return ServerAppComponents(config=config,
                                server=server,
                                client_manager=client_manager)
 
