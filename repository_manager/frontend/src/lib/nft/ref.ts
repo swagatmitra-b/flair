@@ -47,7 +47,6 @@ const create = async (): Promise<void> => {
 
     // Airdrop SOL on devnet for testing
     await umi.rpc.airdrop(umi.identity.publicKey, sol(1));
-
     const imageFile = fs.readFileSync(
         path.join(__dirname, '/assets/image.jpg')
     );

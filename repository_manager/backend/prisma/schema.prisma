@@ -22,7 +22,7 @@ enum CommitStatus {
   PENDING
   REJECTED
   MERGED
-  MERGERCOMMIT    // the merger commit is the commit that is created after the pending commits have been merged
+  MERGERCOMMIT // the merger commit is the commit that is created after the pending commits have been merged
 }
 
 model Repository {
@@ -58,7 +58,7 @@ model Branch {
 // a single commit happens from only a single person
 // not like the way currently federated learning happens
 model Commit {
-  id                 String        @id @default(auto()) @map("_id") @db.ObjectId
+  id                 String       @id @default(auto()) @map("_id") @db.ObjectId
   commitHash         String
   previousCommitHash String
   status             CommitStatus // the status of this particuar commit
@@ -67,14 +67,14 @@ model Commit {
   message            String // commit message
   paramHash          String // hash of the parmeters for the commit
   params             Params? // the param is stored as a separate model
-  createdAt          DateTime      @default(now()) // when the commit was created  
+  createdAt          DateTime     @default(now()) // when the commit was created  
   localAccuracy      String
   localLoss          String
   // mergedParams       MergedParams?
   mergedAccuracy     String? // updated only after the commit has been merged
   mergedLoss         String?
-  branchId           String        @db.ObjectId
-  branch             Branch        @relation(fields: [branchId], references: [id])
+  branchId           String       @db.ObjectId
+  branch             Branch       @relation(fields: [branchId], references: [id])
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
@@ -84,6 +84,24 @@ model Params {
   zkmlProof String? // ZKML proof for the current model
   commitId  String  @unique @db.ObjectId // needs to be unique for a one to one relationship
   commit    Commit  @relation(fields: [commitId], references: [id])
+}
+
+// merkleTree model that stores the current merkle tree adress and how many can be implemented
+// only admin accessible
+model MerkleTrees {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  mintAuthority   String // public key of the wallet that has mint authority on this merkleTree
+  active          Boolean  @default(false) // if this is the current merkle tree that is being used
+  address         String // public key of the merkle tree
+  secret          String // secret key of the merkle tree
+  totalLeaves     Int // total leaves in the merkle tree
+  remainingLeaves Int // leaves remaining where NFTs can be minted
+  createdAt       DateTime @default(now())
+}
+
+// user model needed to be created
+model User {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
 }
 
 // the merged parameter schema has been removed and every merge will result in a new Accept commit
