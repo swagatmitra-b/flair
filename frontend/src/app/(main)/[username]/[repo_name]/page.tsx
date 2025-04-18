@@ -1,84 +1,64 @@
-'use client';
+'use client'
 
-import { Pencil, X } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useState } from 'react';
+import Readme from '@/components/Readme'
+import { ChevronRight, History, Pencil, X } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { use, useState } from 'react'
 
-const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
-  const { repo_name } = params;
+const Page = (props: { params: Promise<{ repo_name: string }> }) => {
+  const { repo_name } = use(props.params)
 
   // --- About section ---
-  const [isEditingAbout, setIsEditingAbout] = useState(false);
+  const [isEditingAbout, setIsEditingAbout] = useState(false)
   const [aboutText, setAboutText] = useState(
-    'Lorem ipsum dolor sit amet consectetur, adipisicing elit. Pariatur molestiae nam quidem, expedita commodi illum, ratione a totam perferendis necessitatibus eum, quia earum doloremque animi. Laudantium doloribus ab porro eaque!'
-  );
-  const [tempAboutText, setTempAboutText] = useState(aboutText);
+    'Lorem ipsum dolor sit amet consectetur, adipisicing elit. Pariatur molestiae nam quidem, expedita commodi illum, ratione a totam perferendis necessitatibus eum, quia earum doloremque animi. Laudantium doloribus ab porro eaque!',
+  )
+  const [tempAboutText, setTempAboutText] = useState(aboutText)
 
   // --- Model URI section ---
-  const [isEditingModelURI, setIsEditingModelURI] = useState(false);
-  const [modelURI, setModelURI] = useState('www.example.com/model-uri');
-  const [tempModelURI, setTempModelURI] = useState(modelURI);
+  const [isEditingModelURI, setIsEditingModelURI] = useState(false)
+  const [modelURI, setModelURI] = useState('www.example.com/model-uri')
+  const [tempModelURI, setTempModelURI] = useState(modelURI)
 
   // --- Use Cases section ---
-  const [isEditingUseCases, setIsEditingUseCases] = useState(false);
+  const [isEditingUseCases, setIsEditingUseCases] = useState(false)
   const [useCases, setUseCases] = useState(
-    'Lorem ipsum dolor sit amet consectetur, adipisicing elit. Pariatur molestiae nam quidem, expedita commodi illum, ratione a totam perferendis necessitatibus eum, quia earum doloremque animi. Laudantium doloribus ab porro eaque!'
-  );
-  const [tempUseCases, setTempUseCases] = useState(useCases);
+    'Lorem ipsum dolor sit amet consectetur, adipisicing elit. Pariatur molestiae nam quidem, expedita commodi illum, ratione a totam perferendis necessitatibus eum, quia earum doloremque animi. Laudantium doloribus ab porro eaque!',
+  )
+  const [tempUseCases, setTempUseCases] = useState(useCases)
 
   // --- Framework section ---
   // For simplicity, we'll treat this as a comma-separated text list.
-  const [isEditingFramework, setIsEditingFramework] = useState(false);
-  const [framework, setFramework] = useState('python, tensorflow, pytorch');
-  const [tempFramework, setTempFramework] = useState(framework);
+  const [isEditingFramework, setIsEditingFramework] = useState(false)
+  const [framework, setFramework] = useState('python, tensorflow, pytorch')
+  const [tempFramework, setTempFramework] = useState(framework)
 
   // --- Contributors section ---
   // Again treating contributors as a comma-separated text list.
-  const [isEditingContributors, setIsEditingContributors] = useState(false);
-  const [contributors, setContributors] = useState(
-    'Contributor1, Contributor2, Contributor3'
-  );
-  const [tempContributors, setTempContributors] = useState(contributors);
+  const [isEditingContributors, setIsEditingContributors] = useState(false)
+  const [contributors, setContributors] = useState('Contributor1, Contributor2, Contributor3')
+  const [tempContributors, setTempContributors] = useState(contributors)
 
-  // // Handlers for Save/Cancel pattern. When saving, commit the temp value to the actual value.
+  // Handlers for Save/Cancel pattern. When saving, commit the temp value to the actual value.
   const handleSave = (section: string) => {
     if (section === 'about') {
-      setAboutText(tempAboutText);
-      setIsEditingAbout(false);
+      setAboutText(tempAboutText)
+      setIsEditingAbout(false)
     } else if (section === 'modelURI') {
-      setModelURI(tempModelURI);
-      setIsEditingModelURI(false);
+      setModelURI(tempModelURI)
+      setIsEditingModelURI(false)
     } else if (section === 'useCases') {
-      setUseCases(tempUseCases);
-      setIsEditingUseCases(false);
+      setUseCases(tempUseCases)
+      setIsEditingUseCases(false)
     } else if (section === 'framework') {
-      setFramework(tempFramework);
-      setIsEditingFramework(false);
+      setFramework(tempFramework)
+      setIsEditingFramework(false)
     } else if (section === 'contributors') {
-      setContributors(tempContributors);
-      setIsEditingContributors(false);
+      setContributors(tempContributors)
+      setIsEditingContributors(false)
     }
-  };
-
-  // const handleCancel = (section: string) => {
-  //   if (section === 'about') {
-  //     setTempAboutText(aboutText);
-  //     setIsEditingAbout(false);
-  //   } else if (section === 'modelURI') {
-  //     setTempModelURI(modelURI);
-  //     setIsEditingModelURI(false);
-  //   } else if (section === 'useCases') {
-  //     setTempUseCases(useCases);
-  //     setIsEditingUseCases(false);
-  //   } else if (section === 'framework') {
-  //     setTempFramework(framework);
-  //     setIsEditingFramework(false);
-  //   } else if (section === 'contributors') {
-  //     setTempContributors(contributors);
-  //     setIsEditingContributors(false);
-  //   }
-  // };
+  }
 
   return (
     <section className="min-h-screen bg-[#0d1117] w-full pt-20 px-32">
@@ -94,7 +74,40 @@ const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
         <div className="flex-grow"></div>
       </div>
       <div className="flex justify-center items-start mt-8">
-        <div className="flex-grow"></div>
+        <div className="flex-grow px-4 flex flex-col gap-2">
+          {/* Latest Commit + Number of Commits */}
+          <div className="flex items-center py-2 px-4 rounded-lg w-full h-12 bg-gray-800">
+            <div className="flex items-center gap-2">
+              <Image
+                className="h-8 w-8 rounded-full"
+                src={'/dummy/profile.png'}
+                width={16}
+                height={16}
+                alt="avater"
+              ></Image>
+              <h4 className="text-sm text-gray-300 font-bold">
+                johnCena{' '}
+                <span className="font-normal text-gray-400"> trained on a lot of data </span>
+              </h4>
+            </div>
+            <div className="flex-grow-1"></div>
+            {/* TODO: navigate to another page where all the commits will be displayed */}
+            <div className="flex items-center gap-1 text-sm text-gray-400">
+              <History size={20} />
+              <p className="">15 Commits</p>
+              <Link
+                href={`/${'hirak'}/${repo_name}/commits`}
+                className="text-gray-400 hover:text-blue-400"
+              >
+                <ChevronRight /> {}
+              </Link>
+            </div>
+          </div>
+          {/* Accuracy */}
+          <div></div>
+          <Readme readme="Readme content goes here" />
+        </div>
+
         <div className="w-76 h-full border-l border-gray-500 p-4 pl-8 flex flex-col gap-4">
           {/* About Section */}
           <div className="flex flex-col gap-2">
@@ -114,7 +127,7 @@ const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
                   style={{ scrollbarWidth: 'none' }}
                   placeholder="Write about the model..."
                   value={tempAboutText}
-                  onChange={(e) => setTempAboutText(e.target.value)}
+                  onChange={e => setTempAboutText(e.target.value)}
                   className="w-full bg-[#0d1117] text-sm text-gray-500 border border-gray-600 p-2 rounded-md focus:outline-none"
                   rows={5}
                 />
@@ -147,9 +160,10 @@ const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
             {isEditingModelURI ? (
               <div className="flex flex-col gap-2">
                 <input
+                  placeholder="https://example.com/model-uri"
                   type="text"
                   value={tempModelURI}
-                  onChange={(e) => setTempModelURI(e.target.value)}
+                  onChange={e => setTempModelURI(e.target.value)}
                   className="w-full bg-[#0d1117] text-sm text-gray-300 border border-gray-600 p-2 rounded-md focus:outline-none"
                 />
                 <div className="flex gap-2">
@@ -191,7 +205,7 @@ const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
                   placeholder="Write about the use cases..."
                   style={{ scrollbarWidth: 'none' }}
                   value={tempUseCases}
-                  onChange={(e) => setTempUseCases(e.target.value)}
+                  onChange={e => setTempUseCases(e.target.value)}
                   className="w-full bg-[#0d1117] text-sm text-gray-500 border border-gray-600 p-2 rounded-md focus:outline-none"
                   rows={5}
                 />
@@ -310,7 +324,7 @@ const Page: React.FC<{ params: { repo_name: string } }> = ({ params }) => {
         </div>
       </div>
     </section>
-  );
-};
+  )
+}
 
-export default Page;
+export default Page
