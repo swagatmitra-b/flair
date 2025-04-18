@@ -2,7 +2,7 @@ import { prisma } from '../lib/prisma';
 import { Router } from 'express';
 import { authHandler, authorizedPk } from '../middleware/auth';
 import { signInContext } from '../middleware/auth/context';;
-import { Framework, MetaData } from '../lib/types/repo';
+import { RepositoryMetdata } from '../lib/types/repo';
 import { branchRouter } from './branch';
 
 const repoRouter = Router();
@@ -13,9 +13,7 @@ repoRouter.get('/', authHandler(signInContext),
         // extract the authorized public key
         const pk = authorizedPk(res);
         prisma.repository.findMany({
-            where: {
-                creator: pk
-            }
+            where: { ownerAddress: pk }
         }).then(repos => {
             res.status(200).json({ data: repos });
             return;
@@ -25,6 +23,17 @@ repoRouter.get('/', authHandler(signInContext),
             return;
         })
     });
+
+// get a specific repository given the repository name
+repoRouter.get('/name/:name', authHandler(signInContext), async (req, res) => {
+    const { name } = req.params;
+    const matchRepo = await prisma.repository.findFirst({ where: { name } });
+    if (!matchRepo) {
+        res.status(404).send({ error: { message: 'Repository not found.' } });
+        return;
+    }
+    res.status(200).json({ data: matchRepo });
+});
 
 // get a specific repository given the repository hash
 // Example route to get a repository
@@ -44,21 +53,32 @@ repoRouter.post('/create', authHandler(signInContext),
         try {
             // create a repository
             const pk = authorizedPk(res);
-            const { framework, metadata, repoHash }: { framework: Framework, metadata?: MetaData, repoHash: string } = req.body;
-            // framework is a necessary parameter
-            if (!framework || !metadata || !repoHash) {
-                res.status(400).send({ error: { message: 'Required fields not provided.' } });
+            const { metadata, 
+                repoHash, 
+                name,
+             }: { metadata?: RepositoryMetdata, repoHash: string, name: string } = req.body;
+            if (!metadata || !repoHash || !name) {
+                res.status(400).send({ error: { message: 'Required fields are not provided.' } });
+                return;
+            }
+            const owner = await prisma.user.findFirst({
+                where: { wallet: pk }
+            });
+            if (!owner) {
+                res.status(401).send({ error: { message: 'User not found!' } });
                 return;
             }
             const repository = await prisma.repository.create({
                 data: {
-                    creator: pk,
-                    framework,
+                    name,
+                    ownerAddress: pk,
                     contributorIds: [pk],
-                    metadata: metadata,
-                    repoHash
+                    metadata: JSON.parse(JSON.stringify(metadata)),
+                    repoHash,
+                    ownerId: owner.id
                 }
             });
+
             res.status(201).json({ data: repository });
             return;
         }
@@ -75,6 +95,7 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
         const pk = authorizedPk(res);
         const { repoHash } = req.params;
         const {
+            name,
             addContributorIds = [],
             removeContributorIds = [],
             addAdminIds = [],
@@ -82,15 +103,16 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
             addWriteAccessIds = [],
             removeWriteAccessIds = [],
             metadata,
-            fileUri
-        } = req.body;
+            baseModelUri,
+            baseModelHash,
+        }= req.body;
 
         if (!repoHash) {
             res.status(400).send({ error: { message: 'Repository hash not provided to update.' } });
             return;
         }
 
-        if (!metadata && !fileUri && !addContributorIds.length && !removeContributorIds.length && !addAdminIds.length && !removeAdminIds.length && !addWriteAccessIds.length && !removeWriteAccessIds.length) {
+        if (!metadata && !baseModelUri && !addContributorIds.length && !removeContributorIds.length && !addAdminIds.length && !removeAdminIds.length && !addWriteAccessIds.length && !removeWriteAccessIds.length) {
             res.status(400).send({ error: { message: 'No fields provided to update.' } });
             return;
         }
@@ -101,8 +123,8 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
             res.status(404).send({ error: { message: 'Repository does not exist.' } });
             return;
         }
-        // Check if the user is the creator or an admin
-        const isAdmin = match.creator === pk || (match.adminIds && match.adminIds.includes(pk));
+        // Check if the user is the owner or an admin
+        const isAdmin = match.ownerAddress === pk || (match.adminIds && match.adminIds.includes(pk));
         if (!isAdmin) {
             res.status(401).send({ error: { message: 'Unauthorized. Only admins can update repository details.' } });
             return;
@@ -129,6 +151,9 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
             ].filter(id => !removeWriteAccessIds.includes(id)))
         );
 
+        const exisingMetadata: Object = match.metadata || {};
+        const updatedMetdata: RepositoryMetdata = { ...exisingMetadata, ...metadata };
+
         // Update the repository
         const updatedRepo = await prisma.repository.update({
             where: { id: match.id },
@@ -136,12 +161,13 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
                 ...(updatedContributorIds && { contributorIds: updatedContributorIds }),
                 ...(updatedAdminIds && { adminIds: updatedAdminIds }),
                 ...(updatedWriteAccessIds && { writeAccessIds: updatedWriteAccessIds }),
-                ...(metadata && { metadata }),
-                ...(fileUri && { fileUri }),
+                ...(updatedMetdata && { metadata: updatedMetdata }),
+                ...(baseModelUri && { baseModelUri }),
+                ...(baseModelHash && {baseModelHash}),
+                ...(name && {name}),        // in case we want to change the name of the repository
                 updatedAt: new Date(),
             },
         });
-
         res.status(200).json(updatedRepo);
         return;
 
@@ -152,10 +178,9 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
     }
 });
 
-
 // mounting the branch router here
 repoRouter.use('/:repoHash/branch', async (req, res, next) => {
-    const { repoHash} = req.params;
+    const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({
         where: { repoHash }
     });

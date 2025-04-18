@@ -1,7 +1,6 @@
 # merger for Flair: based on the async flower server wrapper
 # Debashish Buragohain
 
-
 from flwr.common import Context, ndarrays_to_parameters
 from flwr.server import ServerApp, ServerAppComponents, ServerConfig
 from merger.task import Net, get_weights

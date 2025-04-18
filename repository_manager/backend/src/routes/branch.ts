@@ -52,7 +52,7 @@ branchRouter.post('/create', authHandler(signInContext),
                 where: { id: repoId }
             });
             // if the user is not the creator of the repo and is not in the write access list
-            if (matchRepo!.creator !== pk && !matchRepo!.writeAccessIds.includes(pk)) {
+            if (matchRepo!.ownerAddress !== pk && !matchRepo!.writeAccessIds.includes(pk)) {
                 res.status(401).send({ error: { message: 'Unauthorized. You can only create a branch in your own repository or those that you have write access.' } });
                 return;
             }
@@ -102,7 +102,7 @@ branchRouter.put('/update/:branchHash', authHandler(signInContext), async (req, 
         res.status(404).send({ error: { message: 'Repository not found.' } });
         return;
     }
-    if (matchRepo.creator !== pk && !matchRepo.writeAccessIds.includes(pk)) {
+    if (matchRepo.ownerAddress !== pk && !matchRepo.writeAccessIds.includes(pk)) {
         res.status(401).send({ error: { message: 'Unauthorized. You can only update your own repository or those you have write access.' } });
         return;
     }
@@ -148,7 +148,7 @@ branchRouter.delete('/delete/:branchHash', authHandler(signInContext), async (re
             res.status(404).send({ error: { message: 'Repository not found.' } });
             return;
         }
-        if (matchRepo.creator !== pk && !matchRepo.adminIds.includes(pk)) {
+        if (matchRepo.ownerAddress !== pk && !matchRepo.adminIds.includes(pk)) {
             res.status(401).send({ error: { message: 'Unauthorized. Only a creator or an admin can delete the branch.' } });
             return;
         }
@@ -199,6 +199,5 @@ branchRouter.use('/:branchHash/commit', async (req, res, next) => {
     }
     req.branchId = matchBranch.id;  // attach the id of the given branch in the request
 }, commitRouter);
-
 
 export { branchRouter };

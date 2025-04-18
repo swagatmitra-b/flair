@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,12 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// initially supporting only two frameworks
-enum Framework {
-  PYTORCH
-  TENSORFLOW
-}
-
 enum CommitStatus {
   PENDING
   REJECTED
@@ -25,31 +14,47 @@ enum CommitStatus {
   MERGERCOMMIT // the merger commit is the commit that is created after the pending commits have been merged
 }
 
+// user model needed to be created
+model User {
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  wallet       String       @unique // walet address of the user
+  repositories Repository[] // repositories created by the user
+  commits      Commit[] // commits created by the user
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now())
+}
+
 model Repository {
-  id             String    @id @default(auto()) @map("_id") @db.ObjectId
-  repoHash       String
-  creator        String // creator will also be a wallet address only
-  framework      Framework // framework remains constant for a repository
-  writeAccessIds String[]  @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
-  adminIds       String[]  @default([]) // list of admins that can give and revoke write permissions and delete the repository
-  contributorIds String[]  @default([]) // initialized
-  metadata       Json? // optional metadata that needs to be added
-  fileUri        String? // The uri of the inital model, set only after the first commit when the model is uploaded
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) // timestamp of the latest update
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  name           String // name of the repository needs to be mandatorily as a main parameter
+  repoHash       String   @unique
   branches       Branch[] // a single repository might contain serveral branches
+  writeAccessIds String[] @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
+  adminIds       String[] @default([]) // list of admins that can give and revoke write permissions and delete the repository
+  contributorIds String[] @default([]) // initialized
+  metadata       Json? // optional metadata that needs to be added
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) // timestamp of the latest update
+  // the owner of the repository
+  ownerAddress   String // wallet address of the owner
+  ownerId        String   @db.ObjectId
+  owner          User     @relation(fields: [ownerId], references: [id])
+  // base model
+  baseModelHash  String?
+  baseModelUri   String?
 }
 
 // repository contains branches
 model Branch {
   id           String     @id @default(auto()) @map("_id") @db.ObjectId
   name         String // name of the branch
-  branchHash   String
+  branchHash   String     @unique
   description  String? // description of the branch's purpose
   latestParams String? // base64 encoded model parameters for the latest mode parameters
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @default(now()) // timestamp of the last commit
   commits      Commit[] // commits in that branch
+  // the repository to which the branch belongs
   repositoryId String     @db.ObjectId // repository id for this branch
   Repository   Repository @relation(fields: [repositoryId], references: [id])
 }
@@ -58,30 +63,35 @@ model Branch {
 // a single commit happens from only a single person
 // not like the way currently federated learning happens
 model Commit {
-  id                 String       @id @default(auto()) @map("_id") @db.ObjectId
-  commitHash         String
-  previousCommitHash String
-  status             CommitStatus // the status of this particuar commit
-  rejectedMessage    String? // (Optional) why the commit was rejected in case it was rejected.
-  contributor        String // wallet address of the contributor  
-  message            String // commit message
-  paramHash          String // hash of the parmeters for the commit
-  params             Params? // the param is stored as a separate model
-  createdAt          DateTime     @default(now()) // when the commit was created  
-  localAccuracy      String
-  localLoss          String
-  // mergedParams       MergedParams?
-  mergedAccuracy     String? // updated only after the commit has been merged
-  mergedLoss         String?
-  branchId           String       @db.ObjectId
-  branch             Branch       @relation(fields: [branchId], references: [id])
+  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
+  commitHash           String       @unique // hash of the current commit
+  previousMergerCommit String // this is mandatory for all commits
+  relatedMergerCommit  String? // only for accepted commits
+  status               CommitStatus // the status of this particuar commit
+  rejectedMessage      String? // (Optional) why the commit was rejected in case it was rejected.  
+  message              String // commit message
+  paramHash            String       @unique // hash of the parmeters for the commit
+  params               Params? // the param is stored as a separate model
+  createdAt            DateTime     @default(now()) // when the commit was created  
+  statusUpdatedAt      DateTime?
+  // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
+  // for a merger commit, this will be the merged parameters
+  // for an accepted commit this will be the local parameters
+  metrics              Json // the metrics of the model (e.g. accuracy, loss etc.)
+  // which branch the commit belongs to
+  branchId             String       @db.ObjectId
+  branch               Branch       @relation(fields: [branchId], references: [id])
+  // committer data included with new user model created
+  committerAddress     String // wallet address of the contributor  
+  committerId          String       @db.ObjectId
+  committer            User         @relation(fields: [committerId], references: [id])
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
   id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  params    String // base64 encoded blosc compressed parameters 
-  zkmlProof String? // ZKML proof for the current model
+  params    String  @unique // base64 encoded blosc compressed parameters 
+  zkmlProof String? @unique // ZKML proof for the current model
   commitId  String  @unique @db.ObjectId // needs to be unique for a one to one relationship
   commit    Commit  @relation(fields: [commitId], references: [id])
 }
@@ -92,22 +102,20 @@ model MerkleTrees {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   mintAuthority   String // public key of the wallet that has mint authority on this merkleTree
   active          Boolean  @default(false) // if this is the current merkle tree that is being used
-  address         String // public key of the merkle tree
-  secret          String // secret key of the merkle tree
+  address         String   @unique // public key of the merkle tree
+  secret          String   @unique // secret key of the merkle tree
   totalLeaves     Int // total leaves in the merkle tree
   remainingLeaves Int // leaves remaining where NFTs can be minted
   createdAt       DateTime @default(now())
 }
 
-// user model needed to be created
-model User {
-  id String @id @default(auto()) @map("_id") @db.ObjectId
+// details of the nft
+model Nft {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  assetId           String   @unique
+  signature         String   @unique
+  merkleTreeAddress String
+  owner             String
+  createdAt         DateTime @default(now())
+  // think of other fields that you want to include
 }
-
-// the merged parameter schema has been removed and every merge will result in a new Accept commit
-// model MergedParams {
-//   id       String @id @default(auto()) @map("_id") @db.ObjectId
-//   params   String // base64 encoded blosc compressed parameters after the model has been merged
-//   commitId String @unique @db.ObjectId
-//   commit   Commit @relation(fields: [commitId], references: [id])
-// }

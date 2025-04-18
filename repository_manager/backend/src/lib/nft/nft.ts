@@ -38,7 +38,7 @@ export async function mintNft(umi: Umi, createIns: CreateInstructions, metadata:
 
 // mint the cNFT provided the metadata and return the signature of the transaction
 // we need the signature every time we fetch the Nft asset
-export const mintcNft = async (umi: Umi, owner: string, metadata: Metadata): Promise<string> => {
+export const mintCNft = async (umi: Umi, owner: string, metadata: Metadata): Promise<string> => {
     if (!umi.identity) {
         throw new Error('Crticial Error: Wallet not connected. Cannot mint cNft.');
     }
@@ -51,6 +51,7 @@ export const mintcNft = async (umi: Umi, owner: string, metadata: Metadata): Pro
     const merkleTree = publicKey(merkleTreeAdress);
 
     // for the compressed Nfts we do not need to generate a separate keypair for the account
+    // the cnft is non transferreable therefore there is no leaf delegate property defined here
     const { signature } = await mintV1(umi, {
         leafOwner,
         merkleTree,
@@ -64,7 +65,7 @@ export const mintcNft = async (umi: Umi, owner: string, metadata: Metadata): Pro
                 share: 0
             }],
             collection: none()
-        }
+        },        
     }).sendAndConfirm(umi, { send: { commitment: 'finalized' } });
     // update the current merkle tree
     await updateCurrentTree();
@@ -108,4 +109,9 @@ export async function fetchCNftFromSignature(umi: Umi, merkleTree: string, signa
     // fetch the proof of the aset
     const rpcAssetProof = await umi.rpc.getAssetProof(assetId);
     return { asset, rpcAssetProof };
+}
+
+
+export async function createCollection(umi: Umi) {
+
 }

@@ -1,4 +1,5 @@
-"""merger: A Flower / PyTorch app."""
+# The task file is required by both the server and the client
+# Debashish Buragohain
 
 from collections import OrderedDict
 
@@ -11,6 +12,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import Compose, Normalize, ToTensor
 
 
+# the Net class is required for the server module
 class Net(nn.Module):
     """Model (simple CNN adapted from 'PyTorch: A 60 Minute Blitz')"""
 
@@ -31,9 +33,7 @@ class Net(nn.Module):
         x = F.relu(self.fc2(x))
         return self.fc3(x)
 
-
 fds = None  # Cache FederatedDataset
-
 
 def load_data(partition_id: int, num_partitions: int):
     """Load partition CIFAR10 data."""
@@ -61,6 +61,10 @@ def load_data(partition_id: int, num_partitions: int):
     trainloader = DataLoader(partition_train_test["train"], batch_size=32, shuffle=True)
     testloader = DataLoader(partition_train_test["test"], batch_size=32)
     return trainloader, testloader
+
+
+def get_weights(net):
+    return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
 
 def train(net, trainloader, epochs, device):
@@ -99,10 +103,6 @@ def test(net, testloader, device):
     accuracy = correct / len(testloader.dataset)
     loss = loss / len(testloader)
     return loss, accuracy
-
-
-def get_weights(net):
-    return [val.cpu().numpy() for _, val in net.state_dict().items()]
 
 
 def set_weights(net, parameters):

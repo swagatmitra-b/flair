@@ -19,7 +19,7 @@ export type NftMetadata = {
         push_timestamp: number;            // when the person pushed the model
         local_accuracy: number;            // accuracy of the pushed model
         zkml_proof?: string;               // the ZKML proof created for the local model (optional)
-    }[]
+    }[];
     model_hash: string;         // latest model parameters hash
 };
 
@@ -29,7 +29,7 @@ export interface CreateInstructions {
 
 export interface CompletedCreateInstructions extends CreateInstructions {
     mint: KeypairSigner;
-    uri: string;
+     uri: string;
     sellerFeeBasisPoints: Amount<'%', 2>;
 }
 
