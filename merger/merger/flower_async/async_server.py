@@ -70,7 +70,7 @@ class AsyncServer(Server):
     def __init__(
         self,
         strategy: Strategy,
-        client_manager: ClientManager, # AsyncClientManager,
+        client_manager: AsyncClientManager,
         async_strategy: AsynchronousStrategy,
         base_conf_dict,
         total_train_time: int = 85,
@@ -114,70 +114,100 @@ class AsyncServer(Server):
         while time() - start_time < seconds:
             pass
 
-    def fit(self, num_rounds: int, timeout: Optional[float]) -> History:
-        """Run federated averaging for a number of rounds."""
-        history = AsyncHistory()
 
-        # Initialize parameters
+    def fit(self, num_rounds: int, timeout: Optional[float]) -> History:
+        history = AsyncHistory()
         log(INFO, "Initializing global parameters")
         self.parameters = self._get_initial_parameters(timeout=timeout)
-        log(INFO, "Evaluating initial parameters")
-        res = self.strategy.evaluate(0, parameters=self.parameters)
-        if res is not None:
-            log(
-                INFO,
-                "initial parameters (loss, other metrics): %s, %s",
-                res[0],
-                res[1],
-            )
-            history.add_loss_centralized(timestamp=time(), loss=res[0])
-            history.add_metrics_centralized(timestamp=time(), metrics=res[1])
-
-        # Run federated learning for num_rounds
-        log(INFO, "FL starting")
-        executor = ThreadPoolExecutor(max_workers=self.max_workers)
-        start_time = time()
-        end_timestamp = time() + self.total_train_time
-        self.end_timestamp = end_timestamp
-        self.start_timestamp = time()
-        counter = 1
-        self.fit_round(
-            server_round=0,
-            timeout=timeout,
-            executor=executor,
-            end_timestamp=end_timestamp,
-            history=history
-        )
-
-        best_loss = float('inf')
-        patience_init = 50 # n times the `waiting interval` seconds
-        patience = patience_init
         
-        while time() - start_time < self.total_train_time:
-            # If the clients are to be started periodically, move fit_round here and remove the executor.submit lines from _handle_finished_future_after_fit
-            sleep(self.waiting_interval)
-            if self.server_artificial_delay:
-                self.busy_wait(10)
-            loss = self.evaluate_centralized(counter, history)
-            if loss is not None:
-                if loss < best_loss - 1e-4:
-                    best_loss = loss
-                    patience = patience_init
-                else:
-                    patience -= 1
-                if patience == 0:
-                    log(INFO, "Early stopping")
-                    break
-            #self.evaluate_decentralized(counter, history, timeout)
-            counter += 1
-
-        executor.shutdown(wait=True, cancel_futures=True)
-        log(INFO, "FL finished")
-        end_time = time()
-        self.save_model()
-        elapsed = end_time - start_time
-        log(INFO, "FL finished in %s", elapsed)
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            start_time = time()
+            end_timestamp = time() + self.total_train_time
+            log(INFO, "FL starting")
+            # continuous processing loop
+            while time() < end_timestamp:
+                if self._client_manager.nun_free() > 0:
+                    self.fit_round(
+                        server_round=0, # not used but required
+                        timeout=timeout,
+                        executor=executor,
+                        end_timestamp=end_timestamp,
+                        history=history
+                    )
+                    sleep(0.1)
+                
+                # final evaluation
+                self.evaluate_centralized(999, history=history)
+        
+        elapsed = end_timestamp - start_time
+        log(INFO, "FL finished in %s", elapsed)                
         return history, elapsed
+
+
+    # def fit(self, num_rounds: int, timeout: Optional[float]) -> History:
+    #     """Run federated averaging for a number of rounds."""
+    #     history = AsyncHistory()
+
+    #     # Initialize parameters
+    #     log(INFO, "Initializing global parameters")
+    #     self.parameters = self._get_initial_parameters(timeout=timeout)
+    #     log(INFO, "Evaluating initial parameters")
+    #     res = self.strategy.evaluate(0, parameters=self.parameters)
+    #     if res is not None:
+    #         log(
+    #             INFO,
+    #             "initial parameters (loss, other metrics): %s, %s",
+    #             res[0],
+    #             res[1],
+    #         )
+    #         history.add_loss_centralized(timestamp=time(), loss=res[0])
+    #         history.add_metrics_centralized(timestamp=time(), metrics=res[1])
+
+    #     # Run federated learning for num_rounds
+    #     log(INFO, "FL starting")
+    #     executor = ThreadPoolExecutor(max_workers=self.max_workers)
+    #     start_time = time()
+    #     end_timestamp = time() + self.total_train_time
+    #     self.end_timestamp = end_timestamp
+    #     self.start_timestamp = time()
+    #     counter = 1
+    #     self.fit_round(
+    #         server_round=0,
+    #         timeout=timeout,
+    #         executor=executor,
+    #         end_timestamp=end_timestamp,
+    #         history=history
+    #     )
+
+    #     best_loss = float('inf')
+    #     patience_init = 50 # n times the `waiting interval` seconds
+    #     patience = patience_init
+        
+    #     while time() - start_time < self.total_train_time:
+    #         # If the clients are to be started periodically, move fit_round here and remove the executor.submit lines from _handle_finished_future_after_fit
+    #         sleep(self.waiting_interval)
+    #         if self.server_artificial_delay:
+    #             self.busy_wait(10)
+    #         loss = self.evaluate_centralized(counter, history)
+    #         if loss is not None:
+    #             if loss < best_loss - 1e-4:
+    #                 best_loss = loss
+    #                 patience = patience_init
+    #             else:
+    #                 patience -= 1
+    #             if patience == 0:
+    #                 log(INFO, "Early stopping")
+    #                 break
+    #         #self.evaluate_decentralized(counter, history, timeout)
+    #         counter += 1
+
+    #     executor.shutdown(wait=True, cancel_futures=True)
+    #     log(INFO, "FL finished")
+    #     end_time = time()
+    #     self.save_model()
+    #     elapsed = end_time - start_time
+    #     log(INFO, "FL finished in %s", elapsed)
+    #     return history, elapsed
     
     def save_model(self):
         # Save the model

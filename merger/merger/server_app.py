@@ -11,22 +11,25 @@ from merger.flower_async.async_strategy import AsynchronousStrategy
 from merger.flower_async.async_client_manager import AsyncClientManager
 from merger.flower_async.async_server import AsyncServer
 
-
 # Parameters to customize based on your application
-TOTAL_SAMPLES = 10000                # Approx. total number of samples across clients (adjust based on your dataset)
-STALENESS_ALPHA = 0.5                # Weighting factor for staleness in FedAsync (between 0 and 1)
-FEDASYNC_MIXING_ALPHA = 0.1          # Base learning rate for async updates (FedAsync or AsyncFedED)
-FEDASYNC_A = 0.5                     # Staleness scaling parameter for exponential decay (FedAsync)
-NUM_CLIENTS = 10                     # Total number of clients you plan to simulate
-ASYNC_AGGREGATION_STRATEGY = "fedasync"  # Options: 'unweighted', 'fedasync', 'asyncfeded'
-USE_STALENESS = True                  # Whether to penalize stale updates
-USE_SAMPLE_WEIGHING = True            # Whether to weight by number of samples
-SEND_GRADIENTS = False                # Set True if you're sending gradients instead of weights
-SERVER_ARTIFICIAL_DELAY = False       # If there should be a simulated delay for processing
-
+# TOTAL_SAMPLES = 10000                # Approx. total number of samples across clients (adjust based on your dataset)
+# STALENESS_ALPHA = 0.5                # Weighting factor for staleness in FedAsync (between 0 and 1)
+# FEDASYNC_MIXING_ALPHA = 0.3          # Base learning rate for async updates (FedAsync or AsyncFedED): Aggressive model mixing
+# FEDASYNC_A = 0.5                     # Staleness scaling parameter for exponential decay (FedAsync)
+# NUM_CLIENTS = 10                     # Total number of clients you plan to simulate
+# ASYNC_AGGREGATION_STRATEGY = "fedasync"  # Options: 'unweighted', 'fedasync', 'asyncfeded'
+# USE_STALENESS = True                  # Whether to penalize stale updates
+# USE_SAMPLE_WEIGHING = True            # Whether to weight by number of samples
+# SEND_GRADIENTS = False                # Set True if you're sending gradients instead of weights
+# SERVER_ARTIFICIAL_DELAY = False       # If there should be a simulated delay for processing
 
 def server_fn(context: Context):
-    # Read from config
+    # Configuration parameters (previously suggested for base.yaml)
+    total_train_time = 86400  # 24 hours in seconds
+    num_clients = 100
+    client_local_delay = False
+    
+    # Existing parameter setup
     num_rounds = context.run_config["num-server-rounds"]
     fraction_fit = context.run_config["fraction-fit"]
 
@@ -34,37 +37,38 @@ def server_fn(context: Context):
     ndarrays = get_weights(Net())
     parameters = ndarrays_to_parameters(ndarrays)
 
-    # defining the asynchronous strategy here
+    # Async strategy configuration
     async_strategy = AsynchronousStrategy(
-        total_samples=TOTAL_SAMPLES,
-        staleness_alpha=STALENESS_ALPHA,
-        fedasync_mixing_alpha=FEDASYNC_MIXING_ALPHA,
-        fedasync_a=FEDASYNC_A,
-        num_clients=NUM_CLIENTS,
-        async_aggregation_strategy=ASYNC_AGGREGATION_STRATEGY,
-        use_staleness=USE_STALENESS,
-        use_sample_weighing=USE_SAMPLE_WEIGHING,
-        send_gradients=SEND_GRADIENTS,
-        server_artificial_delay=SERVER_ARTIFICIAL_DELAY
+        total_samples=50000,  # CIFAR-10 total samples
+        staleness_alpha=0.5,
+        fedasync_mixing_alpha=0.3,
+        fedasync_a=0.5,
+        num_clients=num_clients,
+        async_aggregation_strategy="fedasync",
+        use_staleness=True,
+        use_sample_weighing=True,
+        send_gradients=False,
+        server_artificial_delay=False
     )
-                        
+
+    # Server configuration
     base_conf_dict = {
-        "client_local_delay": False,
+        "client_local_delay": client_local_delay,
         "dataset_seed": 42,
         "data_loading_strategy": "fixed_nr",
         "n_last_samples_for_data_loading_fit": 100,
-        "is_streaming": False,        
-    }        
-        
+        "is_streaming": False,
+        "total_train_time": total_train_time  # Add this line
+    }
+
+    # Rest of your existing server setup
     config = ServerConfig(num_rounds=num_rounds)
-    # creating the async client manager    
     client_manager = AsyncClientManager()
     
-    # we are going for the federated average strategy only in here too
     strategy = FedAvg(
-        fraction_fit=fraction_fit,
-        fraction_evaluate=1.0,
-        min_available_clients=2,
+        fraction_fit=1.0,  # Critical change for async
+        fraction_evaluate=0.0,
+        min_available_clients=1,
         initial_parameters=parameters,
     )    
     
@@ -72,7 +76,8 @@ def server_fn(context: Context):
         strategy=strategy,
         client_manager=client_manager,
         async_strategy=async_strategy,
-        base_conf_dict=base_conf_dict
+        base_conf_dict=base_conf_dict,
+        total_train_time=total_train_time  # Pass parameter here
     )
     
     return ServerAppComponents(config=config,

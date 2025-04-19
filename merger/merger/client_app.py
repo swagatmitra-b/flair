@@ -5,6 +5,7 @@ import torch
 from flwr.client import ClientApp, NumPyClient
 from flwr.common import Context
 from merger.task import Net, get_weights, load_data, set_weights, test, train
+import time
 
 
 # Define Flower Client and client_fn
@@ -16,8 +17,11 @@ class FlowerClient(NumPyClient):
         self.local_epochs = local_epochs
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.net.to(self.device)
+        self.start_time = None  # Adding a timing tracker here
 
     def fit(self, parameters, config):
+        self.start_time = time.time()                
+        
         set_weights(self.net, parameters)
         train_loss = train(
             self.net,
@@ -28,7 +32,10 @@ class FlowerClient(NumPyClient):
         return (
             get_weights(self.net),
             len(self.trainloader.dataset),
-            {"train_loss": train_loss},
+            {
+                "train_loss": train_loss,
+                "t_diff": time.time() - self.start_time # critical for staleness
+            }
         )
 
     def evaluate(self, parameters, config):
