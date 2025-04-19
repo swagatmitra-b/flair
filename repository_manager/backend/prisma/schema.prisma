@@ -40,7 +40,7 @@ model Repository {
   ownerId        String   @db.ObjectId
   owner          User     @relation(fields: [ownerId], references: [id])
   // base model
-  baseModelHash  String?
+  baseModelHash  String? // cid of the uploaded model is the hash in this case
   baseModelUri   String?
 }
 

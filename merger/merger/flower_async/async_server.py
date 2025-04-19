@@ -126,7 +126,7 @@ class AsyncServer(Server):
             log(INFO, "FL starting")
             # continuous processing loop
             while time() < end_timestamp:
-                if self._client_manager.nun_free() > 0:
+                if self._client_manager.num_free() > 0:
                     self.fit_round(
                         server_round=0, # not used but required
                         timeout=timeout,

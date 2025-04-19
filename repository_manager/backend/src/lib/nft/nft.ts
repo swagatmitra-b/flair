@@ -2,7 +2,7 @@
 // Debashish Buragohain
 
 import { none, percentAmount, publicKey, Umi } from "@metaplex-foundation/umi";
-import { createNft, Metadata } from "@metaplex-foundation/mpl-token-metadata";
+import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import { findLeafAssetIdPda,
     mintV1,
@@ -12,6 +12,7 @@ import { findLeafAssetIdPda,
  import { generateSigner } from "@metaplex-foundation/umi";
  import { DasApiAsset, GetAssetProofRpcResponse } from "@metaplex-foundation/digital-asset-standard-api";
  import { getCurrentTree, updateCurrentTree } from "./tree";
+import { CommitNftMetdata } from "../types/commit";
 
 // Not for production
 // creates the NFT and returns the deserialized signature
@@ -38,7 +39,7 @@ export async function mintNft(umi: Umi, createIns: CreateInstructions, metadata:
 
 // mint the cNFT provided the metadata and return the signature of the transaction
 // we need the signature every time we fetch the Nft asset
-export const mintCNft = async (umi: Umi, owner: string, metadata: Metadata): Promise<string> => {
+export const mintCNft = async (umi: Umi, owner: string, metadata: CommitNftMetdata): Promise<string> => {
     if (!umi.identity) {
         throw new Error('Crticial Error: Wallet not connected. Cannot mint cNft.');
     }
