@@ -14,6 +14,10 @@
 # ==============================================================================
 """Flower server."""
 
+
+# modified
+import traceback
+
 import os
 import pickle
 from datetime import datetime
@@ -235,7 +239,7 @@ class AsyncServer(Server):
             history.add_metrics_centralized(
                 timestamp=time(), metrics=metrics_cen
             )
-            log(INFO, "Centralized evaluation: loss %s, f1=%s", loss_cen, metrics_cen['f1'])
+            log(INFO, "Centralized evaluation: loss %s, accuracy=%s", loss_cen, metrics_cen['accuracy'])
             return loss_cen
         else:
             return None
@@ -500,6 +504,7 @@ def _handle_finished_future_after_fit(
     # Check if there was an exception
     failure = future.exception()
     if failure is not None:
+        log(WARNING, "Fit future raised exception:\n%s", traceback.format_exc())
         log(WARNING, "Got a failure :(")
         return
 
