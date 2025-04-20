@@ -49,10 +49,10 @@ from flwr.server.history import History
 from flwr.server.strategy import FedAvg, Strategy
 import flwr.server.strategy.aggregate as agg
 from flwr.server.server import Server
-from merger.flower_async.async_history import AsyncHistory
+from flower_async.async_history import AsyncHistory
 
-from merger.flower_async.async_client_manager import AsyncClientManager
-from merger.flower_async.async_strategy import AsynchronousStrategy
+from flower_async.async_client_manager import AsyncClientManager
+from flower_async.async_strategy import AsynchronousStrategy
 
 FitResultsAndFailures = Tuple[
     List[Tuple[ClientProxy, FitRes]],
