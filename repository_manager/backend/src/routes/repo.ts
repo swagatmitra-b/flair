@@ -1,14 +1,16 @@
 import { prisma } from '../lib/prisma';
 import { Router } from 'express';
-import { authHandler, authorizedPk } from '../middleware/auth';
-import { signInContext } from '../middleware/auth/context';;
+import { authorizedPk } from '../middleware/auth';
 import { RepositoryMetdata } from '../lib/types/repo';
 import { branchRouter } from './branch';
+import { modelRouter } from './basemodel';
+import { convertRepoToCollection } from '../lib/nft/nft';
+import { umi } from '../lib/nft/umi';
 
 const repoRouter = Router();
 
 // get all the repositories for the particular user
-repoRouter.get('/', authHandler(signInContext),
+repoRouter.get('/',
     async (req, res) => {
         // extract the authorized public key
         const pk = authorizedPk(res);
@@ -25,7 +27,7 @@ repoRouter.get('/', authHandler(signInContext),
     });
 
 // get a specific repository given the repository name
-repoRouter.get('/name/:name', authHandler(signInContext), async (req, res) => {
+repoRouter.get('/name/:name', async (req, res) => {
     const { name } = req.params;
     const matchRepo = await prisma.repository.findFirst({ where: { name } });
     if (!matchRepo) {
@@ -37,7 +39,7 @@ repoRouter.get('/name/:name', authHandler(signInContext), async (req, res) => {
 
 // get a specific repository given the repository hash
 // Example route to get a repository
-repoRouter.get('/:repoHash', authHandler(signInContext), async (req, res) => {
+repoRouter.get('/:repoHash', async (req, res) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({ where: { repoHash } });
     if (!matchRepo) {
@@ -48,15 +50,15 @@ repoRouter.get('/:repoHash', authHandler(signInContext), async (req, res) => {
 });
 
 // create an empty repository
-repoRouter.post('/create', authHandler(signInContext),
+repoRouter.post('/create',
     async (req, res) => {
         try {
             // create a repository
             const pk = authorizedPk(res);
-            const { metadata, 
-                repoHash, 
+            const { metadata,
+                repoHash,
                 name,
-             }: { metadata?: RepositoryMetdata, repoHash: string, name: string } = req.body;
+            }: { metadata?: RepositoryMetdata, repoHash: string, name: string } = req.body;
             if (!metadata || !repoHash || !name) {
                 res.status(400).send({ error: { message: 'Required fields are not provided.' } });
                 return;
@@ -90,7 +92,7 @@ repoRouter.post('/create', authHandler(signInContext),
     });
 
 
-repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res) => {
+repoRouter.put('/update/:repoHash', async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoHash } = req.params;
@@ -105,7 +107,7 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
             metadata,
             baseModelUri,
             baseModelHash,
-        }= req.body;
+        } = req.body;
 
         if (!repoHash) {
             res.status(400).send({ error: { message: 'Repository hash not provided to update.' } });
@@ -163,8 +165,8 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
                 ...(updatedWriteAccessIds && { writeAccessIds: updatedWriteAccessIds }),
                 ...(updatedMetdata && { metadata: updatedMetdata }),
                 ...(baseModelUri && { baseModelUri }),
-                ...(baseModelHash && {baseModelHash}),
-                ...(name && {name}),        // in case we want to change the name of the repository
+                ...(baseModelHash && { baseModelHash }),
+                ...(name && { name }),        // in case we want to change the name of the repository
                 updatedAt: new Date(),
             },
         });
@@ -174,6 +176,19 @@ repoRouter.put('/update/:repoHash', authHandler(signInContext), async (req, res)
     } catch (error) {
         console.error('Error updating repository:', error);
         res.status(500).send({ error: { message: 'Internal Server Error' } });
+        return;
+    }
+});
+
+// convert to nft collection route
+repoRouter.post('/:repoHash/create_collection', async (req, res, next) => {
+    const { repoHash } = req.params;
+    try {
+        const collection = await convertRepoToCollection(umi, repoHash);
+        res.status(200).json({data: collection});
+    }
+    catch (err) {
+        res.status(400).send({ error: { message: `${err}` } });
         return;
     }
 });
@@ -193,5 +208,24 @@ repoRouter.use('/:repoHash/branch', async (req, res, next) => {
     // proceed to the next middleware if the referenced repository exists
     next();
 }, branchRouter);
+
+// mount the model upload router here
+repoRouter.use('/:repoHash/basemodel', async (req, res, next) => {
+    const { repoHash } = req.params;
+    const matchRepo = await prisma.repository.findFirst({
+        where: { repoHash },
+        include: {
+            branches: true
+        }
+    });
+    if (!matchRepo) {
+        res.status(404).send({ error: { message: 'Repository does not exist.' } });
+        return;
+    }
+    // cannot upload a new model to the same repository
+    if (matchRepo.baseModelHash && matchRepo.branches) {
+        res.status(400).send({ error: { message: 'Model already uploaded to repository. ' } })
+    }
+}, modelRouter);
 
 export { repoRouter };

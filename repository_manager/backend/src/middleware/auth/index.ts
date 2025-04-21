@@ -1,10 +1,10 @@
 // chooses which authentication method needs to be used
 // the index file determines which authentication method is chosen and passes the function to that
 // Debashish Buragohain
+
 import { Web3AuthHandlerCreator } from "./context";
 import { siwsAuth } from "./siwsAuth";
 import { web3Auth } from "./web3Auth";
-
 import { authorizedPk } from "./web3Auth";
 
 export const authHandler: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {

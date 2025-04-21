@@ -7,13 +7,14 @@ import type {
 } from '@solana/wallet-standard-features';
 
 import { verifySignIn } from '@solana/wallet-standard-util';
+import { createUser, userExists } from '../user';
 
-export  function verifySIWSsignin(
+export function verifySIWSsignin(
     // need both the input and output for the SIWS verification
     input: SolanaSignInInput,
     output: SolanaSignInOutput
 ): boolean {
-    
+
     // firstly we need to serialize the output since the signedMessage function does not give a serialized output
     const serializedOutput: SolanaSignInOutput = {
         account: {
@@ -23,6 +24,18 @@ export  function verifySIWSsignin(
         signature: new Uint8Array(output.account.publicKey),
         signedMessage: new Uint8Array(output.signedMessage)
     };
-    
-    return verifySignIn(input, serializedOutput);
+
+
+    const authenticated = verifySignIn(input, serializedOutput);
+    if (authenticated) {
+        // create the user if he does not exist
+        const pkString = output.account.publicKey.toString();
+        userExists(pkString)
+            .then(async yes => {
+                if (!yes) { await createUser(pkString) }
+            })
+            .catch(err => console.error(`Error creating user: ${err}`));
+    }
+
+    return authenticated;
 }

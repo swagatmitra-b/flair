@@ -11,6 +11,7 @@
   },
   "author": "Debashish Buragohain",
   "dependencies": {
+    "@ezkljs/engine": "^19.0.7",
     "@helia/unixfs": "^4.0.2",
     "@metaplex-foundation/digital-asset-standard-api": "^1.0.4",
     "@metaplex-foundation/mpl-bubblegum": "^4.2.1",

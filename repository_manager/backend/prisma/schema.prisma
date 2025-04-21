@@ -16,32 +16,37 @@ enum CommitStatus {
 
 // user model needed to be created
 model User {
-  id           String       @id @default(auto()) @map("_id") @db.ObjectId
-  wallet       String       @unique // walet address of the user
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  username     String?       @unique
+  metadata     UserMetadata? // the metadata to be displayed for the user, by default not required
+  wallet       String        @unique // walet address of the user
   repositories Repository[] // repositories created by the user
   commits      Commit[] // commits created by the user
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @default(now())
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now())
 }
 
 model Repository {
-  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
   name           String // name of the repository needs to be mandatorily as a main parameter
-  repoHash       String   @unique
+  repoHash       String             @unique
   branches       Branch[] // a single repository might contain serveral branches
-  writeAccessIds String[] @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
-  adminIds       String[] @default([]) // list of admins that can give and revoke write permissions and delete the repository
-  contributorIds String[] @default([]) // initialized
-  metadata       Json? // optional metadata that needs to be added
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) // timestamp of the latest update
+  writeAccessIds String[]           @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
+  adminIds       String[]           @default([]) // list of admins that can give and revoke write permissions and delete the repository
+  contributorIds String[]           @default([]) // initialized
+  metadata       RepositoryMetdata? // optional metadata that needs to be added
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) // timestamp of the latest update
   // the owner of the repository
-  ownerAddress   String // wallet address of the owner
-  ownerId        String   @db.ObjectId
-  owner          User     @relation(fields: [ownerId], references: [id])
+  ownerAddress   String
+  ownerId        String             @db.ObjectId
+  owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   // base model
-  baseModelHash  String? // cid of the uploaded model is the hash in this case
-  baseModelUri   String?
+  baseModelHash  String?            @unique // cid of the uploaded model is the hash in this case
+  // the base model Uri will be calculated based on the existing IPFS gateway
+  // baseModelUri   String?
+  collection     Collection?        @relation(fields: [collectionId], references: [id])
+  collectionId   String?            @unique @db.ObjectId
 }
 
 // repository contains branches
@@ -56,7 +61,7 @@ model Branch {
   commits      Commit[] // commits in that branch
   // the repository to which the branch belongs
   repositoryId String     @db.ObjectId // repository id for this branch
-  Repository   Repository @relation(fields: [repositoryId], references: [id])
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
 }
 
 // branches contain commits
@@ -77,45 +82,104 @@ model Commit {
   // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
   // for a merger commit, this will be the merged parameters
   // for an accepted commit this will be the local parameters
-  metrics              Json // the metrics of the model (e.g. accuracy, loss etc.)
+  metrics              Metric // the metrics of the model (e.g. accuracy, loss etc.)
   // which branch the commit belongs to
   branchId             String       @db.ObjectId
+  // when the branch is deleted so are the commmits in the branch
   branch               Branch       @relation(fields: [branchId], references: [id])
   // committer data included with new user model created
   committerAddress     String // wallet address of the contributor  
+  // when the user is deleted the commit is not deleted
   committerId          String       @db.ObjectId
   committer            User         @relation(fields: [committerId], references: [id])
+  // a commit is only soft deleted
+  isDeleted            Boolean      @default(false)
+  // Nft converted commit properties
+  nft                  Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftId                String?      @unique @db.ObjectId
+  verified             Boolean      @default(false) // if the ZKML proof of the model has been verified
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
-  id        String  @id @default(auto()) @map("_id") @db.ObjectId
-  params    String  @unique // base64 encoded blosc compressed parameters 
-  zkmlProof String? @unique // ZKML proof for the current model
-  commitId  String  @unique @db.ObjectId // needs to be unique for a one to one relationship
-  commit    Commit  @relation(fields: [commitId], references: [id])
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  params      String // base64 encoded blosc compressed parameters 
+  zkmlProof   String? // ZKML proof for the current model, deleted after the model has been verified
+  commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
+  commit      Commit     @relation(fields: [commitId], references: [id])
+  ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
+  zkmlProofId String?    @unique @db.ObjectId
 }
 
+model ZKMLProof {
+  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
+  verifierKey        String
+  circuitSettingsSer String
+  proofSer           String
+  srsSer             String
+  param              Params? @relation("paramToProof")
+  paramId            String? @unique @db.ObjectId
+}
+
+// These schemas can never be deleted
 // merkleTree model that stores the current merkle tree adress and how many can be implemented
 // only admin accessible
-model MerkleTrees {
+model MerkleTree {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   mintAuthority   String // public key of the wallet that has mint authority on this merkleTree
   active          Boolean  @default(false) // if this is the current merkle tree that is being used
   address         String   @unique // public key of the merkle tree
   secret          String   @unique // secret key of the merkle tree
+  assetIds        String[] @unique // the assetIds minted in this merkle tree
   totalLeaves     Int // total leaves in the merkle tree
   remainingLeaves Int // leaves remaining where NFTs can be minted
   createdAt       DateTime @default(now())
 }
 
+// details for the nft collection i.e. a repository
+model Collection {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  address    String      @unique
+  signature  String      @unique
+  privateKey String      @unique
+  owner      String
+  repository Repository?
+  nft        Nft[]
+  createdAt  DateTime    @default(now())
+}
+
 // details of the nft
 model Nft {
-  id                String   @id @default(auto()) @map("_id") @db.ObjectId
-  assetId           String   @unique
-  signature         String   @unique
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  assetId           String      @unique
   merkleTreeAddress String
+  signature         String      @unique
   owner             String
-  createdAt         DateTime @default(now())
-  // think of other fields that you want to include
+  createdAt         DateTime    @default(now())
+  // back relation to the commit schema
+  commit            Commit?     @relation("CommitToNft")
+  collection        Collection? @relation(fields: [colectionId], references: [id])
+  colectionId       String      @unique @db.ObjectId
+}
+
+type Metric {
+  accuracy Float
+  loss     Float
+}
+
+// metadata type as an embedded document
+type UserMetadata {
+  name        String?
+  email       String?
+  displayText String?
+  profileUrl  String?
+}
+
+type RepositoryMetdata {
+  name        String
+  description String
+  useCase     String?
+  creator     String // wallet address that has created the Repository
+  framework   String
+  modelUri    String? // file uri of the original model, on which the parameters will be applied    
 }

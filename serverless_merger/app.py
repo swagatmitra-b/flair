@@ -23,7 +23,7 @@ callback = FlwrFederatedCallback(
     node,
     num_examples_per_epoch=num_examples_per_epoch,
     save_model_before_aggregation=False,
-    save_model_after_aggregation=False,
+    save_model_after_aggregation=True,
 )
 
 # Define and compile the model

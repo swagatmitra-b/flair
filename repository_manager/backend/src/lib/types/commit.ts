@@ -1,6 +1,8 @@
 // Type declarations for the commit schema
 // Debashish Buragohain
 
+import { zkmlDeserialized } from "../../zkml/types";
+
 // merger commit cannot be created as an Nft because it is the system that creates the merger commit
 export type CommitStatusGen = 'PENDING' | 'MERGED' | 'REJECTED';
 
@@ -28,7 +30,7 @@ export interface CommitNftMetdata {
 
 export interface commitParameters {
     params: string,
-    zkmlProof: string
+    zkmlProof: zkmlDeserialized
 }
 
 // the metrics associated with the model are defined this way

@@ -3,7 +3,7 @@ Flair is a repository manager for Machine Learning models, with version control 
 
 Models are trained locally on your device, and only the updates after training (not the raw data) are shared globally and aggregated. No data ever leaves your device. Each training round is treated as a "commit," allowing you to version, undo, and track progress. You can merge updates from different datasets, making collaboration seamless while also making sure that your personal data is never shared with anyone.
 
-Users can convert their models and commits into NFTs, ensuring complete ownership of your intellectual work. Plus, it uses zero-knowledge proofs to securely verify all updates and merges without exposing any underlying data the model was trained on. It is the ultimate home for machine learning models to evolve, improve, and thrive—together to create the AIs to solve the world's most complex problems!
+Users can convert their models and commits into NFTs, ensuring complete ownership of your intellectual work. Plus, it uses zero-knowledge proofs to securely verify all updates and merges without exposing any underlying data the model was trained on. It is the ultimate home for machine learning models to evolve and improve.
 
 Flair is explicitly designed for version control of ML models. Here's how it works, with some similarities to GitHub:
 
