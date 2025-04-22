@@ -25,7 +25,9 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import { AutoConnectProvider } from './components/AutoConnectProvider';
 import { siwsSignIn } from "./lib/auth/siws";
 import { useSiwsSupport, SiwsSupportProvider } from "./components/SiwsSupportProvider";
-import { UmiProvider } from "./components/UmiProvider";
+
+// Umi support has been removed
+// import { UmiProvider } from "./components/UmiProvider";
 import { AdapterProvider, useAdapter } from "./components/AdapterProvider";
 // import { genSignIn } from './lib/auth/general';
 // import { TLog } from './types';
@@ -50,18 +52,18 @@ export const App: FC = () => {
   // if the wallet supports sign in then we ask them to sign into it
   // if not supported or sign in failed, the auto connect feature of the wallet is triggered
   // the autoConnect is the legacy sign + message workflow
-  const autoSignIn = useCallback(async (adapter: Adapter) => {
-    const { setSiwsSupport } = useSiwsSupport();
-    const { setAdapter } = useAdapter();    
-    setAdapter(adapter);      // save the adapter in the context
-
-    if (!('signIn' in adapter)) {
-      setSiwsSupport(true);   // the wallet supports siws
-      return true;
-    }
-    // the entire sign in function has been sent to the utility program
-    return await siwsSignIn(adapter);
-  }, []);
+  // const autoSignIn = useCallback(async (adapter: Adapter) => {
+  //   const { setSiwsSupport } = useSiwsSupport();
+  //   const { setAdapter } = useAdapter();    
+  //   const {signIn}  = useWallet();
+  //   setAdapter(adapter);      // save the adapter in the context
+  //   if (!('signIn' in adapter)) {
+  //     setSiwsSupport(true);   // the wallet supports siws
+  //     return true;
+  //   }
+  //   // the entire sign in function has been sent to the utility program
+  //   return await siwsSignIn(signIn, adapter);
+  // }, []);
 
 
   // Not specified in the original documentation
@@ -83,14 +85,13 @@ export const App: FC = () => {
 
   return (
     <AdapterProvider>
-      <UmiProvider>
         <SiwsSupportProvider>
           <AutoConnectProvider>
             <QueryClientProvider client={queryClient}>
               <ConnectionProvider endpoint={endpoint}>
                 <WalletProvider wallets={wallets}
                   onError={onWalletError}
-                  autoConnect={autoSignIn}>
+                  autoConnect={true}>
                   <WalletModalProvider>
                     <Router>
                       <Routes>
@@ -103,7 +104,6 @@ export const App: FC = () => {
             </QueryClientProvider>
           </AutoConnectProvider>
         </SiwsSupportProvider>
-      </UmiProvider>
     </AdapterProvider>
   )
 }

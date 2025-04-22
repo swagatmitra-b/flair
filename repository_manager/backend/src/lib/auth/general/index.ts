@@ -5,6 +5,8 @@ import b58 from 'bs58';
 import { DateTime } from 'luxon';
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
+// user creation function exists
+import { userExists, createUser } from '../user/index.js';
 
 export const verifyGenSignIn = (authHeader: string, action: string = 'signin'): boolean => {
     const [, authToken] = authHeader.split(' ');
@@ -42,6 +44,12 @@ export const verifyGenSignIn = (authHeader: string, action: string = 'signin'): 
         return false;
     }
 
-    // come till here means everything is alright
+    // create a user if he does not exist
+    userExists(pk)
+        .then(async yes => {
+            if (!yes) await createUser(pk);
+        })
+        .catch(err => console.error(`Error creating user: ${err}`));
+
     return true;
 };

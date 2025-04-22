@@ -1,8 +1,8 @@
 // Handler for the merkle trees
 // Debashish Buragohain
 import { createTree } from '@metaplex-foundation/mpl-bubblegum';
-import { generateSigner, Umi } from '@metaplex-foundation/umi';
-import { prisma } from "../prisma";
+import { generateSigner, Umi, TransactionSignature, PublicKey } from '@metaplex-foundation/umi';
+import { prisma } from "../prisma/index.js";
 import { MerkleTreeConfig } from "./types";
 
 // the config for the merkleTree
@@ -12,7 +12,7 @@ export const merkleTreeConfig: MerkleTreeConfig = {
     canopyDepth: 14,
 };
 
-// creates a merkle tree and stores it in the datatbase
+// creates a merkle tree and stores it in the database
 export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
     try {
         const merkleTree = generateSigner(umi);
@@ -30,7 +30,7 @@ export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
 
         const totalLeaves = 2 ** merkleTreeConfig.maxDepth;
         // store the merkleTree in the database now
-        await prisma.merkleTrees.create({
+        await prisma.merkleTree.create({
             data: {
                 mintAuthority: umi.identity.publicKey,      // the mint authority is the currently instantiated wallet for umi
                 secret: merkleTree.secretKey.toString(),    // secret key of the merkle tree is not actually used anywhere
@@ -47,9 +47,9 @@ export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
 }
 
 // updates the remaining leaves property of the current merkle tree or switches to the next merkle tree in reservoir
-export async function updateCurrentTree(): Promise<void> {
-    // Fetch the active Merkle tree
-    const activeTrees = await prisma.merkleTrees.findMany({ where: { active: true } });
+export async function updateCurrentTree(assetId: PublicKey<string>): Promise<void> {
+    // Fetch the active Merkle tree    
+    const activeTrees = await prisma.merkleTree.findMany({ where: { active: true } });
     // active trees 
     if (!activeTrees.length) {
         throw new Error('Critical Error: No active Merkle tree found.');
@@ -57,14 +57,21 @@ export async function updateCurrentTree(): Promise<void> {
     if (activeTrees.length !== 1) {
         throw new Error('Critical Error: Invalid number of active merkle trees. Fix immediately to continue NFT minting operations.');
     }
-    const currentTree = await prisma.merkleTrees.update({
+    // update the remaining leaves property and push the given signature
+    const currentTree = await prisma.merkleTree.update({
         where: { id: activeTrees[0].id },
-        data: { remainingLeaves: { decrement: 1 } }
+        data: {
+            remainingLeaves: { decrement: 1 },
+            assetIds: { push: assetId }
+        }
     });
+    if (currentTree.totalLeaves - currentTree.remainingLeaves !== currentTree.assetIds.length) {
+        console.error('Critical Error! Mismatch in signatures and used leaves in active tree.');
+    }
     // if we have reached the full capacity of the current tree then move to the next tree
     if (!currentTree.remainingLeaves) {
         // get the next tree in the timelines
-        const nextActiveTree = await prisma.merkleTrees.findMany({
+        const nextActiveTree = await prisma.merkleTree.findMany({
             where: { createdAt: { gt: currentTree.createdAt } },
             orderBy: { createdAt: 'asc' },
             take: 1
@@ -75,11 +82,11 @@ export async function updateCurrentTree(): Promise<void> {
         // update the current and the next trees
         try {
             await prisma.$transaction([
-                prisma.merkleTrees.update({
+                prisma.merkleTree.update({
                     where: { id: currentTree.id },
                     data: { active: false }
                 }),
-                prisma.merkleTrees.update({
+                prisma.merkleTree.update({
                     where: { id: nextActiveTree[0].id },
                     data: { active: true }
                 })
@@ -98,7 +105,7 @@ export async function updateCurrentTree(): Promise<void> {
 
 // get the address of the current merkle tree
 export async function getCurrentTree(): Promise<string> {
-    const currentTree = await prisma.merkleTrees.findFirst({ where: { active: true } });
+    const currentTree = await prisma.merkleTree.findFirst({ where: { active: true } });
     // Critical Error when the current tree is not present    
     if (!currentTree) {
         throw new Error('No active tree found.');
@@ -106,7 +113,7 @@ export async function getCurrentTree(): Promise<string> {
     if (currentTree.remainingLeaves < 0.25 * currentTree.totalLeaves) {
         console.warn('Warning!! Current active tree has reached 75% of its capacity.');
         // check if there are other empty trees present
-        const availableTrees = await prisma.merkleTrees.findMany({
+        const availableTrees = await prisma.merkleTree.findMany({
             where: { createdAt: { gt: currentTree.createdAt } }
         });
         if (!availableTrees.length) {

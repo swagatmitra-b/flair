@@ -38,3 +38,9 @@ export type MerkleTreeConfig = {
     maxBufferSize: number;
     canopyDepth: number;
 };
+
+// type config of an asset stored as json in prisma
+export type Asset = {
+    signature: string;
+    assetId: string;
+}

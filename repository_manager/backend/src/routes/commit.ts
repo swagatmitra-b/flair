@@ -1,14 +1,15 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
-import { authHandler, authorizedPk } from '../middleware/auth';
-import { signInContext } from '../middleware/auth/context';
-import { CommittedBy } from '../lib/types/repo';
-import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit';
+import { authorizedPk } from '../middleware/auth/authHandler.js';
+import { CommittedBy } from '../lib/types/repo.js';
+import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
+import { convertCommitToNft } from '../lib/nft/nft.js';
+import { umi } from '../lib/nft/umi.js';
 
 const commitRouter = Router();
 
 // Get all commits for a specific branch (exluding the parameters and the merged parameters)
-commitRouter.get('/', authHandler(signInContext), async (req, res) => {
+commitRouter.get('/', async (req, res) => {
     const { branchId } = req;
     try {
         const commits = await prisma.commit.findMany({ where: { branchId } });
@@ -19,12 +20,28 @@ commitRouter.get('/', authHandler(signInContext), async (req, res) => {
     }
 });
 
-// Get a specific commit by its hash
-// getting is done using its hash and not its id
-commitRouter.get('/:commitHash', authHandler(signInContext), async (req, res) => {
+
+// complete info for the commit for pulling it
+commitRouter.get('/:commitHash/pull', async (req, res) => {
     const { commitHash } = req.params;
     try {
-        const commit = await prisma.commit.findFirst({ where: { commitHash } });
+        const commit = await prisma.commit.findFirst({ 
+            where: { commitHash },
+            include: {
+                branch: true,
+                committer: true,
+                params: {                    
+                    include: {                        
+                        ZKMLProof: true
+                    }
+                },
+                nft: {
+                    include: {
+                        collection: true
+                    }
+                },                
+            }
+        });
         if (!commit) {
             res.status(404).send({ error: { message: 'Commit not found.' } });
             return;
@@ -36,8 +53,27 @@ commitRouter.get('/:commitHash', authHandler(signInContext), async (req, res) =>
     }
 });
 
+// basic details of a commit
+commitRouter.get('/:commitHash', async (req, res) => {
+    const { commitHash } = req.params;
+    try {
+        const commit = await prisma.commit.findFirst({ 
+            where: { commitHash }
+        });
+        if (!commit) {
+            res.status(404).send({ error: { message: 'Commit not found.' } });
+            return;
+        }
+        res.status(200).json({ data: commit });
+    } catch (err) {
+        console.error('Error retrieving commit:', err);
+        res.status(500).send({ error: { message: 'Internal Server Error' } });
+    }
+});
+
+
 // pull the latest commit
-commitRouter.get('/latest', authHandler(signInContext), async (req, res) => {
+commitRouter.get('/latest', async (req, res) => {
     try {
         const latestCommit = await prisma.commit.findFirst({ orderBy: { createdAt: 'desc' } });
         if (!latestCommit) {
@@ -52,7 +88,7 @@ commitRouter.get('/latest', authHandler(signInContext), async (req, res) => {
 });
 
 // get all the pending unmerged commits since the last merge
-commitRouter.get('/pending', authHandler(signInContext), async (req, res) => {
+commitRouter.get('/pending', async (req, res) => {
     try {
         // first get the latest merged commit id
         const latestMergedCommit = await prisma.commit.findFirst({
@@ -81,7 +117,7 @@ commitRouter.get('/pending', authHandler(signInContext), async (req, res) => {
 // create the new commit to the branch
 // the commit can be a merger commit or a general commit
 // this route is also responsible for updating the status of PENDING commits and removing rejected parameters
-commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
+commitRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res); // Get the contributor's wallet address
         const { branchId } = req.body; // Branch ID where the commit is being made
@@ -108,6 +144,12 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
                 rejectedCommits: RejectedCommits | undefined,   // only needed in case of system commits 
             } = req.body;
 
+        // cannot create a commit if the base model is not uploaded
+        const repo = await prisma.repository.findUnique({ where: { id: req.repoId } });
+        if (!repo!.baseModelHash) {
+            res.status(400).send({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
+            return;
+        }
         if (committedBy !== 'SYSTEM' && !message) {
             res.status(400).send({ error: { message: 'Commit message is required.' } });
             return;
@@ -127,11 +169,10 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
             res.status(401).send({ error: { message: 'User not found.' } })
             return;
         }
-
         // Fetch the branch and validate existence
         const branch = await prisma.branch.findFirst({
             where: { id: branchId },
-            include: { Repository: true },
+            include: { repository: true },
         });
 
         if (!branch) {
@@ -139,7 +180,7 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
             return;
         }
 
-        const repository = branch.Repository;
+        const repository = branch.repository;
         // Validate write permissions
         const hasWriteAccess =
             repository.ownerAddress === pk || repository.writeAccessIds.includes(pk);
@@ -196,27 +237,46 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
 
             // we update the status of all the pending commits to accepted or rejected
             acceptedCommits.forEach(async cmt => {
-                await prisma.commit.update({
+                const updatedCommit = await prisma.commit.update({
                     where: { commitHash: cmt },
-                    data: { status: 'MERGED' }
+                    data: {
+                        status: 'MERGED',
+                        verified: true
+                    },
+                    include: { params: true }
                 });
-                const rejectedCommitIds: string[] = [];
-                rejectedCommits!.forEach(async cmt => {
-                    const updatedRejectedCmt = await prisma.commit.update({
-                        where: { commitHash: cmt.commit },
-                        data: {
-                            status: 'REJECTED',
-                            rejectedMessage: cmt.message
-                        }
+
+                // !-- this deletes the verified proof since we have already verified it
+                // !!------          change this later on need            --------------
+                if (updatedCommit.params)
+                    await prisma.zKMLProof.delete({
+                        where: { paramId: updatedCommit.params.id }
                     });
-                    rejectedCommitIds.push(updatedRejectedCmt.id);
-                });
-                // for the rejected commits delete all the parameters for those commits
-                rejectedCommitIds.forEach(async id => {
-                    await prisma.params.delete({ where: { commitId: id } });
-                });
             });
+
+
+            const rejectedCommitIds: string[] = [];
+            rejectedCommits.forEach(async cmt => {
+                const updatedRejectedCmt = await prisma.commit.update({
+                    where: { commitHash: cmt.commit },
+                    data: {
+                        status: 'REJECTED',
+                        rejectedMessage: cmt.message
+                    }
+                });
+                rejectedCommitIds.push(updatedRejectedCmt.id);
+            });
+            // for the rejected commits delete all the parameters for those commits
+            rejectedCommitIds.forEach(async id => {
+                const deletedParam = await prisma.params.delete({ where: { commitId: id } });
+                // also delete the associated zkml proof for this param
+                await prisma.zKMLProof.delete({ where: { paramId: deletedParam.id } });
+            });
+
         }
+
+        // extract the zkml proof for this commit
+        const { verifierKey, circuitSettingsSer, proofSer, srsSer } = params.zkmlProof;
 
         // Finally create the commit
         const commit = await prisma.commit.create({
@@ -227,7 +287,7 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
                 paramHash,
                 // in the current version we have removed the local and merged parameters
                 // for an accepted commit it is the local parameters and for a merger commit it is the merged parameters
-                metrics: JSON.parse(JSON.stringify(metrics)),
+                metrics,
                 // another condition is that if it is the very first commit in the branch, its status will be always accepted
                 status,
                 branchId: branchId,            // makes the necessary updates in the branch model
@@ -236,7 +296,14 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
                     // creates a new entry in the parameter schema containing the parameters for this commit
                     create: {
                         params: params.params, // Assumes params is an object with base64 encoded data
-                        zkmlProof: params.zkmlProof,
+                        ZKMLProof: {
+                            create: {
+                                verifierKey,
+                                circuitSettingsSer,
+                                proofSer,
+                                srsSer
+                            }
+                        }
                     },
                 },
                 committerId: committer.id      // makes the necessary updates in the user schema
@@ -255,10 +322,22 @@ commitRouter.post('/create', authHandler(signInContext), async (req, res) => {
             })
         ]);
         res.status(201).json({ data: commit });
-
     } catch (error) {
         console.error('Error creating commit:', error);
         res.status(500).send({ error: { message: 'Internal Server Error' } });
+    }
+});
+
+// commit nft conversion route
+commitRouter.post('/:commitHash/createNft', async (req, res, next) => {
+    try {
+        const { commitHash } = req.params;
+        const asset = await convertCommitToNft(umi, commitHash);
+        res.status(200).json({ data: asset });
+    }
+    catch (err) {
+        res.status(400).send({ error: { message: `${err}` } });
+        return;
     }
 });
 

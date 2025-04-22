@@ -1,0 +1,20 @@
+        Instead, use the `flower-supernode` CLI command to start a SuperNode as shown below:
+
+                $ flower-supernode --insecure --superlink='<IP>:<PORT>'
+
+        To view all available options, run:
+
+                $ flower-supernode --help
+
+        Using `start_client()` is deprecated.
+
+            This is a deprecated feature. It will be removed
+            entirely in future versions of Flower.
+
+INFO :
+INFO :      Received: train message 138054c0-f9ce-4662-8c8a-4227ee80d3c9
+Starting training...
+Starting evalutation...
+Starting evalutation...
+INFO :      Sent reply
+INFO :      Disconnect and shut down

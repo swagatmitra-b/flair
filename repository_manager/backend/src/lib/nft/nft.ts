@@ -1,62 +1,76 @@
 // Nft minter and fetcher for Flair
 // Debashish Buragohain
 
-import { none, percentAmount, publicKey, Umi } from "@metaplex-foundation/umi";
-import { createNft, Metadata } from "@metaplex-foundation/mpl-token-metadata";
+import { generateSigner, percentAmount, PublicKey, publicKey, Umi } from "@metaplex-foundation/umi";
+// import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 import { base58 } from "@metaplex-foundation/umi/serializers";
-import { findLeafAssetIdPda,
-    mintV1,
+import {
+    findLeafAssetIdPda,
+    mintToCollectionV1,
+    // mintV1,
     parseLeafFromMintV1Transaction
- } from "@metaplex-foundation/mpl-bubblegum";
- import { NftMetadata, CreateInstructions, CompletedCreateInstructions } from "./types";
- import { generateSigner } from "@metaplex-foundation/umi";
- import { DasApiAsset, GetAssetProofRpcResponse } from "@metaplex-foundation/digital-asset-standard-api";
- import { getCurrentTree, updateCurrentTree } from "./tree";
+} from "@metaplex-foundation/mpl-bubblegum";
+//  import { NftMetadata, CreateInstructions, CompletedCreateInstructions } from "./types";
+//  import { generateSigner } from "@metaplex-foundation/umi";
+import { DasApiAsset, GetAssetProofRpcResponse } from "@metaplex-foundation/digital-asset-standard-api";
+import { getCurrentTree, updateCurrentTree } from "./tree.js";
+import { CommitNftMetdata } from "../types/commit";
+import { prisma } from "../prisma/index.js";
+import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
+import { RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
+import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 
-// Not for production
-// creates the NFT and returns the deserialized signature
-export async function mintNft(umi: Umi, createIns: CreateInstructions, metadata: NftMetadata): Promise<string> {
-    // for the practicality it is not possible to store the model's parameters in arweave
-    // so we just use json and store the hashes only and nothing else
-    if (!umi.identity) {
-        throw new Error('Wallet not connected. Cannot mint NFT.');
+// takes a commit and converts it into Nft and returns the asset id
+export const convertCommitToNft = async (umi: Umi, commitHash: string): Promise<string> => {
+    const commit = await prisma.commit.findUnique({ where: { commitHash }, include: { nft: true } });
+    if (!commit) {
+        throw new Error("Error creating Nft: Commit does not exist.");
     }
-    const metadataUri = await umi.uploader.uploadJson(metadata)
-        .catch(err => { throw new Error('Error uploading metadata: ' + err) });
-    // creating the mint address for the NFT
-    const nftSigner = generateSigner(umi);
-    const finalIns: CompletedCreateInstructions = {
-        ...createIns,
-        mint: nftSigner,
-        uri: metadataUri,
-        sellerFeeBasisPoints: percentAmount(0.0)
+    // secondary check here, the first check is applied in the route itself
+    // if the commit is already an nft
+    if (commit.nft) {
+        throw new Error("Error creating Nft: Commit is already an Nft.");
     }
-    const tx = await createNft(umi, finalIns).sendAndConfirm(umi);
-    // return the signature and the public key of the nft created just now
-    return base58.deserialize(tx.signature)[0], nftSigner.publicKey.toString();
+    const metadata = await createCommitMetadata(commit);
+    const repo = await prisma.repository.findUnique({
+        where: { repoHash: metadata.repositoryHash },
+        include: { collection: true }
+    });
+    if (!repo) {
+        throw new Error('Error creating Nft: No repository exists for the given commit');
+    }
+    // first check if the repository is an nft collection
+    if (!repo.collectionId || !repo.collection || !repo.collection.address) {
+        throw new Error('Error creating Nft: Repository for the Nft is not a collection.');
+    }
+    const nftAsset = await mintCNft(umi, metadata, repo.collection.address);
+    return nftAsset.toString();
 }
+
 
 // mint the cNFT provided the metadata and return the signature of the transaction
 // we need the signature every time we fetch the Nft asset
-export const mintCNft = async (umi: Umi, owner: string, metadata: Metadata): Promise<string> => {
+export const mintCNft = async (umi: Umi, metadata: CommitNftMetdata, collectionAddress: string): Promise<PublicKey<string>> => {
     if (!umi.identity) {
         throw new Error('Crticial Error: Wallet not connected. Cannot mint cNft.');
     }
     const metadataUri = await umi.uploader.uploadJson(metadata)
-        .catch(err => { throw new Error('Error uploading metadata: ' + err) });
-
-    const leafOwner = publicKey(owner);
+        .catch(err => { throw new Error('Error uploading Nft metadata: ' + err) });
+    const leafOwner = publicKey(metadata.committer);
     // fetch the current merkle tree address from the backend
     const merkleTreeAdress = await getCurrentTree();
     const merkleTree = publicKey(merkleTreeAdress);
 
     // for the compressed Nfts we do not need to generate a separate keypair for the account
-    // the cnft is non transferreable therefore there is no leaf delegate property defined here
-    const { signature } = await mintV1(umi, {
+    // the cNft is non transferreable therefore there is no leaf delegate property defined here
+
+    const collectionMint = publicKey(collectionAddress);
+    const { signature } = await mintToCollectionV1(umi, {
         leafOwner,
         merkleTree,
+        collectionMint,
         metadata: {
-            name: metadata.name,    // the name of the Nft as specified in the metadata
+            name: metadata.message,
             uri: metadataUri,
             sellerFeeBasisPoints: 0,
             creators: [{
@@ -64,20 +78,36 @@ export const mintCNft = async (umi: Umi, owner: string, metadata: Metadata): Pro
                 verified: true,
                 share: 0
             }],
-            collection: none()
-        },        
+            collection: { key: collectionMint, verified: true }
+        }
     }).sendAndConfirm(umi, { send: { commitment: 'finalized' } });
-    // update the current merkle tree
-    await updateCurrentTree();
 
+    const deserialized = base58.deserialize(signature)[0]
     // fetch the asset from the merkle tree and return it
     const leaf = await parseLeafFromMintV1Transaction(umi, signature);
     const [assetId, bump] = findLeafAssetIdPda(umi, {
         merkleTree: merkleTree,
         leafIndex: leaf.nonce,
     });
+
+    // update the current merkle tree and the database
+    await updateCurrentTree(assetId);
+    await prisma.nft.create({
+        data: {
+            assetId,
+            signature: deserialized,
+            merkleTreeAddress: merkleTree,
+            owner: metadata.committer,
+            commit: {
+                connect: { commitHash: metadata.commitHash }
+            },
+            collection: {
+                connect: { address: collectionAddress }
+            }
+        }
+    });
     // return the asset id, the text signature and the address of the uploaded merkle tree
-    return assetId.toString(), base58.deserialize(signature)[0], merkleTreeAdress;
+    return assetId;
 }
 
 // the type of the fetched Nft
@@ -111,7 +141,48 @@ export async function fetchCNftFromSignature(umi: Umi, merkleTree: string, signa
     return { asset, rpcAssetProof };
 }
 
-
-export async function createCollection(umi: Umi) {
-
+// convert the repo to a collection and return the address of the collection
+export async function convertRepoToCollection(umi: Umi, repoHash: string): Promise<string> {
+    const repo = await prisma.repository.findUnique({ where: { repoHash } });
+    if (!repo) {
+        throw new Error('Repository does not exist to convert to collection.');
+    }
+    // having a base model is essential to create a collection from a repository
+    if (!repo.baseModelHash) {
+        throw new Error('Error creating collection: Repository does not contain any base model.')
+    }
+    const repoMetadata = await createRepositoryMetadata(repo);
+    const collectionAddress = await createCollection(umi, repoMetadata);
+    return collectionAddress.toString();
 }
+
+// function to create a collection for the repository
+export async function createCollection(umi: Umi, metadata: RepositoryNftCollectionMetadata): Promise<PublicKey<string>> {
+    if (!umi.identity) {
+        throw new Error('Crticial Error: Wallet not connected. Cannot create Nft collection.');
+    }
+    const metadataUri = await umi.uploader.uploadJson(metadata)
+        .catch(err => { throw new Error('Error uploading Nft collection metadata: ', err) });
+    const collectionSigner = generateSigner(umi);
+
+    const mint = collectionSigner.publicKey;
+    const { signature } = await createNft(umi, {
+        mint,
+        name: metadata.name,
+        uri: metadataUri,
+        isCollection: true, // main catch for collection
+        sellerFeeBasisPoints: percentAmount(0)
+    }).sendAndConfirm(umi);
+
+    // update the collection in prisma
+    await prisma.collection.create({
+        data: {
+            address: mint.toString(),
+            signature: base58.deserialize(signature)[0],
+            privateKey: base58.deserialize(collectionSigner.secretKey)[0],
+            owner: metadata.owner,
+        }
+    });
+
+    return mint;
+}   

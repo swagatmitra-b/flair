@@ -8,8 +8,6 @@ import b58 from 'bs58';
 import { Web3AuthHandlerCreator } from './context';
 // import { DateTime } from 'luxon';
 
-
-
 type extractedABNF = {
   action: string,
   expiryTime: string

@@ -3,7 +3,7 @@
 
 import { Commit, Repository } from "@prisma/client";
 import { commitMetrics, CommitNftMetdata } from "../types/commit";
-import { prisma } from "../prisma";
+import { prisma } from "../prisma/index.js";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { RepositoryMetadataWithAllRequiredFields, RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
 
@@ -26,11 +26,10 @@ export const createCommitMetadata = async (commit: Commit): Promise<CommitNftMet
     metadata.repositoryHash = repo.repoHash;
     metadata.repositoryName = repo.name;
     metadata.repositoryOwner = repo.ownerAddress;
-    if (!repo.baseModelHash || !repo.baseModelUri) {
+    if (!repo.baseModelHash) {
         throw new Error("Commit's base model does not exist.");
     }
     metadata.baseModelHash = repo.baseModelHash;
-    metadata.baseModelUri = repo.baseModelUri;
     if (commit.status == 'MERGERCOMMIT') {
         throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
     }
@@ -89,12 +88,12 @@ export const createRepositoryMetadata = async (repo: Repository): Promise<Reposi
     metadata.framework = framework;
     metadata.modelUri = modelUri;
     metadata.createdAt = repo.createdAt.toISOString();
-    const { baseModelHash, baseModelUri } = repo;
-    if (!baseModelHash || !baseModelUri) {
-        throw new Error('base model hash and base model uri are required fields.');
+    metadata.owner = repo.ownerAddress;
+    const { baseModelHash } = repo;
+    if (!baseModelHash) {
+        throw new Error('base model hash is a required field.');
     }
     metadata.baseModelHash = baseModelHash;
-    metadata.baseModelUri = baseModelUri;
     return metadata as RepositoryNftCollectionMetadata;
 }
 

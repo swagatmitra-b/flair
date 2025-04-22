@@ -4,7 +4,7 @@
 // as well as stores the tokens that are received from the authentication endpoint
 // Debashish Buragohain
 
-// we create the Umi object after a successful sign in
+// no Umi object in the frontend because regular Nfts is no longer supported.
 
 import { web3 } from "@project-serum/anchor";
 import b58 from 'bs58';
@@ -12,9 +12,11 @@ import { useWallet } from "@solana/wallet-adapter-react";
 import { getSignInData } from "./siws";
 import { SolanaSignInInput } from "@solana/wallet-standard-features";
 import { createSignInMessageText } from "../createsSignInMessageText";
-import { useUmi } from "../../components/UmiProvider";
-import { useAdapter } from "../../components/AdapterProvider";
-import { initializeUmi } from "../nft/umi";
+import { PublicKey } from "@solana/web3.js";
+
+// Umi support has been removed
+// import { useAdapter } from "../../components/AdapterProvider";
+// import { initializeUmi } from "../nft/umi";
 
 export type MessageSigner = {
     signMessage(message: Uint8Array): Promise<Uint8Array>;
@@ -46,6 +48,7 @@ export class MemoryStoredTokenGen {
    * @param wallet Signer.
    * @returns {Promise<string>} pubKey.message.signature (All in base58)
    */
+  
   export const createAuthToken = async (
     signInMessage: string,
     wallet: MessageSigner,
@@ -62,10 +65,8 @@ export class MemoryStoredTokenGen {
 
 
   // creates the sign in token and signs in and stores in memory
-  export const genSignIn = async () => {
-    const {connect} = useWallet();
-    await connect();
-    const {publicKey, signMessage} = useWallet();
+  export const genSignIn = async (publicKey: PublicKey | null, signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | undefined ) => {
+
     if (!publicKey || !signMessage) throw new Error(`Could not connect to wallet.`);
     
     const signInData: SolanaSignInInput = await getSignInData();        // fetch the sign in data from the backend
@@ -99,10 +100,10 @@ export class MemoryStoredTokenGen {
       console.log('Sign In succesful.');
       
       // create the Umi object here
-      const { adapter } = useAdapter();
-      const { setUmi  } = useUmi();
-      const umi = await initializeUmi(adapter);
-      setUmi(umi);
+      // const { adapter } = useAdapter();
+      // const { setUmi  } = useUmi();
+      // const umi = await initializeUmi(adapter);
+      // setUmi(umi);
 
       MemoryStoredTokenGen.getInstance().setToken(authToken);    
     }

@@ -11,6 +11,8 @@
   },
   "author": "Debashish Buragohain",
   "dependencies": {
+    "@ezkljs/engine": "^19.0.7",
+    "@helia/unixfs": "^4.0.2",
     "@metaplex-foundation/digital-asset-standard-api": "^1.0.4",
     "@metaplex-foundation/mpl-bubblegum": "^4.2.1",
     "@metaplex-foundation/mpl-token-metadata": "^3.3.0",
@@ -22,6 +24,7 @@
     "@solana/wallet-standard-features": "^1.2.0",
     "@solana/wallet-standard-util": "^1.1.1",
     "@solana/web3.js": "^1.98.0",
+    "@types/multer": "^1.4.12",
     "bs58": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -31,7 +34,11 @@
     "lowdb": "^7.0.1",
     "luxon": "^3.5.0",
     "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "multiformats": "^13.3.1",
+    "pinata-web3": "^0.5.4",
     "tweetnacl": "^1.0.3",
+    "uint8arrays": "^5.1.0",
     "uuid": "^11.0.2",
     "yup": "^1.4.0"
   },

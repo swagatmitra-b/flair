@@ -1,3 +1,5 @@
-// the index file determines which authentication method is chosen and passes the function to that
-// Debashish Buragohain
-export {};
+export * from './authHandler.js';
+export * from './context.js';
+export * from './siwsAuth.js';
+export * from './web3Auth.js';
+export * from './byPassHandler.js';

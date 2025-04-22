@@ -21,3 +21,5 @@ export const umi = createUmi(rpc)
 export const setKeypairSigner = (signer: KeypairSigner, umi: Umi): void => {
     umi.use(signerIdentity(signer));
 };
+
+// write a logic to enter the private key into Umi

@@ -22,6 +22,7 @@ export interface RepositoryMetadataWithAllRequiredFields {
 
 // the metadata for the repository as an Nft collection
 export interface RepositoryNftCollectionMetadata extends RepositoryMetadataWithAllRequiredFields {
+    owner: string;     
     createdAt: string;  // ISO string of the repository's creation
     baseModelHash: string;
     baseModelUri: string;

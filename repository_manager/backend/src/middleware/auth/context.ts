@@ -40,4 +40,6 @@ export type Web3AuthHandlerCreator = (
 
 
 // the default sign in context
-export const signInContext: Web3AuthConfigurationContext = { allowSkipCheck: true, action: 'sigin' };
+export const signInContext: Web3AuthConfigurationContext = { allowSkipCheck: true, action: 'signin' };
+// the create tree message signing constant
+export const createTreeContext: Web3AuthConfigurationContext = {allowSkipCheck: false, action: 'createTree'};
