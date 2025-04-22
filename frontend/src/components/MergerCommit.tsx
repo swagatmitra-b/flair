@@ -1,11 +1,12 @@
 'use client'
 import type { TypeCommit, TypeMergerCommitGroup } from '@/lib/types'
 import Image from 'next/image'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Commit from './Commit'
 import { formatDate, formatTime, getMergedRejectedAndPendingCount } from '@/lib'
 import { ChevronRight, Unlink2 } from 'lucide-react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 type MergerCommitProps = {
   mergerCommit: TypeMergerCommitGroup['mergerCommit']
@@ -16,8 +17,19 @@ type MergerCommitProps = {
 const MergerCommit: React.FC<MergerCommitProps> = ({ mergerCommit, commits, mergerCommitNo }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const { mergedCount, rejectedCount, pendingCount } = getMergedRejectedAndPendingCount(commits)
+
+  const pathname = usePathname()
+  const [username, setUsername] = useState('')
+  const [repoName, setRepoName] = useState('')
+  useEffect(() => {
+    const parts = pathname.split('/')
+    setUsername(parts[1])
+    setRepoName(parts[2])
+    console.log('Username:', username, 'Repo Name:', repoName)
+  }, [pathname])
+
   return (
-    <div className="w-full h-full px-4 flex flex-col">
+    <div onClick={() => setIsExpanded(!isExpanded)} className="w-full h-full px-4 flex flex-col">
       <div className="flex items-center justify-between w-full font-semibold text-gray-100">
         <h3>{formatDate(mergerCommit.createdAt)}</h3>
       </div>
@@ -26,7 +38,10 @@ const MergerCommit: React.FC<MergerCommitProps> = ({ mergerCommit, commits, merg
           <div className="flex flex-col gap-1 ">
             <h2 className="text-gray-300 text-base flex items-center gap-2">
               {mergerCommitNo + '. ' + mergerCommit.message}
-              <Link className="tooltip" data-tip="hello" href={'/'}>
+              <Link
+                className="relative z-30"
+                href={`/${username}/${repoName}/commits/` + mergerCommit.commitHash}
+              >
                 <Unlink2 size={16} />
               </Link>
             </h2>
@@ -47,12 +62,12 @@ const MergerCommit: React.FC<MergerCommitProps> = ({ mergerCommit, commits, merg
               {rejectedCount != 0 && <span>{`Rejected: ${rejectedCount}`}</span>}
               {pendingCount != 0 && <span>{`Pending: ${pendingCount}`}</span>}
             </p>
-            <button
+            {/* <button
               className="text-white flex items-center text-xs bg-green-500 hover:bg-green-400 py-1 px-2 rounded-lg "
               onClick={() => setIsExpanded(!isExpanded)}
             >
               View <ChevronRight size={12} />
-            </button>
+            </button> */}
           </div>
         </div>
         <div className={`${isExpanded ? 'h-auto' : 'h-0 overflow-hidden'} ml-16 `}>

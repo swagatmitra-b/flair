@@ -1,4 +1,4 @@
-import { TypeCommit } from './types'
+import { TypeCommit, TypeMergerCommitGroup } from './types'
 
 export const formatDate = (dateString: string): string => {
   const date = new Date(dateString)
@@ -20,4 +20,23 @@ export const getMergedRejectedAndPendingCount = (commits: TypeCommit[]) => {
   const rejectedCount = commits.filter(commit => commit.status === 'REJECTED').length
   const pendingCount = commits.filter(commit => commit.status === 'PENDING').length
   return { mergedCount, rejectedCount, pendingCount }
+}
+
+export const createMergerCommitGroups = (commits: TypeCommit[]): TypeMergerCommitGroup[] => {
+  const groups: TypeMergerCommitGroup[] = []
+  let currentGroup: TypeMergerCommitGroup | null = null
+
+  for (const commit of commits) {
+    if (commit.status === 'MERGERCOMMIT') {
+      if (currentGroup) {
+        groups.push(currentGroup)
+      }
+      currentGroup = { mergerCommit: commit, commits: [] }
+    } else if (currentGroup) {
+      currentGroup.commits.push(commit)
+    }
+  }
+  groups.push(currentGroup!)
+
+  return groups
 }

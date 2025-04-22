@@ -1,12 +1,12 @@
-'use client';
-import { Bell, Menu } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useState } from 'react';
-import Sidebar from './Sidebar';
+'use client'
+import { Bell, Menu } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { useState } from 'react'
+import Sidebar from './Sidebar'
 
-const Navbar: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false);
+const HomeNavbar: React.FC = () => {
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <nav className="h-16 fixed w-full z-[100] bg-gray-900 flex items-center px-4 gap-4">
@@ -18,6 +18,7 @@ const Navbar: React.FC = () => {
         height={50}
         alt="logo"
       ></Image>
+      <h1 className="text-lg font-bold tracking-wider">Flair</h1>
       <input
         className="focus:outline-none border-[#A0A0A0] border-1 rounded-md px-2 py-1 ml-4"
         name="search"
@@ -44,6 +45,6 @@ const Navbar: React.FC = () => {
         <Menu />
       </button>
     </nav>
-  );
-};
-export default Navbar;
+  )
+}
+export default HomeNavbar

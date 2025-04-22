@@ -1,24 +1,5 @@
 import MergerCommit from '@/components/MergerCommit'
-import type { TypeCommit, TypeMergerCommitGroup } from '@/lib/types'
-
-const createMergerCommitGroups = (commits: TypeCommit[]): TypeMergerCommitGroup[] => {
-  const groups: TypeMergerCommitGroup[] = []
-  let currentGroup: TypeMergerCommitGroup | null = null
-
-  for (const commit of commits) {
-    if (commit.status === 'MERGERCOMMIT') {
-      if (currentGroup) {
-        groups.push(currentGroup)
-      }
-      currentGroup = { mergerCommit: commit, commits: [] }
-    } else if (currentGroup) {
-      currentGroup.commits.push(commit)
-    }
-  }
-  groups.push(currentGroup!)
-
-  return groups
-}
+import { createMergerCommitGroups } from '@/lib'
 
 const Page: React.FC = () => {
   const groups = createMergerCommitGroups(commits.data)

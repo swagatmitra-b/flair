@@ -1,5 +1,6 @@
 'use client'
 
+import ModelStats from '@/components/ModelStats'
 import Readme from '@/components/Readme'
 import { ChevronRight, History, Pencil, X } from 'lucide-react'
 import Image from 'next/image'
@@ -74,7 +75,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
         <div className="flex-grow"></div>
       </div>
       <div className="flex justify-center items-start mt-8">
-        <div className="flex-grow px-4 flex flex-col gap-2">
+        <div className="flex-grow px-4 flex flex-col gap-6">
           {/* Latest Commit + Number of Commits */}
           <div className="flex items-center py-2 px-4 rounded-lg w-full h-12 bg-gray-800">
             <div className="flex items-center gap-2">
@@ -103,12 +104,18 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
               </Link>
             </div>
           </div>
-          {/* Accuracy */}
-          <div></div>
+
           <Readme readme="Readme content goes here" />
         </div>
 
-        <div className="w-76 h-full border-l border-gray-500 p-4 pl-8 flex flex-col gap-4">
+        <div className="min-w-60 h-full border-l border-gray-500 p-4 pl-8 flex flex-col gap-4">
+          {/* Model Stats */}
+          <div className="flex flex-col gap-2">
+            <h3 className="text-lg font-semibold text-white">Model Stats</h3>
+            <ModelStats accuracy={0.75} loss={0.15} />{' '}
+          </div>
+          <hr className="border-gray-500" />
+
           {/* About Section */}
           <div className="flex flex-col gap-2">
             <div className="flex justify-between w-full">

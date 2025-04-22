@@ -1,7 +1,7 @@
-'use client';
-import Image from 'next/image';
-import EditProfile from './EditProfile';
-import { useState } from 'react';
+'use client'
+import Image from 'next/image'
+import EditProfile from './EditProfile'
+import { useState } from 'react'
 
 const data = {
   fullName: 'John Doe',
@@ -10,14 +10,14 @@ const data = {
   website: 'myportfolio.com',
   twitter: '@twitter_username',
   linkedin: 'my_linkedin_profile',
-  phone: '+255721111936',
+  phone: '+000000000',
   email: 'johndoe@example.com',
-};
+}
 
 const LeftPanel: React.FC = () => {
-  const [isEditProfile, setIsEditProfile] = useState(false);
+  const [isEditProfile, setIsEditProfile] = useState(false)
   if (isEditProfile) {
-    return <EditProfile close={() => setIsEditProfile(false)} data={data} />;
+    return <EditProfile close={() => setIsEditProfile(false)} data={data} />
   } else {
     return (
       <div className="flex flex-col gap-4 min-w-72 w-72">
@@ -39,7 +39,7 @@ const LeftPanel: React.FC = () => {
           <p className="text-gray-300 text-sm">{data.bio}</p>
           <button
             onClick={() => setIsEditProfile(true)}
-            className="px-1 mt-2 py-2 text-sm bg-gray-600 text-white font-semibold rounded-lg w-32 hover:bg-gray-500 transition"
+            className="px-4 mt-2 py-2 text-xs bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition"
           >
             Edit Profile
           </button>
@@ -54,8 +54,8 @@ const LeftPanel: React.FC = () => {
           <p>{data.email}</p>
         </div>
       </div>
-    );
+    )
   }
-};
+}
 
-export default LeftPanel;
+export default LeftPanel
