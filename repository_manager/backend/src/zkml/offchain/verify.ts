@@ -4,7 +4,7 @@ import {
     serializeZkmlProof } from './utils';
 import JSONBig from 'json-bigint';
 import { deserialize } from '@ezkljs/engine/nodejs';
-import { zkmlDeserialized } from '../types';
+import { zkmlDeserialized } from '../types/types';
 
 
 // the proof needs to be verified on the admin's local system only, we just need to serve it from here in the backend

@@ -3,7 +3,7 @@
 // Debashish Buragohain
 
 import { Response, RequestHandler } from "express";
-import { verifySIWSsignin } from "../../lib/auth/siws/verifySignIn";
+import { verifySIWSsignin } from "../../lib/auth/siws/verifySignIn.js";
 import type { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
 import { Web3AuthHandlerCreator } from "./context";
 

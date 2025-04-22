@@ -3,7 +3,9 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import { authRouter, postsRouter } from './routes/index.js';
+import { signInContext } from './middleware/auth/index.js';
+import { ByPassAuth } from './middleware/auth/index.js';
+import { authRouter, repoRouter, treeRouter } from './routes/index.js';
 const PORT = process.env.PORT;
 const app = express();
 // Middleware
@@ -12,9 +14,16 @@ app.use(cors());
 app.use(express.json());
 // SIWS authentication implemented at this position
 app.use('/auth', authRouter);
-// normal routes defined herefafter
-// Routes
-app.use('/posts', postsRouter);
+// authorized routes
+app.use('/repo', 
+// uncomment this when authentication is completed
+//authHandler(signInContext), 
+ByPassAuth(signInContext), repoRouter);
+// tree route must be general authenticated
+app.use('/tree', 
+// uncomment when auth completed
+// authHandler(createTreeContext), 
+ByPassAuth(signInContext), treeRouter);
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });

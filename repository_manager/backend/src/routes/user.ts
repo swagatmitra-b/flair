@@ -2,9 +2,9 @@
 // Debashish Buragohain
 
 import { Router } from "express";
-import { prisma } from "../lib/prisma";
-import { authorizedPk } from "../middleware/auth";
-import { UserMetdata } from "../lib/types/user";
+import { prisma } from "../lib/prisma/index.js";
+import { authorizedPk } from "../middleware/auth/authHandler.js";
+import { UserMetdata } from "../lib/types/user.js";
 import { JsonObject } from "@prisma/client/runtime/library";
 
 const userRouter = Router();

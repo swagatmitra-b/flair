@@ -1,10 +1,10 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
-import { authorizedPk } from '../middleware/auth';
-import { CommittedBy } from '../lib/types/repo';
-import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit';
-import { convertCommitToNft } from '../lib/nft/nft';
-import { umi } from '../lib/nft/umi';
+import { authorizedPk } from '../middleware/auth/authHandler.js';
+import { CommittedBy } from '../lib/types/repo.js';
+import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
+import { convertCommitToNft } from '../lib/nft/nft.js';
+import { umi } from '../lib/nft/umi.js';
 
 const commitRouter = Router();
 

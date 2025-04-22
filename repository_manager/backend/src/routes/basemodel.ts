@@ -4,11 +4,11 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { uploader } from '../lib/multer';
-import { unpinFromIpfs, uploadToIpfs } from '../lib/ifps/pinata';
-import { authorizedPk } from '../middleware/auth';
-import { prisma } from '../lib/prisma';
-import { existingModelCheck } from '../middleware/upload/existingModelCheck';
+import { uploader } from '../lib/multer/index.js';
+import { unpinFromIpfs, uploadToIpfs } from '../lib/ipfs/pinata.js';
+import { authorizedPk } from '../middleware/auth/authHandler.js';
+import { prisma } from '../lib/prisma/index.js';
+import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
 
 const modelRouter = Router();
 
@@ -36,7 +36,7 @@ modelRouter.post('/upload', existingModelCheck, uploader, async (req, res) => {
         // update the data in the repository of the user
         const pk = authorizedPk(res);
         await prisma.repository.update({
-            where: { ownerAddress: pk },
+            where: { id: req.repoId! },
             data: {
                 baseModelHash: cid,
                 updatedAt: Date()

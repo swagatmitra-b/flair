@@ -2,8 +2,8 @@
 // Debashish Buragohain
 
 import { Router } from "express";
-import { createMerkleTree, getCurrentTree } from "../lib/nft/tree";
-import { umi } from "../lib/nft/umi";
+import { createMerkleTree, getCurrentTree } from "../lib/nft/tree.js";
+import { umi } from "../lib/nft/umi.js";
 
 const treeRouter = Router();
 

@@ -4,8 +4,8 @@
 import { PinataSDK, PinResponse } from 'pinata-web3';
 import path from 'path';
 import fs, { stat } from 'fs';
-import { computeCID } from './cid';
-import { prisma } from '../prisma';
+import { computeCID } from './cid.js';
+import { prisma } from '../prisma/index.js';
 
 const pinata = new PinataSDK({
     pinataJwt: process.env.PINATA_JWT!,

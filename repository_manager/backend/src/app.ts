@@ -4,12 +4,15 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import { createTreeContext, signInContext } from './middleware/auth/context.js';
-import { authHandler } from './middleware/auth/index.js';
+import { createTreeContext, signInContext } from './middleware/auth/index.js';
+import { 
+  authHandler,
+  ByPassAuth
+ } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter } from './routes/index.js';
 
-const PORT = process.env.PORT!;
 
+const PORT = process.env.PORT!;
 const app = express();
 
 // Middleware
@@ -17,12 +20,21 @@ app.use(morgan('combined'));
 app.use(cors());
 app.use(express.json());
 
+
 // SIWS authentication implemented at this position
 app.use('/auth', authRouter);
 // authorized routes
-app.use('/repo', authHandler(signInContext), repoRouter);
+app.use('/repo', 
+  // uncomment this when authentication is completed
+  //authHandler(signInContext), 
+  ByPassAuth(signInContext),
+  repoRouter);
 // tree route must be general authenticated
-app.use('/tree', authHandler(createTreeContext), treeRouter);
+app.use('/tree', 
+  // uncomment when auth completed
+  // authHandler(createTreeContext), 
+  ByPassAuth(signInContext),
+  treeRouter);
 // Handle 404
 app.all('*', (req, res, next) => {
   res.status(404).send({ error: '404 Not Found' });

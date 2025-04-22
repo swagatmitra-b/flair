@@ -13,10 +13,10 @@ import {
 //  import { NftMetadata, CreateInstructions, CompletedCreateInstructions } from "./types";
 //  import { generateSigner } from "@metaplex-foundation/umi";
 import { DasApiAsset, GetAssetProofRpcResponse } from "@metaplex-foundation/digital-asset-standard-api";
-import { getCurrentTree, updateCurrentTree } from "./tree";
+import { getCurrentTree, updateCurrentTree } from "./tree.js";
 import { CommitNftMetdata } from "../types/commit";
-import { prisma } from "../prisma";
-import { createCommitMetadata, createRepositoryMetadata } from "./metadata";
+import { prisma } from "../prisma/index.js";
+import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
 import { RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
 import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 

@@ -1,7 +1,7 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
-import { authorizedPk } from '../middleware/auth';
-import { commitRouter } from './commit';
+import { authorizedPk } from '../middleware/auth/authHandler.js';
+import { commitRouter } from './commit.js';
 
 const branchRouter = Router();
 // get all the branches for the particular repository

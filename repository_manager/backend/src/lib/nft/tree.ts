@@ -2,7 +2,7 @@
 // Debashish Buragohain
 import { createTree } from '@metaplex-foundation/mpl-bubblegum';
 import { generateSigner, Umi, TransactionSignature, PublicKey } from '@metaplex-foundation/umi';
-import { prisma } from "../prisma";
+import { prisma } from "../prisma/index.js";
 import { MerkleTreeConfig } from "./types";
 
 // the config for the merkleTree

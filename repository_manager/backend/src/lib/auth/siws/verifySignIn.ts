@@ -7,7 +7,7 @@ import type {
 } from '@solana/wallet-standard-features';
 
 import { verifySignIn } from '@solana/wallet-standard-util';
-import { createUser, userExists } from '../user';
+import { createUser, userExists } from '../user/index.js';
 
 export function verifySIWSsignin(
     // need both the input and output for the SIWS verification

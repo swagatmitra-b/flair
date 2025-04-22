@@ -104,7 +104,6 @@ model Commit {
 model Params {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
   params      String // base64 encoded blosc compressed parameters 
-  zkmlProof   String? // ZKML proof for the current model, deleted after the model has been verified
   commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
   commit      Commit     @relation(fields: [commitId], references: [id])
   ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)

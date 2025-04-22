@@ -3,7 +3,7 @@
 
 
 import { Response, Request, NextFunction } from 'express';
-import { prisma } from '../../lib/prisma';
+import { prisma } from '../../lib/prisma/index.js';
 
 export const existingModelCheck = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const { repoId } = req;

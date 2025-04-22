@@ -1,6 +1,7 @@
 // SIWS sign in verification
 // Debashish Buragohain
 import { verifySignIn } from '@solana/wallet-standard-util';
+import { createUser, userExists } from '../user/index.js';
 export function verifySIWSsignin(
 // need both the input and output for the SIWS verification
 input, output) {
@@ -13,5 +14,17 @@ input, output) {
         signature: new Uint8Array(output.account.publicKey),
         signedMessage: new Uint8Array(output.signedMessage)
     };
-    return verifySignIn(input, serializedOutput);
+    const authenticated = verifySignIn(input, serializedOutput);
+    if (authenticated) {
+        // create the user if he does not exist
+        const pkString = output.account.publicKey.toString();
+        userExists(pkString)
+            .then(async (yes) => {
+            if (!yes) {
+                await createUser(pkString);
+            }
+        })
+            .catch(err => console.error(`Error creating user: ${err}`));
+    }
+    return authenticated;
 }

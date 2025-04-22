@@ -1,6 +1,6 @@
 // import * as fs from 'fs/promises';
 // import * as path from 'path';
-import { zkmlDeserialized, zkmlSerialized } from '../types';
+import { zkmlDeserialized, zkmlSerialized } from '../types/types';
 
 // reference code to read from directory
 // export async function readDataFile(

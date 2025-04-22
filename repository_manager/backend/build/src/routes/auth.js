@@ -24,7 +24,6 @@ authRouter.post('/signin', (req, res) => {
                 res.status(400).json({ success: false });
                 return;
             }
-            console.error('Sign In Successful.');
             res.status(200).json({ success: true });
             return;
         }
@@ -38,11 +37,9 @@ authRouter.post('/signin', (req, res) => {
         try {
             const deconstructPayload = body;
             if (!verifySIWSsignin(deconstructPayload.input, deconstructPayload.output)) {
-                console.error('Sign In Verification Failed!');
                 res.status(400).json({ success: false });
             }
             else {
-                console.log('Sign In Successful.');
                 res.json({ success: true });
             }
         }

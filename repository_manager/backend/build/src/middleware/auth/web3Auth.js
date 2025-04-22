@@ -24,12 +24,7 @@ export const web3Auth = (ctx) => (req, res, next) => {
     const { allowSkipCheck } = ctx;
     const givenAction = ctx.action;
     const authHeader = req.header('Authorization');
-    if (!authHeader) {
-        res
-            .status(401)
-            .send({ error: { message: 'Missing Authorization header' } });
-        return;
-    }
+    authHeader.replace('universal', ""); // remove the verificaton strategy from the header
     const [, authToken] = authHeader.split(' ');
     const [pk, msg, sig] = authToken.split('.');
     // first step is to verify the signature

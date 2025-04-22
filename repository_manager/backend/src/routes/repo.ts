@@ -1,11 +1,11 @@
-import { prisma } from '../lib/prisma';
+import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
-import { authorizedPk } from '../middleware/auth';
+import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { RepositoryMetdata } from '../lib/types/repo';
-import { branchRouter } from './branch';
-import { modelRouter } from './basemodel';
-import { convertRepoToCollection } from '../lib/nft/nft';
-import { umi } from '../lib/nft/umi';
+import { branchRouter } from './branch.js';
+import { modelRouter } from './basemodel.js';
+import { convertRepoToCollection } from '../lib/nft/nft.js';
+import { umi } from '../lib/nft/umi.js';
 
 const repoRouter = Router();
 
@@ -120,7 +120,7 @@ repoRouter.put('/update/:repoHash', async (req, res) => {
         }
 
         // Find the repository
-        const match = await prisma.repository.findFirst({ where: { repoHash } });
+        const match = await prisma.repository.findUnique({ where: { repoHash } });
         if (!match) {
             res.status(404).send({ error: { message: 'Repository does not exist.' } });
             return;

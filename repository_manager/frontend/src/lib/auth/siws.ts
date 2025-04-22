@@ -7,7 +7,9 @@ import type { SignInMessageSignerWalletAdapter } from '@solana/wallet-adapter-ba
 import { useWallet } from '@solana/wallet-adapter-react';
 import { SolanaSignInInput, SolanaSignInOutput } from '@solana/wallet-standard-features';
 import { useAdapter } from '../../components/AdapterProvider';
-import { useUmi } from '../../components/UmiProvider';
+
+// support for reglar Nfts is deprecated and will be removed in future use
+// import { useUmi } from '../../components/UmiProvider';
 import { initializeUmi } from '../nft/umi';
 
 // Singleton class for storing a valid signature on-memory
@@ -37,14 +39,14 @@ export const getSignInData = async (): Promise<SolanaSignInInput> => {
 }
 
 // creates the sign in input and output tokens and stores in memory
-export const siwsSignIn = async (signInAdapter?: SignInMessageSignerWalletAdapter): Promise<boolean> => {
+export const siwsSignIn = async (signIn: ((input?: SolanaSignInInput) => Promise<SolanaSignInOutput>) | undefined, signInAdapter?: SignInMessageSignerWalletAdapter): Promise<boolean> => {
     const input = await getSignInData();
     // store this input in memory now
     // send this received sign in input to the wallet and trigger a sign-in request
     // this pops up the message for the user to sign in
     let output: SolanaSignInOutput | null = null;
     if (!signInAdapter) {
-        const { signIn } = useWallet();
+        // const { signIn } = useWallet();
         if (signIn)
             output = await signIn(input);
         else throw new Error('Wallet does not support Sign In With Solana (SIWS)');
@@ -73,11 +75,13 @@ export const siwsSignIn = async (signInAdapter?: SignInMessageSignerWalletAdapte
     // store the headers in memory now
     console.log('Sign In Successful.');
     
+
+    // Umi support removed
     // creating the Umi object here after a successful sign in
-    const { adapter } = useAdapter();
-    const { setUmi } = useUmi();
-    const umi = await initializeUmi(adapter);
-    setUmi(umi);
+    // const { adapter } = useAdapter();
+    // const { setUmi } = useUmi();
+    // const umi = await initializeUmi(adapter);
+    // setUmi(umi);
 
     MemoryStoredTokenSiws.getInstance().setAuth(input, output);
     return false;

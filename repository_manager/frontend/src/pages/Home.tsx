@@ -6,6 +6,7 @@ import '../styles.css';
 import { SolanaSignInInput } from '@solana/wallet-standard-features';
 import { createSignInMessageText } from '../lib/createsSignInMessageText';      // its coming in handy right here
 import { useSiwsSupport } from '../components/SiwsSupportProvider';
+import { useWallet } from '@solana/wallet-adapter-react';
 
 interface ConnectedDetails {
     walletAddress: string,
@@ -14,7 +15,11 @@ interface ConnectedDetails {
 }
 
 export default function Home() {
+
     const [connectedDetails, setConnectedDetails] = useState<ConnectedDetails | undefined>(undefined);
+    const { siwsSupport } = useSiwsSupport();
+    const { connect, publicKey, signMessage, signIn } = useWallet();
+
     useEffect(() => {
         let memoryStoredToken = MemoryStoredTokenGen.getInstance().token;
         let memoryStoredInput = MemoryStoredTokenSiws.getInstance().input;
@@ -28,27 +33,47 @@ export default function Home() {
             setConnectedDetails({
                 walletAddress: pk,
                 status: 'Signed In',
-                details: createSignInMessageText(contents)
+                details: createSignInMessageText(contents, 'signin')
+            });
+        }
+        if (memoryStoredInput && memoryStoredInput.address) {
+            // just store and display it now
+            setConnectedDetails({
+                walletAddress: memoryStoredInput.address,
+                status: 'Signed In',
+                details: createSignInMessageText(memoryStoredInput, 'signin')
             })
         }
-        if (memoryStoredInput) {
-            // just store and display it now
-            if (memoryStoredInput.address)
-                setConnectedDetails({
-                    walletAddress: memoryStoredInput.address,
-                    status: 'Signed In',
-                    details: createSignInMessageText(memoryStoredInput)
-                })
-        }
-    });
+        // useEffect dependency array now makes it run only once when the component mounts so that it does not repeatedly update the connected details
+    }, []);
 
-    const handleConnect = () => {
-        const { siwsSupport } = useSiwsSupport();
-        if (siwsSupport) {
-            siwsSignIn();
+
+    // Trigger wallet connection if not selected, then perform sign-in
+    const handleConnect = async () => {
+        // if no walet is selected, call connect to trigger the wallet modal
+        if (!publicKey) {
+            await connect();
+        }
+        // after connecting, ensure that the wallet is now selected
+        if (!publicKey) {
+            // this means that the user cancelled their wallet pop up window
+
+            // ! --> may attach additional warnings or errors here to the user
+            console.error("No wallet selected after connect.");
+            return;
+        }
+
+        // if SIWS is supported and the wallet has a signIn method, use it
+        if (siwsSupport && signIn) {
+            await siwsSignIn(signIn);
         }
         else {
-            genSignIn();
+            // signMessage support is mandatory for the general sign in
+            if (!signMessage) {
+                console.error('Wallet does not support signMessage.');
+                return;
+            }
+            await genSignIn(publicKey, signMessage);
         }
     };
 

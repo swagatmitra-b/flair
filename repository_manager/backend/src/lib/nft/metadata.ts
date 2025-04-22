@@ -3,7 +3,7 @@
 
 import { Commit, Repository } from "@prisma/client";
 import { commitMetrics, CommitNftMetdata } from "../types/commit";
-import { prisma } from "../prisma";
+import { prisma } from "../prisma/index.js";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { RepositoryMetadataWithAllRequiredFields, RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
 

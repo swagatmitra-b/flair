@@ -1,7 +1,7 @@
 // the user schema manager for Flair
 // Debashish Buragohain
 
-import { prisma } from "../../prisma";
+import { prisma } from "../../prisma/index.js";
 
 export async function createUser(wallet: string) {
     return await prisma.user.create({

@@ -6,7 +6,7 @@ import { DateTime } from 'luxon';
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 // user creation function exists
-import { userExists, createUser } from '../user';
+import { userExists, createUser } from '../user/index.js';
 
 export const verifyGenSignIn = (authHeader: string, action: string = 'signin'): boolean => {
     const [, authToken] = authHeader.split(' ');
