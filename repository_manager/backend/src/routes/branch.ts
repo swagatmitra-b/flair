@@ -7,35 +7,42 @@ const branchRouter = Router();
 // get all the branches for the particular repository
 branchRouter.get('/', async (req, res) => {
     // we do not need the public key for the retrieval of branches
-    const { repoId } = req;
-    // find the branches having the specifc repository id
-    const matchBranches = await prisma.branch.findMany({
-        where: {
-            repositoryId: repoId
-        }
-    });
-    // send an empty list if we do not have any branches in the repository
-    if (!matchBranches) {
-        res.status(200).json({ data: [] });
+    try {
+        const { repoId } = req;
+        // find the branches having the specifc repository id
+        const matchBranches = await prisma.branch.findMany({
+            where: {
+                repositoryId: repoId
+            }
+        });
+        res.status(200).json({ data: matchBranches });
         return;
     }
-    res.status(200).json({ data: matchBranches });
-    return;
+    catch (err) {
+        console.error('Error in all branch retrieval:', err);
+        res.status(500).send({ error: { message: `${err}` } });
+    }
 });
 
 // get a specific branch in a repository
-branchRouter.get('/:branchHash', async (req, res) => {
-    // find the branches having the specifc repository id
-    const { branchHash } = req.params;
-    const matchBranches = await prisma.branch.findMany({
-        where: { branchHash }
-    });
-    // send an empty list if we do not have any branches in the repository
-    if (!matchBranches) {
-        res.status(200).json({ data: [] });
-        return;
+branchRouter.get('/hash/:branchHash', async (req, res) => {
+    try {
+        // find the branches having the specifc repository id
+        const { branchHash } = req.params;
+        const matchBranches = await prisma.branch.findUnique({
+            where: { branchHash }
+        });
+        // send an empty list if we do not have any branches in the repository
+        if (!matchBranches) {
+            res.status(200).json({ data: [] });
+            return;
+        }
+        res.status(200).json({ data: matchBranches });
     }
-    res.status(200).json({ data: matchBranches });
+    catch (err) {
+        console.error('Error in branch retrieval:', err);
+        res.status(500).send({ error: { message: `${err}` } });
+    }
 });
 
 // create a new branch in a repository
@@ -46,6 +53,11 @@ branchRouter.post('/create', async (req, res) => {
         const matchRepo = await prisma.repository.findFirst({
             where: { id: repoId }
         });
+        if (!matchRepo) {
+            console.error('Criticial Error: Repository does not exist for branch to create.');
+            res.status(500).send({ error: { message: 'Repository does not exist for branch to create.' } });
+            return;
+        }
         // if the user is not the creator of the repo and is not in the write access list
         if (matchRepo!.ownerAddress !== pk && !matchRepo!.writeAccessIds.includes(pk)) {
             res.status(401).send({ error: { message: 'Unauthorized. You can only create a branch in your own repository or those that you have write access.' } });
@@ -53,7 +65,7 @@ branchRouter.post('/create', async (req, res) => {
         }
         // if the base model is not uploaded we cannot create a branch
         if (!matchRepo!.baseModelHash) {
-            res.status(400).send({error: { message: 'No base model uploaded. Cannot create a new branch.'}});
+            res.status(400).send({ error: { message: 'No base model uploaded. Cannot create a new branch.' } });
             return;
         }
         // logic comes till here means we are up for creating a branch
@@ -88,7 +100,7 @@ branchRouter.post('/create', async (req, res) => {
 });
 
 // only thing we can update or change in a branch is its description and the write access ids
-branchRouter.put('/update/:branchHash', async (req, res) => {
+branchRouter.put('/hash/:branchHash/update', async (req, res) => {
     const { repoId } = req;
     const { branchHash } = req.params;  // repo id is in the params
     const pk = authorizedPk(res);
@@ -121,27 +133,27 @@ branchRouter.put('/update/:branchHash', async (req, res) => {
         where: { id: matchBranch.id },
         data: {
             ...(description && { description }),
-            updatedAt: Date()
+            updatedAt: new Date()
         },
     });
 
     // update the repository updated time
     await prisma.repository.update({
         where: { id: repoId },
-        data: { updatedAt: Date() }
+        data: { updatedAt: new Date() }
     });
     res.status(200).json({ data: updatedBranch });
 });
 
 // Delete a branch from a repository
-branchRouter.delete('/delete/:branchHash', async (req, res) => {
+branchRouter.delete('/hash/:branchHash/delete', async (req, res) => {
     const { branchHash } = req.params;
     const pk = authorizedPk(res);
     const { repoId } = req;
 
     try {
         // Find the repository
-        const matchRepo = await prisma.repository.findFirst({
+        const matchRepo = await prisma.repository.findUnique({
             where: { id: repoId },
         });
         if (!matchRepo) {
@@ -161,7 +173,7 @@ branchRouter.delete('/delete/:branchHash', async (req, res) => {
 
         // Get all commits associated with the branch
         const commits = await prisma.commit.findMany({
-            where: { id: matchBranch.id },
+            where: { branchId: matchBranch.id },
             select: { id: true },
         });
 
@@ -172,12 +184,15 @@ branchRouter.delete('/delete/:branchHash', async (req, res) => {
             // Delete params associated with the commits
             prisma.params.deleteMany({ where: { commitId: { in: commitIds } } }),
             // Delete the commits themselves
-            prisma.commit.deleteMany({ where: { id: matchBranch.id } }),
+            prisma.commit.deleteMany({ where: { branchId: matchBranch.id } }),
+
+            // soft delete is unnecessary in here go for permanent deletion only
             // soft delete all the commits in the branch
-            prisma.commit.updateMany({
-                where: { id: matchBranch.id },
-                data: { isDeleted: true }
-            }),
+            // prisma.commit.updateMany({
+            //     where: { id: matchBranch.id },
+            //     data: { isDeleted: true }
+            // }),
+
             // Delete the branch
             prisma.branch.delete({ where: { id: matchBranch.id } }),
             // Update the repository's updatedAt field

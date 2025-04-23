@@ -8,7 +8,7 @@ const authRouter = Router();
 // a request to the backend.
 // this needs to be a get request
 authRouter.get('/signin', async (req, res) => {
-    const signInInputData = createSignInData();
+    const signInInputData = await createSignInData();
     res.json(signInInputData);
 });
 // sign in is the only endpoint where we send the headers as a body for the first time verification
@@ -48,5 +48,7 @@ authRouter.post('/signin', (req, res) => {
             res.status(400).json({ success: false });
         }
     }
+    else
+        res.status(400).json({ success: false });
 });
 export { authRouter };

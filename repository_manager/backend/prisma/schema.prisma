@@ -28,7 +28,7 @@ model User {
 
 model Repository {
   id             String             @id @default(auto()) @map("_id") @db.ObjectId
-  name           String // name of the repository needs to be mandatorily as a main parameter
+  name           String             // name of the repository needs to be mandatorily as a main parameter
   repoHash       String             @unique
   branches       Branch[] // a single repository might contain serveral branches
   writeAccessIds String[]           @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
@@ -47,6 +47,8 @@ model Repository {
   // baseModelUri   String?
   collection     Collection?        @relation(fields: [collectionId], references: [id])
   collectionId   String?            @unique @db.ObjectId
+
+  @@unique([ownerAddress, name])
 }
 
 // repository contains branches

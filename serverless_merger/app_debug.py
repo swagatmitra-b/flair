@@ -2,8 +2,10 @@
 import tensorflow as tf
 from tensorflow import keras
 from flwr.server.strategy import FedAvg  # Federated strategy
-from flwr_serverless import AsyncFederatedNode, S3Folder, LocalFolder
+from flwr_serverless import AsyncFederatedNode
 from flwr_serverless.keras import FlwrFederatedCallback
+
+from lib.local_folder_debug import LocalFolder
 
 # Define the federated learning strategy and shared folder
 strategy = FedAvg()
