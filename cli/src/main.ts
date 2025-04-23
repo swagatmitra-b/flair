@@ -93,5 +93,5 @@ program
       .action(() => {})
   )
   .global()
-  .action(() => console.log("The version control for Federity."))
+  .action(() => console.log("The version control for Flair."))
   .parse(Deno.args);

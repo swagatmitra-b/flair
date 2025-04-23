@@ -5,6 +5,7 @@ import { branchRouter } from './branch.js';
 import { modelRouter } from './basemodel.js';
 import { convertRepoToCollection } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
+import { v4 as uuidv4 } from 'uuid';
 const repoRouter = Router();
 // get all the repositories for the particular user
 repoRouter.get('/', async (req, res) => {
@@ -21,19 +22,30 @@ repoRouter.get('/', async (req, res) => {
         return;
     });
 });
-// get a specific repository given the repository name
+// get a specific repository given the repository name for the current user
 repoRouter.get('/name/:name', async (req, res) => {
     const { name } = req.params;
-    const matchRepo = await prisma.repository.findFirst({ where: { name } });
+    const pk = authorizedPk(res);
+    const matchRepo = await prisma.repository.findFirst({ where: { ownerAddress: pk, name } });
     if (!matchRepo) {
         res.status(404).send({ error: { message: 'Repository not found.' } });
         return;
     }
     res.status(200).json({ data: matchRepo });
 });
+// getting the repository by the owneraddress/repo_name as is done in gihub
+repoRouter.get('/owner/:ownerAddress/name/:name', async (req, res) => {
+    const { ownerAddress, name } = req.params;
+    const matchRepo = await prisma.repository.findFirst({ where: { ownerAddress, name } });
+    if (!matchRepo) {
+        res.status(404).send({ error: { message: 'Repository not found.' } });
+        return;
+    }
+    res.status(200).json({ data: { matchRepo } });
+});
 // get a specific repository given the repository hash
 // Example route to get a repository
-repoRouter.get('/:repoHash', async (req, res) => {
+repoRouter.get('/hash/:repoHash', async (req, res) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({ where: { repoHash } });
     if (!matchRepo) {
@@ -47,9 +59,32 @@ repoRouter.post('/create', async (req, res) => {
     try {
         // create a repository
         const pk = authorizedPk(res);
-        const { metadata, repoHash, name, } = req.body;
-        if (!metadata || !repoHash || !name) {
-            res.status(400).send({ error: { message: 'Required fields are not provided.' } });
+        const { metadata, name, } = req.body;
+        if (!metadata || !name) {
+            res.status(400).send({ error: { message: 'Name and metadata are required fields.' } });
+            return;
+        }
+        if (name.includes(" ")) {
+            res.status(400).send({ error: { message: 'Name of a repository cannot contain spaces.' } });
+            return;
+        }
+        if (name !== metadata.name) {
+            res.status(400).send({ error: { message: 'Mismatch in name of repo and name in metadata.' } });
+            return;
+        }
+        if (metadata.creator !== pk) {
+            res.status(400).send({ error: { message: 'Name of creator in metadata does not match the currently signed in user.' } });
+            return;
+        }
+        // check to ensure that the combination of the user and the repository name is unique
+        const existingRepo = await prisma.repository.findFirst({
+            where: {
+                ownerAddress: pk,
+                name: name
+            }
+        });
+        if (existingRepo) {
+            res.status(400).send({ error: { message: 'You already have a repository with this name.' } });
             return;
         }
         const owner = await prisma.user.findFirst({
@@ -64,8 +99,10 @@ repoRouter.post('/create', async (req, res) => {
                 name,
                 ownerAddress: pk,
                 contributorIds: [pk],
+                writeAccessIds: [pk],
+                adminIds: [pk],
                 metadata: JSON.parse(JSON.stringify(metadata)),
-                repoHash,
+                repoHash: uuidv4(),
                 ownerId: owner.id
             }
         });
@@ -78,7 +115,7 @@ repoRouter.post('/create', async (req, res) => {
         return;
     }
 });
-repoRouter.put('/update/:repoHash', async (req, res) => {
+repoRouter.put('/hash/:repoHash/update', async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoHash } = req.params;
@@ -142,7 +179,7 @@ repoRouter.put('/update/:repoHash', async (req, res) => {
     }
 });
 // convert to nft collection route
-repoRouter.post('/:repoHash/create_collection', async (req, res, next) => {
+repoRouter.post('/hash/:repoHash/create_collection', async (req, res, next) => {
     const { repoHash } = req.params;
     try {
         const collection = await convertRepoToCollection(umi, repoHash);
@@ -151,6 +188,63 @@ repoRouter.post('/:repoHash/create_collection', async (req, res, next) => {
     catch (err) {
         res.status(400).send({ error: { message: `${err}` } });
         return;
+    }
+});
+// delete branch for the repository
+repoRouter.delete('/hash/:repoHash/delete', async (req, res) => {
+    const { repoHash } = req.params;
+    const pk = authorizedPk(res);
+    try {
+        const matchedRepo = await prisma.repository.findUnique({
+            where: { repoHash }
+        });
+        if (!matchedRepo) {
+            res.status(404).send({ error: { message: 'Repository not found.' } });
+            return;
+        }
+        if (matchedRepo.ownerAddress !== pk && !matchedRepo.adminIds.includes(pk)) {
+            res.status(401).send({ error: { message: 'Unauthorized. Only a creator or an admin can delete the branch.' } });
+            return;
+        }
+        // get all the branches for this repository
+        const branches = await prisma.branch.findMany({
+            where: { repositoryId: matchedRepo.id },
+            select: { id: true }
+        });
+        // delete all the commits for each branch and then the branch iself
+        for (const branch of branches) {
+            // Get all commits associated with the branch
+            const commits = await prisma.commit.findMany({
+                where: { branchId: branch.id },
+                select: { id: true },
+            });
+            // Extract commit IDs
+            const commitIds = commits.map((commit) => commit.id);
+            // Perform the deletion within a transaction
+            await prisma.$transaction([
+                // Delete params associated with the commits
+                prisma.params.deleteMany({ where: { commitId: { in: commitIds } } }),
+                // permanent deletion is the best action because obviously
+                // permanently delete commits
+                prisma.commit.deleteMany({ where: { branchId: branch.id } }),
+                // soft delete commits
+                // prisma.commit.updateMany({
+                //     where: { branchId: branch.id },
+                //     data: { isDeleted: true }
+                // }),
+                // Delete the branch finally
+                prisma.branch.delete({ where: { id: branch.id } }),
+            ]);
+        }
+        // finaly after all the branches have been deleted we can delete the repository
+        // Update the repository's updatedAt field
+        const deletedRepo = await prisma.repository.delete({ where: { repoHash } });
+        // inform the client that the repo has been deleted successfully
+        res.status(200).json({ message: 'The repository and its associated branches and commits deleted successfully.', deleted: deletedRepo });
+    }
+    catch (err) {
+        console.error('Error deleting branch: ', err);
+        res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });
 // mounting the branch router here

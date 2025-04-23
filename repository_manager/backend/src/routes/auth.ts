@@ -12,7 +12,7 @@ const authRouter = Router();
 // a request to the backend.
 // this needs to be a get request
 authRouter.get('/signin', async (req, res) => {
-    const signInInputData = createSignInData();
+    const signInInputData = await createSignInData();
     res.json(signInInputData);
 });
 
@@ -53,6 +53,7 @@ authRouter.post('/signin', (req, res) => {
             res.status(400).json({ success: false });
         }
     }
+    else res.status(400).json({success: false});
 });
 
 export { authRouter };
