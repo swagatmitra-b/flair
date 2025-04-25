@@ -1,125 +1,124 @@
-// authenticated requests gateway for both SIWS and general workflow
-// Debashish Buragohain
-
-
-import { MemoryStoredTokenSiws, siwsSignIn } from "../auth/siws";
+import { DateTime } from 'luxon';
+import { MemoryStoredTokenSiws } from "../auth/siws";
 import { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
-import { MemoryStoredTokenGen, genSignIn } from "../auth/general";
+import { MemoryStoredTokenGen } from "../auth/general";
 import b58 from 'bs58';
+import { parseSignInMessage } from "../auth/helper/abnf_prarser";
 
-// SIWS request function
-// creating a dedicated request function that sends the authorization headers along with the request
-const siwsRequest = async (
-    contents: requestParams) => {
-    const { method, url, data, action } = contents;
-
-    // try to reuse existing token
-    let { input, output } = MemoryStoredTokenSiws.getInstance();
-    const isValidToken = (input?: SolanaSignInInput, output?: SolanaSignInOutput): boolean => {
-        if (!input || !output) {
-            console.warn('Not signed in.');
-            return false;
-        }
-        if (!input.expirationTime) {
-            console.warn('Required field exipirationTime not present in sign in input from backend.');
-            return false;
-        }
-        if (Date.now() > new Date(input.expirationTime).getTime()) {
-            console.warn('Authentication token expired.');
-            return false
-        }
-        return true;
+// SIWS request function. In here, the token does not include the action because the default action in SIWS is the sign in action
+// therefore we send particularly the action for the SIWS, that must be compared.
+const siwsRequest = async (contents: requestParams) => {
+  const { method, url, data, action } = contents;
+  // try to reuse existing token
+  let { input, output } = MemoryStoredTokenSiws.getInstance();
+  const isValidToken = (input?: SolanaSignInInput, output?: SolanaSignInOutput): boolean => {
+    if (!input || !output) {
+      console.warn('Not signed in.');
+      return false;
     }
-    if (!isValidToken(input, output)) {
-        // this request exclusively requires that your wallet has the signIn feature enabled
-        const signInFailed = await siwsSignIn();
-        input = MemoryStoredTokenSiws.getInstance().input;
-        output = MemoryStoredTokenSiws.getInstance().output;
-        if (signInFailed || !isValidToken(input, output)) {
-            throw new Error('Cannot make request as wallet not signed in. Please sign in first.');
-        }
+    if (!input.expirationTime) {
+      console.warn('Required field expirationTime not present in sign in input from backend.');
+      return false;
     }
-
-    // base64 encode the headers for transmission to the backend
-    const token = btoa(JSON.stringify({ input, output, action }));
-    return await fetch(url, {
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer siws${token}`
-        },
-        body: (data) ? JSON.stringify(data) : undefined,
-        method: method ? method : data ? "POST" : "GET"
-    })
-        .then(r => r.json())
-        .catch(err => console.error(`Error sending SIWS token to backend: ${err}`));
-}
-
-
-// general workflow requests
-// dedicated authenticated request function for general sign in
-const genRequest = async (
-    contents: requestParams
-) => {
-    const { method, url, data } = contents;    
-    let authToken;
-    // signin is the action equivalent to SIWS authentication in the general workflow
-    // Try to reuse existing token.
-    const memoryToken = MemoryStoredTokenGen.getInstance().token;
-    // if token present in memory
-    if (memoryToken) {
-        const [, msg] = memoryToken.split(".");
-        // check out the expiration time for the token
-        // if it has expired we request the user to sign in again
-        const contents = JSON.parse(
-            new TextDecoder().decode(b58.decode(msg))
-        ) as { expirationTime: string };
-
-        // if token has expired then create a new token at this point itself
-        if (Date.now() > new Date(contents.expirationTime).getTime()) {
-            await genSignIn();
-            authToken = MemoryStoredTokenGen.getInstance().token;
-        }
-        // else if the token is valid
-        else {
-            authToken = memoryToken;
-        }
+    if (Date.now() > new Date(input.expirationTime).getTime()) {
+      console.warn('Authentication token expired.');
+      return false;
     }
-    // don't have a token in memory create a new one.
-    else {
-        await genSignIn();
-        authToken = MemoryStoredTokenGen.getInstance().token;
+    return true;
+  };
+
+  if (!isValidToken(input, output)) {
+    // in the current version we are not signing in SIWS from this function itself
+    throw new Error('Cannot make request as wallet not signed in. Please sign in first.');
+  }
+
+  // Base64 encode the token payload including the action
+  const token = btoa(JSON.stringify({ input, output, action }));
+  return await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer siws${token}`
+    },
+    body: data ? JSON.stringify(data) : undefined,
+    method: method ? method : data ? "POST" : "GET"
+  })
+    .then(r => r.json())
+    .catch(err => console.error(`Error sending SIWS token to backend: ${err}`));
+};
+
+// General workflow requests
+// For the general workflow, the action is included in the token itself. Therefore we check it.
+const genRequest = async (contents: requestParams) => {
+  const { method, url, data, action } = contents;
+  
+  let authToken;
+  // Sign in is the action equivalent to SIWS authentication in the general workflow.
+  // Try to reuse existing token.
+  const memoryToken = MemoryStoredTokenGen.getInstance().token;
+  if (!memoryToken) {
+    throw new Error('User not signed in. Please sign in first.');
+  }
+
+  // In the current version we are not re-signing the user from here.
+  if (memoryToken) {
+    const [, msg] = memoryToken.split("."); // msg here contains the ABNF-like string that pops up in the user's wallet
+    // Check the expiration time for the token and the associated action
+    const decodedSignInMessage = new TextDecoder().decode(b58.decode(msg));
+    const parsedDecoded = parseSignInMessage(decodedSignInMessage);
+    const actionInToken = parsedDecoded['Action'] as string;
+    const expirationTime = parsedDecoded['Expiration Time'] as string;
+    if (!actionInToken || !expirationTime) 
+      throw new Error("Required fields (Action, Expiration Time) are missing from token. Please sign in again.");
+
+    // Check token expiration: Convert the ISO string to a Unix timestamp
+    const expUnix = DateTime.fromISO(expirationTime).toUnixInteger();
+    if (DateTime.local().toUTC().toUnixInteger() > expUnix) {
+      throw new Error("Expired token. Please sign in again");
     }
 
-    return await fetch(url, {
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer universal${authToken}`
-        },
-        body: (data) ? JSON.stringify(data) : undefined,
-        method: method ? method : data ? "POST" : "GET"
-    })
-        .then(r => r.json())
-        .catch(err => console.error(`Error sending auth token to backend: ${err}`));
+    if (actionInToken !== action)
+      throw new Error(`Action mismatch in token. Desired action: ${action} Action in token: ${actionInToken}`);
+
+    authToken = memoryToken;        
+  }
+  if (!authToken) throw new Error('Auth token not generated for request.');
+
+  // Final request for the general workflow request
+  return await fetch(url, {
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer universal${authToken}`
+    },
+    body: data ? JSON.stringify(data) : undefined,
+    method: method ? method : data ? "POST" : "GET"
+  })
+    .then(r => r.json())
+    .catch(err => console.error(`Error sending auth token to backend: ${err}`));
 };
 
 export interface requestParams {
-    method?: string,
-    url: string,
-    data?: string,
-    action: string          // action is necessary for all requests now
+  method?: string;
+  url: string;
+  data?: string;
+  action?: string; // action is necessary for all requests now
 }
 
-// a general request involves all the general functionalities
+// A general request involves all the general functionalities.
+// If the action field is not provided, default to 'signin'
 export const request = async (contents: requestParams) => {
-    // if we are connected using SIWS
-    if (MemoryStoredTokenSiws.getInstance().output) {
-        return await siwsRequest(contents);
-    }
-    // if connected using the general workflow
-    else if (MemoryStoredTokenGen.getInstance().token) {
-        return await genRequest(contents);
-    }
-    else throw new Error('No wallet connected. Cannot make request.');
-}
+  const defaultedContents = { ...contents, action: contents.action || 'signin' };
+
+  // if we are connected using SIWS
+  if (MemoryStoredTokenSiws.getInstance().output) {
+    return await siwsRequest(defaultedContents);
+  }
+  // if connected using the general workflow
+  else if (MemoryStoredTokenGen.getInstance().token) {
+    return await genRequest(defaultedContents);
+  }
+  else {
+    throw new Error('No wallet connected. Cannot make request.');
+  }
+};

@@ -3,6 +3,10 @@
 import { prisma } from '../../lib/prisma/index.js';
 export const existingModelCheck = async (req, res, next) => {
     const { repoId } = req;
+    if (!repoId) {
+        res.status(500).send({ error: { message: 'Repository ID not attached to the request.' } });
+        return;
+    }
     const repo = await prisma.repository.findUnique({
         where: { id: repoId },
         include: {

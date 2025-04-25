@@ -1,40 +1,110 @@
-// the verification function for the general workflow sign in
-// Debashish Buragohain
 import b58 from 'bs58';
 import { DateTime } from 'luxon';
 import { PublicKey } from '@solana/web3.js';
 import nacl from 'tweetnacl';
-// user creation function exists
 import { userExists, createUser } from '../user/index.js';
+import { parseSignInMessage } from '../helper/abnf_parser.js';
+// returns the public key in case the user is authenticated
 export const verifyGenSignIn = (authHeader, action = 'signin') => {
-    const [, authToken] = authHeader.split(' ');
-    const [pk, msg, sig] = authToken.split('.');
-    // first step is to verify the signature
-    // verifiying the hash here
+    if (!authHeader) {
+        throw new Error("No authentication header provided.");
+    }
+    // Remove the "Bearer" and "universal" prefixes.
+    // For example, if authHeader is:
+    // "Bearer universalDUwyw8WeSjJEYakMs1TqzvXNLy...<rest of token>"
+    // this will remove "Bearer universal" so only "<pk>.<msg>.<sig>" remains.
+    const cleanToken = authHeader.trim().replace(/^Bearer\s*universal\s*/, '').trim();
+    const tokenParts = cleanToken.split('.');
+    if (tokenParts.length !== 3) {
+        throw new Error("Token format is invalid.");
+    }
+    const [pk, msg, sig] = tokenParts;
+    // Verify the signature
     const hasValidSig = nacl.sign.detached.verify(b58.decode(msg), b58.decode(sig), new PublicKey(pk).toBytes());
     if (!hasValidSig) {
-        console.error(`Invalid signature.`);
-        return false;
+        throw new Error("Invalid signature.");
     }
-    // if signature valid then check whether the token is expired or not
-    const contents = JSON.parse(new TextDecoder().decode(b58.decode(msg)));
-    if (DateTime.local().toUTC().toUnixInteger() > contents.exp) {
-        console.error('Expired token.');
-        return false;
+    // Decode the message
+    const decodedString = new TextDecoder().decode(b58.decode(msg));
+    // Parse the message using our ABNF parser
+    const contents = parseSignInMessage(decodedString);
+    // Ensure that both 'Action' and 'Expiration Time' fields exist
+    if (!contents["Action"] || !contents["Expiration Time"]) {
+        throw new Error("Required fields (Action, Expiration Time) are missing from token.");
     }
-    // the skip action check is the last check and checks whether the action that has been signed matches the action that is provided to be performed
-    // skip action check skips this action though. so we can essentially do a skip action on every action, but we have allowed the skip action to be
-    // available only for the GET request from the server.
-    if (contents.action !== action) {
-        console.error('Invalid action.');
-        return false;
+    // Check token expiration: Convert the ISO string to a Unix timestamp
+    const expUnix = DateTime.fromISO(contents["Expiration Time"]).toUnixInteger();
+    if (DateTime.local().toUTC().toUnixInteger() > expUnix) {
+        throw new Error("Expired token.");
     }
-    // create a user if he does not exist
+    // Validate action
+    if (contents["Action"].trim() !== action) {
+        throw new Error("Invalid action.");
+    }
+    return pk;
+};
+export const verifyGenSignInFirstTime = (authToken, action = 'signin') => {
+    const tokenParts = authToken.split('.');
+    if (tokenParts.length !== 3) {
+        throw new Error("Token format is invalid.");
+    }
+    const [pk, msg, sig] = tokenParts;
+    const hasValidSig = nacl.sign.detached.verify(b58.decode(msg), b58.decode(sig), new PublicKey(pk).toBytes());
+    if (!hasValidSig) {
+        throw new Error("Invalid signature.");
+    }
+    const decodedString = new TextDecoder().decode(b58.decode(msg));
+    const contents = parseSignInMessage(decodedString);
+    if (!contents["Action"] || !contents["Expiration Time"]) {
+        throw new Error("Required fields (Action, Expiration Time) are missing from token.");
+    }
+    const expUnix = DateTime.fromISO(contents["Expiration Time"]).toUnixInteger();
+    if (DateTime.local().toUTC().toUnixInteger() > expUnix) {
+        throw new Error("Expired token.");
+    }
+    if (contents["Action"].trim() !== action) {
+        throw new Error("Invalid action.");
+    }
+    console.log('public key signed in: ', pk);
     userExists(pk)
-        .then(async (yes) => {
-        if (!yes)
+        .then(async (exists) => {
+        if (!exists) {
             await createUser(pk);
+            console.log('New user created with wallet:', pk);
+        }
     })
-        .catch(err => console.error(`Error creating user: ${err}`));
+        .catch((err) => console.error(`Error creating user: ${err}`));
     return true;
 };
+// same code as the import
+// // Include the parser function here, or import it from a separate file
+// function parseSignInMessage(message: string): Record<string, string | string[]> {
+//     const lines = message.split('\n').map(line => line.trim());
+//     const fields: Record<string, string | string[]> = {};
+//     // Assume fields start after the first blank line
+//     let fieldStart = lines.findIndex(line => line === '');
+//     if (fieldStart === -1) {
+//         fieldStart = 2;
+//     } else {
+//         fieldStart += 1;
+//     }
+//     for (let i = fieldStart; i < lines.length; i++) {
+//         const line = lines[i];
+//         if (!line) continue;
+//         if (line.startsWith("Resources:")) {
+//             fields["Resources"] = [];
+//         } else if (line.startsWith("-")) {
+//             if (Array.isArray(fields["Resources"])) {
+//                 fields["Resources"].push(line.substring(1).trim());
+//             }
+//         } else {
+//             const colonIndex = line.indexOf(":");
+//             if (colonIndex > -1) {
+//                 const key = line.substring(0, colonIndex).trim();
+//                 const value = line.substring(colonIndex + 1).trim();
+//                 fields[key] = value;
+//             }
+//         }
+//     }
+//     return fields;
+// }

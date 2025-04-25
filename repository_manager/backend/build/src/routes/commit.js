@@ -10,10 +10,12 @@ commitRouter.get('/', async (req, res) => {
     try {
         const commits = await prisma.commit.findMany({ where: { branchId } });
         res.status(200).json({ data: commits });
+        return;
     }
     catch (err) {
         console.error('Error retrieving commits:', err);
         res.status(500).send({ error: { message: 'Internal Server Error' } });
+        return;
     }
 });
 // complete info for the commit for pulling it
@@ -114,10 +116,10 @@ commitRouter.get('/pending', async (req, res) => {
 commitRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res); // Get the contributor's wallet address
-        const { branchId } = req.body; // Branch ID where the commit is being made
+        const { branchId } = req; // Branch ID where the commit is being made
         // the property of the nextMergerCommit will be defined by the backend itself
         // it will not be sent in the request
-        const { committedBy, message, paramHash, params, metrics, commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
+        const { commitType, message, paramHash, params, metrics, commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
         rejectedCommits, // the rejected commits with the hash and the reject message
          } = req.body;
         // cannot create a commit if the base model is not uploaded
@@ -126,12 +128,15 @@ commitRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
             return;
         }
-        if (committedBy !== 'SYSTEM' && !message) {
+        if (commitType !== 'SYSTEM' && !message) {
             res.status(400).send({ error: { message: 'Commit message is required.' } });
             return;
         }
+        if (!branchId) {
+            throw new Error('Criticial Error: branchId not attached to response.');
+        }
         // Validate input fields
-        if (!branchId || !paramHash || !params || !metrics || !commitHash) {
+        if (!paramHash || !params || !metrics || !commitHash) {
             res.status(400).send({ error: { message: 'Complete commit information not provided.' } });
             return;
         }
@@ -177,13 +182,14 @@ commitRouter.post('/create', async (req, res) => {
             res.status(500).send({ error: { message: 'Internal Server Error' } });
             return;
         }
+        // the first commit is the only commit that is committed by the user and still a MERGER_COMMIT
         // Commit message section
         // Default status for a new commit is pending unless it is the first commit in the branch for which it is the merger commit
         const commitLength = await prisma.commit.count({ where: { branchId } });
-        const status = committedBy == 'SYSTEM' ? 'MERGERCOMMIT' : commitLength == 0 ? 'MERGERCOMMIT' : 'PENDING';
-        const commitMessage = committedBy == 'SYSTEM' ? '_SYSTEM_COMMIT_' : message;
+        const status = commitType == 'SYSTEM' ? 'MERGERCOMMIT' : commitLength == 0 ? 'MERGERCOMMIT' : 'PENDING';
+        const commitMessage = commitType == 'SYSTEM' ? '_SYSTEM_COMMIT_' : message;
         // if it is a merger commit
-        if (committedBy == 'SYSTEM') {
+        if (commitType == 'SYSTEM') {
             if (!acceptedCommits || !rejectedCommits) {
                 res.status(400).send({ error: { message: 'Accepted and Rejected Commits are mandatory for a merger commit.' } });
                 return;
@@ -208,12 +214,27 @@ commitRouter.post('/create', async (req, res) => {
                     },
                     include: { params: true }
                 });
+                // ------------------------------------ ZKML Proof handling --------------------------------------------
                 // !-- this deletes the verified proof since we have already verified it
-                // !!------          change this later on need            --------------
-                if (updatedCommit.params)
-                    await prisma.zKMLProof.delete({
-                        where: { paramId: updatedCommit.params.id }
-                    });
+                // !!-- the ZKML proof is a big file to store. Currently we are removing it once the commits are accepted.
+                // !!------          But change this later on need            --------------
+                if (updatedCommit.params) {
+                    // in reality all commits must contain ZKML proofs and its verification cannot be skipped                    
+                    // the merger must check if all the ZKML proofs have been verified before creating a Merger Commit !
+                    // !! -- For Testing we consider that the ZKML proof may be empty
+                    // !! But in production environments this cannot be empty
+                    const proofRecordCount = await prisma.zKMLProof.count({ where: { paramId: updatedCommit.params.id } });
+                    if (proofRecordCount > 0)
+                        await prisma.zKMLProof.delete({
+                            where: { paramId: updatedCommit.params.id }
+                        });
+                    else
+                        console.warn(`High Level Warning!! Commit that does not contain ZKML proof has been merged. Commit Details: 
+                        \n Commit Hash: ${updatedCommit.commitHash}
+                        \n Committed by ID: ${updatedCommit.committerId}
+                        \n Commit Message: ${updatedCommit.message}
+                        \n Commit Time: ${updatedCommit.createdAt}`);
+                }
             }
             const rejectedCommitIds = [];
             for (const cmt of rejectedCommits) {
@@ -229,8 +250,11 @@ commitRouter.post('/create', async (req, res) => {
             // for the rejected commits delete all the parameters for those commits
             for (const id of rejectedCommitIds) {
                 const deletedParam = await prisma.params.delete({ where: { commitId: id } });
-                // also delete the associated zkml proof for this param
-                await prisma.zKMLProof.delete({ where: { paramId: deletedParam.id } });
+                // also delete the associated zkml proof for this param if it exists 
+                // For rejected commits it is allowable to have the ZKML proof as optional
+                const rejectedZKMLProofCount = await prisma.zKMLProof.count({ where: { paramId: deletedParam.id } });
+                if (rejectedZKMLProofCount > 0)
+                    await prisma.zKMLProof.delete({ where: { paramId: deletedParam.id } });
             }
         }
         if (!params.zkmlProof) {

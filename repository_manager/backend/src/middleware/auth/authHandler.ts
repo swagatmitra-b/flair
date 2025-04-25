@@ -4,7 +4,7 @@
 
 import { Web3AuthHandlerCreator } from "./context";
 import { siwsAuth } from "./siwsAuth.js";
-import { web3Auth } from "./web3Auth.js";
+import { genAuth } from "./web3Auth.js";
 import { authorizedPk } from "./web3Auth.js";
 
 export const authHandler: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
@@ -16,12 +16,13 @@ export const authHandler: Web3AuthHandlerCreator = (ctx) => (req, res, next) => 
     }
     // check which of the authentication mechanisms are we going for
     if (authHeader.includes('universal')) {
-        web3Auth(ctx);
+        genAuth(ctx)(req, res, next);
     }
     else if (authHeader.includes('siws')) {
-        siwsAuth(ctx);
+        siwsAuth(ctx)(req, res, next);
     }
     else res.status(400).send({ error: { message: 'Invalid sign in strategy.' } });
+
 }
 
 

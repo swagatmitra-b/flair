@@ -115,16 +115,16 @@ repoRouter.post('/create', async (req, res) => {
         return;
     }
 });
-repoRouter.put('/hash/:repoHash/update', async (req, res) => {
+repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoHash } = req.params;
-        const { name, addContributorIds = [], removeContributorIds = [], addAdminIds = [], removeAdminIds = [], addWriteAccessIds = [], removeWriteAccessIds = [], metadata, baseModelUri, baseModelHash, } = req.body;
+        const { name, addContributorIds = [], removeContributorIds = [], addAdminIds = [], removeAdminIds = [], addWriteAccessIds = [], removeWriteAccessIds = [], metadata, baseModelHash, } = req.body;
         if (!repoHash) {
             res.status(400).send({ error: { message: 'Repository hash not provided to update.' } });
             return;
         }
-        if (!metadata && !baseModelUri && !addContributorIds.length && !removeContributorIds.length && !addAdminIds.length && !removeAdminIds.length && !addWriteAccessIds.length && !removeWriteAccessIds.length) {
+        if (!metadata && !addContributorIds.length && !removeContributorIds.length && !addAdminIds.length && !removeAdminIds.length && !addWriteAccessIds.length && !removeWriteAccessIds.length) {
             res.status(400).send({ error: { message: 'No fields provided to update.' } });
             return;
         }
@@ -163,7 +163,6 @@ repoRouter.put('/hash/:repoHash/update', async (req, res) => {
                 ...(updatedAdminIds && { adminIds: updatedAdminIds }),
                 ...(updatedWriteAccessIds && { writeAccessIds: updatedWriteAccessIds }),
                 ...(updatedMetdata && { metadata: updatedMetdata }),
-                ...(baseModelUri && { baseModelUri }),
                 ...(baseModelHash && { baseModelHash }),
                 ...(name && { name }), // in case we want to change the name of the repository
                 updatedAt: new Date(),
@@ -248,7 +247,7 @@ repoRouter.delete('/hash/:repoHash/delete', async (req, res) => {
     }
 });
 // mounting the branch router here
-repoRouter.use('/:repoHash/branch', async (req, res, next) => {
+repoRouter.use('/hash/:repoHash/branch', async (req, res, next) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({
         where: { repoHash }
@@ -263,21 +262,17 @@ repoRouter.use('/:repoHash/branch', async (req, res, next) => {
     next();
 }, branchRouter);
 // mount the model upload router here
-repoRouter.use('/:repoHash/basemodel', async (req, res, next) => {
+repoRouter.use('/hash/:repoHash/basemodel', async (req, res, next) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({
-        where: { repoHash },
-        include: {
-            branches: true
-        }
+        where: { repoHash }
     });
     if (!matchRepo) {
         res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
     // cannot upload a new model to the same repository
-    if (matchRepo.baseModelHash && matchRepo.branches) {
-        res.status(400).send({ error: { message: 'Model already uploaded to repository. ' } });
-    }
+    req.repoId = matchRepo.id;
+    next();
 }, modelRouter);
 export { repoRouter };

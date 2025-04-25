@@ -3,8 +3,8 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import { signInContext } from './middleware/auth/index.js';
-import { ByPassAuth } from './middleware/auth/index.js';
+import { createTreeContext, signInContext } from './middleware/auth/index.js';
+import { authHandler } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter } from './routes/index.js';
 const PORT = process.env.PORT;
 const app = express();
@@ -16,14 +16,14 @@ app.use(express.json());
 app.use('/auth', authRouter);
 // authorized routes
 app.use('/repo', 
-// uncomment this when authentication is completed
-//authHandler(signInContext), 
-ByPassAuth(signInContext), repoRouter);
+// uncomment this when you want to bypass authentication
+// ByPassAuth(signInContext),
+authHandler(signInContext), repoRouter);
 // tree route must be general authenticated
-app.use('/tree', 
-// uncomment when auth completed
-// authHandler(createTreeContext), 
-ByPassAuth(signInContext), treeRouter);
+app.use('/tree', authHandler(createTreeContext), 
+// uncomment this when you want to bypass authentication
+// ByPassAuth(signInContext),
+treeRouter);
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });

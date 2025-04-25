@@ -2,6 +2,7 @@ import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { commitRouter } from './commit.js';
+import { v4 as uuidv4 } from 'uuid';
 const branchRouter = Router();
 // get all the branches for the particular repository
 branchRouter.get('/', async (req, res) => {
@@ -47,8 +48,9 @@ branchRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoId } = req;
-        const matchRepo = await prisma.repository.findFirst({
-            where: { id: repoId }
+        const matchRepo = await prisma.repository.findUnique({
+            where: { id: repoId },
+            include: { branches: true }
         });
         if (!matchRepo) {
             console.error('Criticial Error: Repository does not exist for branch to create.');
@@ -65,25 +67,37 @@ branchRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'No base model uploaded. Cannot create a new branch.' } });
             return;
         }
-        // logic comes till here means we are up for creating a branch
         // when we create a new branch, we make a copy of our current working branch
-        const { currentBranchId, name, description, branchHash } = req.body;
-        const currentBranch = await prisma.branch.findFirst({
-            where: { id: currentBranchId }
-        });
-        if (!currentBranch) {
-            res.status(400).send({ error: { message: 'Current branch does not exist in the repository.' } });
+        const { currentBranchHash, name, description } = req.body;
+        if (name.includes(" ")) {
+            res.status(400).send({ error: { message: "Name of the branch cannot contain spaces." } });
             return;
+        }
+        // if this needs to be the first branch in this repository then there will not be any latest parameters in it
+        let currentBranch;
+        if (!currentBranchHash) {
+            // check if this is the first branch in this repository
+            if (matchRepo.branches.length !== 0) {
+                res.status(400).send({ error: { message: 'Current branch hash is mandatory for repos with more than one existing branches.' } });
+                return;
+            }
+        }
+        else {
+            currentBranch = await prisma.branch.findFirst({ where: { branchHash: currentBranchHash } });
+            if (!currentBranch) {
+                res.status(400).send({ error: { message: 'Current branch does not exist in the repository.' } });
+                return;
+            }
         }
         // create the new branch here
         const newBranch = await prisma.branch.create({
             data: {
                 name,
                 description,
-                // the parameters of this model
-                latestParams: currentBranch.latestParams,
+                // add the parameters of the current branch to this new branch if it is not the first branch in the repository
+                ...(currentBranch && currentBranch.latestParams && { latestParams: currentBranch.latestParams }),
                 repositoryId: repoId,
-                branchHash
+                branchHash: uuidv4()
             }
         });
         res.status(201).json({ data: newBranch });
@@ -96,7 +110,7 @@ branchRouter.post('/create', async (req, res) => {
     }
 });
 // only thing we can update or change in a branch is its description and the write access ids
-branchRouter.put('/hash/:branchHash/update', async (req, res) => {
+branchRouter.patch('/hash/:branchHash/update', async (req, res) => {
     const { repoId } = req;
     const { branchHash } = req.params; // repo id is in the params
     const pk = authorizedPk(res);
@@ -182,22 +196,23 @@ branchRouter.delete('/hash/:branchHash/delete', async (req, res) => {
             //     where: { id: matchBranch.id },
             //     data: { isDeleted: true }
             // }),
-            // Delete the branch
-            prisma.branch.delete({ where: { id: matchBranch.id } }),
             // Update the repository's updatedAt field
             prisma.repository.update({
                 where: { id: repoId },
                 data: { updatedAt: new Date() },
             }),
         ]);
-        res.status(200).send({ message: 'The branch and its associated commits deleted successfully.' });
+        // Delete the branch
+        const deletedBranch = await prisma.branch.delete({ where: { id: matchBranch.id } });
+        res.status(200).send({ message: 'The branch and its associated commits deleted successfully.', branch: deletedBranch });
+        return;
     }
     catch (err) {
         console.error('Error deleting branch: ', err);
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });
-branchRouter.use('/:branchHash/commit', async (req, res, next) => {
+branchRouter.use('/hash/:branchHash/commit', async (req, res, next) => {
     const { branchHash } = req.params;
     const matchBranch = await prisma.branch.findFirst({
         where: { branchHash }
@@ -207,5 +222,6 @@ branchRouter.use('/:branchHash/commit', async (req, res, next) => {
         return;
     }
     req.branchId = matchBranch.id; // attach the id of the given branch in the request
+    next();
 }, commitRouter);
 export { branchRouter };

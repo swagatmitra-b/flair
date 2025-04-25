@@ -28,4 +28,4 @@ export interface RepositoryNftCollectionMetadata extends RepositoryMetadataWithA
     baseModelUri: string;
 }
 
-export type CommittedBy = 'USER' | 'SYSTEM';
+export type CommitType = 'USER' | 'SYSTEM';

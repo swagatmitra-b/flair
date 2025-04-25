@@ -8,10 +8,30 @@ import { unpinFromIpfs, uploadToIpfs } from '../lib/ipfs/pinata.js';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { prisma } from '../lib/prisma/index.js';
 import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
+import { clearDirBeforeUpload } from '../middleware/upload/clearTemp.js';
 const modelRouter = Router();
 // sends a model to the backend for uploading to the frontend
-modelRouter.post('/upload', existingModelCheck, uploader, async (req, res) => {
+modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, async (req, res) => {
     try {
+        // first do a check that the user is actually uploading to his model only
+        const pk = authorizedPk(res);
+        const repo = await prisma.repository.findUnique({
+            where: { id: req.repoId }, include: {
+                branches: true
+            }
+        });
+        if (!repo) {
+            res.status(400).send({ error: { message: 'Repository does not exist to upload the base model into.' } });
+            return;
+        }
+        if (repo.baseModelHash && repo.branches) {
+            res.status(400).send({ error: { message: 'Model already uploaded to repository. ' } });
+            return;
+        }
+        if (repo.ownerAddress !== pk) {
+            res.status(401).send({ error: { message: "You cannot upoad to someone else's repository." } });
+            return;
+        }
         if (!req.file) {
             console.error('File not saved to /tmp/uploads.');
             res.status(500).send({ error: { message: 'No file uploaded!' } });
@@ -30,16 +50,14 @@ modelRouter.post('/upload', existingModelCheck, uploader, async (req, res) => {
             res.status(500).send({ error: { message: `Could not upload to IPFS.` } });
             return;
         }
-        // update the data in the repository of the user
-        const pk = authorizedPk(res);
         await prisma.repository.update({
             where: { id: req.repoId },
             data: {
                 baseModelHash: cid,
-                updatedAt: Date()
+                updatedAt: new Date()
             }
         });
-        res.json(200).json({ data: { cid } });
+        res.status(200).json({ data: { cid } });
         return;
     }
     catch (err) {
@@ -72,7 +90,7 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
             const status = await unpinFromIpfs(currentRepo.baseModelHash);
             if (status.toLowerCase().includes('error')) {
                 console.error(`Error unpinning model from IPFS`);
-                res.status(500).send({ error: { message: 'Could not unpin model from IPFS.' } });
+                res.status(500).send({ error: { message: 'Could not unpin model from IPFS.', status } });
                 return;
             }
         }
@@ -81,7 +99,7 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
             where: { id: req.repoId },
             data: {
                 baseModelHash: null,
-                updatedAt: Date()
+                updatedAt: new Date()
             }
         });
         // means the model is deleted from the repository
@@ -89,20 +107,29 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
     }
     catch (err) {
         console.error('Could not delete model: ', err);
-        res.status(500).send({ error: { message: 'Could not delete model.' } });
+        res.status(400).send({ error: { message: err.message } });
         return;
     }
 });
+// maybe during production we are going to have multiple gateway URLs then we'll choose the best one out of that
+export function constructIPFSUrl(cid) {
+    const gatewayUrl = process.env.GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
+    const url = `${gatewayUrl}/${cid}`;
+    return url;
+}
 // get the fetchUrl for the model from IPFS
 modelRouter.get('/fetch_url', async (req, res) => {
-    const gatewayUrl = process.env.GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
     const { repoId } = req;
     const repo = await prisma.repository.findUnique({ where: { id: repoId } });
     if (!repo) {
         res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
-    const url = `${gatewayUrl}/${repo.baseModelHash}`;
+    if (!repo.baseModelHash) {
+        res.status(400).send({ error: { message: 'Repository does not contain a base model.' } });
+        return;
+    }
+    const url = constructIPFSUrl(repo.baseModelHash);
     res.status(200).json({ data: url });
 });
 export { modelRouter };

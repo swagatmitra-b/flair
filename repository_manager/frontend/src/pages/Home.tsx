@@ -1,101 +1,123 @@
 import { useEffect, useState } from 'react';
 import { genSignIn, MemoryStoredTokenGen } from '../lib/auth/general';
-import { MemoryStoredTokenSiws, siwsSignIn } from '../lib/auth/siws';
-import b58 from 'bs58';
+// import {
+//   MemoryStoredTokenSiws,
+//   // siwsSignIn 
+// } from '../lib/auth/siws';
+// import b58 from 'bs58';
 import '../styles.css';
-import { SolanaSignInInput } from '@solana/wallet-standard-features';
-import { createSignInMessageText } from '../lib/createsSignInMessageText';      // its coming in handy right here
-import { useSiwsSupport } from '../components/SiwsSupportProvider';
+// import { SolanaSignInInput } from '@solana/wallet-standard-features';
+// import { createSignInMessageText } from '../lib/createsSignInMessageText';
+// import { useSiwsSupport } from '../components/SiwsSupportProvider';
 import { useWallet } from '@solana/wallet-adapter-react';
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 
-interface ConnectedDetails {
-    walletAddress: string,
-    status: 'Signed In' | 'Not Signed In',
-    details: string,            // the details of the connected wallet  in ABNF format
+interface ConnectedDetails {          // details of the connection with the wallet
+  walletAddress: string;
+  status: 'Signed In' | 'Not Signed In';
+  details: string;
 }
 
 export default function Home() {
+  const [connectedDetails, setConnectedDetails] = useState<ConnectedDetails | undefined>(undefined);
+  // const { siwsSupport, setSiwsSupport } = useSiwsSupport();
+  const { publicKey, signMessage, signIn } = useWallet();
 
-    const [connectedDetails, setConnectedDetails] = useState<ConnectedDetails | undefined>(undefined);
-    const { siwsSupport } = useSiwsSupport();
-    const { connect, publicKey, signMessage, signIn } = useWallet();
+  // On mount, load any stored token details
+  useEffect(() => {
+    const memoryStoredToken = MemoryStoredTokenGen.getInstance().token;   // for the general sign in pathway
 
-    useEffect(() => {
-        let memoryStoredToken = MemoryStoredTokenGen.getInstance().token;
-        let memoryStoredInput = MemoryStoredTokenSiws.getInstance().input;
-        if (memoryStoredToken) {
-            const [pk, msg] = memoryStoredToken.split(".");
-            // check out the expiration time for the token
-            // if it has expired we request the user to sign in again
-            const contents = JSON.parse(
-                new TextDecoder().decode(b58.decode(msg))
-            ) as SolanaSignInInput;
-            setConnectedDetails({
-                walletAddress: pk,
-                status: 'Signed In',
-                details: createSignInMessageText(contents, 'signin')
-            });
-        }
-        if (memoryStoredInput && memoryStoredInput.address) {
-            // just store and display it now
-            setConnectedDetails({
-                walletAddress: memoryStoredInput.address,
-                status: 'Signed In',
-                details: createSignInMessageText(memoryStoredInput, 'signin')
-            })
-        }
-        // useEffect dependency array now makes it run only once when the component mounts so that it does not repeatedly update the connected details
-    }, []);
+    // const memoryStoredInput = MemoryStoredTokenSiws.getInstance().input;  // for the siws sign in pathway
+    // if we have the general workflow token
 
+    if (memoryStoredToken) {
+      console.log('Found an initiated general sign workflow token. Authenticating using it.');
+      const [pk] = memoryStoredToken.split(".");
+      setConnectedDetails({
+        walletAddress: pk,
+        status: 'Signed In',
+        details: 'Signed in using existing general token.'
+      });
+    }
 
-    // Trigger wallet connection if not selected, then perform sign-in
-    const handleConnect = async () => {
-        // if no walet is selected, call connect to trigger the wallet modal
-        if (!publicKey) {
-            await connect();
-        }
-        // after connecting, ensure that the wallet is now selected
-        if (!publicKey) {
-            // this means that the user cancelled their wallet pop up window
+    // // if we have the siws workflow token
+    // else if (memoryStoredInput && memoryStoredInput.address) {
+    //   console.log('Found an siws token. Authenticating using it.')
+    //   setConnectedDetails({
+    //     walletAddress: memoryStoredInput.address,
+    //     status: 'Signed In',
+    //     details: 'Signed in using existing siws token.'
+    //   });
+    // }
 
-            // ! --> may attach additional warnings or errors here to the user
-            console.error("No wallet selected after connect.");
-            return;
-        }
+  }, []);
 
-        // if SIWS is supported and the wallet has a signIn method, use it
-        if (siwsSupport && signIn) {
-            await siwsSignIn(signIn);
+  // When publicKey updates, trigger sign-in logic automatically
+  useEffect(() => {
+    if (!publicKey) return; // No wallet selected yet
+    console.log('Wallet selected address:', publicKey.toBase58());
+    (async () => {
+      try {
+
+        if (signIn && false) {
+
+          // for this version of the code we are not using the sign in with solana method
+          // because the general sign in method is working perfectly for all kinds of wallets
+
+          // set the siws support true
+          // setSiwsSupport(true);
+          // console.log('Wallet supports SIWS. Signing using it.');
+          // const siwsSuccess = await siwsSignIn(publicKey, signIn);
+          // if (siwsSuccess) console.log('Wallet signed in through siws.')
         }
         else {
-            // signMessage support is mandatory for the general sign in
+          console.log('signing in using general auth workflow.');
+          
+          // dont sign in again if already sign in
+          if (!connectedDetails || connectedDetails?.status == 'Not Signed In') {
             if (!signMessage) {
-                console.error('Wallet does not support signMessage.');
-                return;
+              console.error('Wallet does not support signMessage.');
+              return;
             }
+            console.log('Signing using general workflow.');
             await genSignIn(publicKey, signMessage);
+            setConnectedDetails({
+              walletAddress: publicKey.toBase58(),
+              status: 'Signed In',
+              details: 'Signed in using general workflow'
+            })
+          }
+
         }
-    };
+      } catch (error) {
+        console.error("Error during sign-in:", error);
+      }
+    })();
+  }, [
+    publicKey,
+    // siwsSupport, 
+    // signIn,
+    // signMessage
+  ]);
 
-    return (
-        <>
-            <div className="home-container">
-                <button className="connect-button" onClick={handleConnect}>
-                    Sign In
-                </button>
+  return (
+    <div className="home-container">
+      {/* WalletMultiButton triggers the wallet modal for selection */}
+      <WalletMultiButton />
 
-                <div className="display-board">
-                    {connectedDetails ? (
-                        <div>
-                            <p><strong>Wallet Address:</strong> {connectedDetails.walletAddress}</p>
-                            <p><strong>Status:</strong> {connectedDetails.status}</p>
-                            <p>Details{connectedDetails.details}</p>
-                        </div>
-                    ) : (
-                        <p>No wallet connected. Click "Sign In" to proceed.</p>
-                    )}
-                </div>
-            </div>
-        </>
-    );
+      <div className="display-board">
+        {connectedDetails ? (
+          <div>
+            <p><strong>Wallet Address:</strong> {connectedDetails?.walletAddress}</p>
+            <p><strong>Status:</strong> Signed In</p>
+            {connectedDetails && (
+              <p>Details: {connectedDetails.details}</p>
+            )}
+          </div>
+        ) : (
+          <p>No wallet connected. Click the button above to connect.</p>
+        )}
+      </div>
+    </div>
+  );
 }

@@ -11,9 +11,11 @@ export const ByPassAuth: Web3AuthHandlerCreator = (ctx) => async (req, res, next
 
     // uncomment to delete the anonymous
     // await prisma.user.delete({where: {wallet: '_anonymous'}});
-    
+
     const pubkey = '_anonymous';
-    await createUser(pubkey);
+    const userExists = await prisma.user.findUnique({ where: { wallet: pubkey } });
+    // create the user only if he does not already exists
+    if (!userExists) await createUser(pubkey);
     // after creation we update the user as an anonymous user
     res.locals.pubKey = pubkey;
     next();

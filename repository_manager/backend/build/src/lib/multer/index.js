@@ -10,13 +10,13 @@ const storage = multer.diskStorage({
 });
 // apply some other filters here
 const fileFilter = (req, file, cb) => {
-    const allowedTypes = ["onnx", "h5", "pt", "pth"];
+    const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl'];
     const fileExt = file.originalname.split(".").pop()?.toLowerCase();
     if (fileExt && allowedTypes.includes(fileExt)) {
         cb(null, true);
     }
     else {
-        cb(new Error("Invalid file type! Only ONNX, H5, PT, and PTH files are allowed."));
+        cb(new Error("Invalid file type! Only ONNX, H5, PT, PKL and PTH files are allowed."));
     }
 };
 // setup the middleware to upload the base model

@@ -4,20 +4,14 @@
 // as well as stores the tokens that are received from the authentication endpoint
 // Debashish Buragohain
 
-// no Umi object in the frontend because regular Nfts is no longer supported.
-
 import { web3 } from "@project-serum/anchor";
 import b58 from 'bs58';
-import { useWallet } from "@solana/wallet-adapter-react";
 import { getSignInData } from "./siws";
 import { SolanaSignInInput } from "@solana/wallet-standard-features";
 import { createSignInMessageText } from "../createsSignInMessageText";
 import { PublicKey } from "@solana/web3.js";
 
-// Umi support has been removed
-// import { useAdapter } from "../../components/AdapterProvider";
-// import { initializeUmi } from "../nft/umi";
-
+const apiUrl = import.meta.env.VITE_API_URL;
 export type MessageSigner = {
     signMessage(message: Uint8Array): Promise<Uint8Array>;
     publicKey: web3.PublicKey;
@@ -55,7 +49,10 @@ export class MemoryStoredTokenGen {
   ): Promise<string> => {
     // the message consists of the action and the expiry in minutes
     const encodedMessage = new TextEncoder().encode(signInMessage);
+    
     // so we sign this message using the wallet making the wallet pop up
+    // this pops up the wallet to the user asking him to confirm
+    
     const signature = await wallet.signMessage(encodedMessage);
     const pk = wallet.publicKey.toBase58();   // function returns the public key of the wallet that has made the signature
     const msg = b58.encode(encodedMessage);   // the message that was just signed
@@ -65,12 +62,10 @@ export class MemoryStoredTokenGen {
 
 
   // creates the sign in token and signs in and stores in memory
-  export const genSignIn = async (publicKey: PublicKey | null, signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | undefined ) => {
+  export const genSignIn = async (publicKey: PublicKey | null, signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | undefined ) : Promise<Boolean> => {
 
     if (!publicKey || !signMessage) throw new Error(`Could not connect to wallet.`);
-    
-    const signInData: SolanaSignInInput = await getSignInData();        // fetch the sign in data from the backend
-    
+    const signInData: SolanaSignInInput = await getSignInData(publicKey);        // fetch the sign in data from the backend    
     // !-- uncomment if using SIWS message generation
     // const isSignInInputWithRequriedFields = (data: SolanaSignInInput): data is SolanaSignInInputWithRequiredFields => {
     //   return !!data.domain && !!data.address
@@ -78,26 +73,45 @@ export class MemoryStoredTokenGen {
     // if (!isSignInInputWithRequriedFields(signInData)) {              // convert to required fields type data
     //   throw new Error(`Invalid sign-in data: 'domain' and 'address' are required.`);
     // }
-
     let signInMessage: string = createSignInMessageText(signInData, 'signin');
     // add the action to this sign in message    
     signInMessage += '\n'
+    
     const authToken = await createAuthToken(signInMessage, {
       publicKey,
       signMessage
     });
+    console.log(`General sign in token: ${authToken}`)
     // this auth token first needs to the backend for verification
-    const verified = await fetch('/signin', {
+    const verified = await fetch(apiUrl + '/auth/signin', {
       method: 'POST',
       body: JSON.stringify({token: authToken}),
       headers: {
-        'Accept': 'appication/json',
+        'Accept': 'application/json',
         'Content-Type': 'application/json'
       }
     }).then(r => r.json());
 
     if (verified.success) {
-      console.log('Sign In succesful.');
+      console.log('General workflow Sign In succesful.');
+      // after the sign in is successful we send the sign in token to the cli server
+      const cliUrl = import.meta.env.VITE_CLI_URL;
+      try {
+      // send the auth token to the cli server now
+      await fetch(cliUrl, {
+        method: 'POST',
+        body: JSON.stringify({authToken: `universal${authToken}`, wallet: publicKey.toBase58()}),
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      console.log('sent general auth token to the cli server.');
+      }
+      catch(err) {
+        console.error(`Error sending general auth token to cli server: ${err}`);
+      }
+      
       
       // create the Umi object here
       // const { adapter } = useAdapter();
@@ -106,14 +120,17 @@ export class MemoryStoredTokenGen {
       // setUmi(umi);
 
       MemoryStoredTokenGen.getInstance().setToken(authToken);    
+      return true;
     }
-    else throw new Error('Could not sign in.');
+    else {
+      throw new Error('Could not sign in.');
+    }
   }
   
 // experimental code ! Not in production !
 // fetch the signInInput from the backend and also generate the message text
 // export const getSignInMsg = async (): Promise<string> => {
-//     const createResponse = await fetch('/auth/signin');
+//     const createResponse = await fetch(apiUrl + '/auth/signin');
 //     const input: SolanaSignInInputWithRequiredFields = await createResponse.json();
 //     return createSignInMessageText(input);
 // }
@@ -150,7 +167,7 @@ export class MemoryStoredTokenGen {
 
 //     // the output is of type SolanaSignInOutput
 //     const strPayload = JSON.stringify({ input, output });
-//     const verifyResponse = await fetch('/auth/signinGen', {
+//     const verifyResponse = await fetch(apiUrl + '/auth/signinGen', {
 //         method: 'POST',
 //         body: strPayload,
 //         headers: {
@@ -195,7 +212,7 @@ export class MemoryStoredTokenGen {
 //     // text encode the headers for transmission to the backend
 //     const token = btoa(JSON.stringify({ input, output }));
 
-//     return await fetch(url, {
+//     return await fetch(apiUrl + url, {
 //         headers: {
 //             'Accept': 'application/json',
 //             'Content-Type': 'application/json',

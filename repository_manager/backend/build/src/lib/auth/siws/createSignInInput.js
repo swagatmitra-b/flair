@@ -2,7 +2,10 @@
 // Debashish Buragohain
 import { v4 as uuidv4 } from 'uuid';
 import { DateTime } from 'luxon';
-export const createSignInData = async (expiryInMins = 10) => {
+export const createSignInData = async (address, expiryInMins = 10) => {
+    if (!address) {
+        throw new Error('No wallet address provided to generate sign in data.');
+    }
     const now = new Date();
     const uri = process.env.href;
     const currentUrl = new URL(uri);
@@ -17,6 +20,7 @@ export const createSignInData = async (expiryInMins = 10) => {
         // address not provided, the wallet determines it itself
         uri,
         domain,
+        address,
         statement: "Clicking Sign or Approve only means you have proved this wallet is owned by you. This request will not trigger any blockchain transaction or cost any gas fee.",
         version: "1", // current version for the message which must be 1 for this specification
         nonce: uuidv4(), // random alphanumeric nonce based on UUID
