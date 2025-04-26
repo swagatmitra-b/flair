@@ -142,8 +142,7 @@ repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
             removeAdminIds = [],
             addWriteAccessIds = [],
             removeWriteAccessIds = [],
-            metadata,
-            baseModelHash,
+            metadata,            
         } = req.body;
 
         if (!repoHash) {
@@ -201,7 +200,6 @@ repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
                 ...(updatedAdminIds && { adminIds: updatedAdminIds }),
                 ...(updatedWriteAccessIds && { writeAccessIds: updatedWriteAccessIds }),
                 ...(updatedMetdata && { metadata: updatedMetdata }),
-                ...(baseModelHash && { baseModelHash }),
                 ...(name && { name }),        // in case we want to change the name of the repository
                 updatedAt: new Date(),
             },

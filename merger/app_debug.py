@@ -5,11 +5,13 @@ from flwr.server.strategy import FedAvg  # Federated strategy
 from flwr_serverless import AsyncFederatedNode
 from flwr_serverless.keras import FlwrFederatedCallback
 
-from lib.local_folder_debug import LocalFolder
+from lib.shared_folder_http import SharedFolderHTTPAuth
 
 # Define the federated learning strategy and shared folder
 strategy = FedAvg()
-shared_folder = LocalFolder(directory="mybucket/experiment1")
+shared_folder = SharedFolderHTTPAuth(
+    base_url="http://localhost:4000/r"
+)
 node = AsyncFederatedNode(strategy=strategy, shared_folder=shared_folder)
 
 # Define dataset and model parameters

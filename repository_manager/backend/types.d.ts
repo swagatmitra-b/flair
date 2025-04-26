@@ -5,6 +5,8 @@ declare global {
         interface Request {
             repoId?: string;
             branchId?: string;
+            fileExtension?: string;
+            backendWallet?: string;
         }
     }
 }

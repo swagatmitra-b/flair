@@ -22,7 +22,6 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "luxon": "^3.6.0",
-    "node-fetch": "^3.3.2",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {

@@ -71,7 +71,26 @@ commitRouter.get('/hash/:commitHash', async (req, res) => {
 // pull the latest commit
 commitRouter.get('/latest', async (req, res) => {
     try {
-        const latestCommit = await prisma.commit.findFirst({ orderBy: { createdAt: 'desc' } });
+        const { branchId } = req;
+        // latest commit in this branch
+        const latestCommit = await prisma.commit.findFirst({
+            where: { branchId },
+            orderBy: { createdAt: 'desc', },
+            include: {
+                branch: true,
+                committer: true,
+                params: {
+                    include: {
+                        ZKMLProof: true
+                    }
+                },
+                nft: {
+                    include: {
+                        collection: true
+                    }
+                },
+            }
+        });
         if (!latestCommit) {
             res.status(404).send({ error: { message: 'No commits found.' } });
             return;
@@ -119,12 +138,15 @@ commitRouter.post('/create', async (req, res) => {
         const { branchId } = req; // Branch ID where the commit is being made
         // the property of the nextMergerCommit will be defined by the backend itself
         // it will not be sent in the request
-        const { commitType, message, paramHash, params, metrics, commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
+        const { commitType, message, paramHash, params, metrics, architecture, // architecture of the model is a new requied field now
+        commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
         rejectedCommits, // the rejected commits with the hash and the reject message
          } = req.body;
+        // --------------------------------- Commit Parameter validation section ----------------------------------------------------- //            
+        let warnings = []; // in case a warning needs to be sent along with the response            
         // cannot create a commit if the base model is not uploaded
         const repo = await prisma.repository.findUnique({ where: { id: req.repoId } });
-        if (!repo.baseModelHash) {
+        if (!repo.baseModel || !repo.baseModel) {
             res.status(400).send({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
             return;
         }
@@ -136,7 +158,8 @@ commitRouter.post('/create', async (req, res) => {
             throw new Error('Criticial Error: branchId not attached to response.');
         }
         // Validate input fields
-        if (!paramHash || !params || !metrics || !commitHash) {
+        // in this version the metrics is an optional field
+        if (!paramHash || !params || !architecture || !commitHash) {
             res.status(400).send({ error: { message: 'Complete commit information not provided.' } });
             return;
         }
@@ -167,8 +190,72 @@ commitRouter.post('/create', async (req, res) => {
             });
             return;
         }
-        // get the hash of the latest accepted commit and attach it as the previous hash of this commit
-        // for the first commit in the branch, this will return null        
+        if (!params.params) {
+            res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
+            return;
+        }
+        const { zkmlProof } = params;
+        if (!zkmlProof) {
+            warnings.push('No ZKML proof provided for commit.');
+            // res.status(400).send({ error: { message: 'Error: No ZKML proof provided as params.' } });
+            // return;
+        }
+        else {
+            // ------------------- Uncomment if you want the ZKML field to be mandatory -------------------------
+            // // extract the zkml proof for this commit
+            const { verifierKey, circuitSettingsSer, proofSer, srsSer } = zkmlProof;
+            // // additional checks for the zkml proof settings
+            // if (!verifierKey) {
+            //     res.status(400).send({ error: { message: 'No ZKML verifier key found in the commit.' } });
+            //     return;
+            // }
+            // if (!circuitSettingsSer) {
+            //     res.status(400).send({ error: { message: 'No ZKML circuit settings Ser found in the commit.' } });
+            //     return;
+            // }
+            // if (!proofSer) {
+            //     res.status(400).send({ error: { message: "No ZKML proof Ser found in the commit." } });
+            //     return;
+            // }
+            // if (!srsSer) {
+            //     res.status(400).send({ error: { message: 'No ZKML srsSer found in the commit.' } });
+            //     return;
+            // }
+            // ZKML fields are not mandatory but if provided they must be unique
+            if (verifierKey && circuitSettingsSer && proofSer && srsSer) {
+                const sameZKMLProofs = await prisma.zKMLProof.count({
+                    where: {
+                        verifierKey,
+                        circuitSettingsSer,
+                        proofSer,
+                        srsSer
+                    }
+                });
+                // if same zkml proofs are found the commit cannot be created
+                if (sameZKMLProofs) {
+                    res.status(400).send({ error: { message: 'ZKML proof already exists. ZKML proof must be unique.' } });
+                    return;
+                }
+            }
+        }
+        // maintaing uniqueness of the commits
+        // finally we need to make sure that the paramHash commitHash and parameters are unique for each commit
+        const sameHashCommits = await prisma.commit.count({ where: { commitHash } });
+        if (sameHashCommits) {
+            res.status(400).send({ error: { message: 'Commit hash already exists. Commit hash must be unique.' } });
+            return;
+        }
+        const sameParamHashCommits = await prisma.commit.count({ where: { paramHash } });
+        if (sameParamHashCommits) {
+            res.status(400).send({ error: { message: 'Paremeter hash of commit already exists. Parameter hash must be unique.' } });
+            return;
+        }
+        const sameParams = await prisma.params.count({ where: { params: params.params } });
+        if (sameParams) {
+            res.status(400).send({ error: { message: 'Model parameters of commit already exists. Paramerers must be unique.' } });
+            return;
+        }
+        // get the parent merger commit for the commit to create
         const latestMergerCommit = await prisma.commit.findFirst({
             where: { status: 'MERGERCOMMIT', branchId }, // latest merger commit in this branch
             orderBy: { createdAt: 'desc' }
@@ -178,7 +265,7 @@ commitRouter.post('/create', async (req, res) => {
         const previousMergerCommit = latestMergerCommit?.commitHash ?? process.env.GENESIS_HASH ?? "_GENESIS_";
         // const previousMergerCommit = (latestMergerCommit !== null) ? latestMergerCommit.commitHash : (commitLength == 0) ? process.env.GENESIS_HASH : undefined;
         if (!previousMergerCommit) {
-            console.error('Unresolved conflict. Previous commit hash of non-empty branch is undefined.');
+            console.error('Critical Error: Previous commit hash of non-empty branch is undefined.');
             res.status(500).send({ error: { message: 'Internal Server Error' } });
             return;
         }
@@ -188,7 +275,7 @@ commitRouter.post('/create', async (req, res) => {
         const commitLength = await prisma.commit.count({ where: { branchId } });
         const status = commitType == 'SYSTEM' ? 'MERGERCOMMIT' : commitLength == 0 ? 'MERGERCOMMIT' : 'PENDING';
         const commitMessage = commitType == 'SYSTEM' ? '_SYSTEM_COMMIT_' : message;
-        // if it is a merger commit
+        //  ---------------------------------- Handling of merger commits comes here --------------------------------------
         if (commitType == 'SYSTEM') {
             if (!acceptedCommits || !rejectedCommits) {
                 res.status(400).send({ error: { message: 'Accepted and Rejected Commits are mandatory for a merger commit.' } });
@@ -228,12 +315,13 @@ commitRouter.post('/create', async (req, res) => {
                         await prisma.zKMLProof.delete({
                             where: { paramId: updatedCommit.params.id }
                         });
-                    else
-                        console.warn(`High Level Warning!! Commit that does not contain ZKML proof has been merged. Commit Details: 
+                    else {
+                        warnings.push(`High Level Warning!! Commit that does not contain ZKML proof has been merged. Commit Details: 
                         \n Commit Hash: ${updatedCommit.commitHash}
                         \n Committed by ID: ${updatedCommit.committerId}
                         \n Commit Message: ${updatedCommit.message}
                         \n Commit Time: ${updatedCommit.createdAt}`);
+                    }
                 }
             }
             const rejectedCommitIds = [];
@@ -249,20 +337,17 @@ commitRouter.post('/create', async (req, res) => {
             }
             // for the rejected commits delete all the parameters for those commits
             for (const id of rejectedCommitIds) {
-                const deletedParam = await prisma.params.delete({ where: { commitId: id } });
-                // also delete the associated zkml proof for this param if it exists 
-                // For rejected commits it is allowable to have the ZKML proof as optional
-                const rejectedZKMLProofCount = await prisma.zKMLProof.count({ where: { paramId: deletedParam.id } });
-                if (rejectedZKMLProofCount > 0)
-                    await prisma.zKMLProof.delete({ where: { paramId: deletedParam.id } });
+                const paramToDelete = await prisma.params.findUnique({ where: { commitId: id } });
+                if (paramToDelete) {
+                    await prisma.params.delete({ where: { commitId: id } });
+                    // also delete the associated zkml proof for this param if it exists 
+                    // For rejected commits it is allowable to have the ZKML proof as optional
+                    const rejectedZKMLProofCount = await prisma.zKMLProof.count({ where: { paramId: paramToDelete.id } });
+                    if (rejectedZKMLProofCount > 0)
+                        await prisma.zKMLProof.delete({ where: { paramId: paramToDelete.id } });
+                }
             }
         }
-        if (!params.zkmlProof) {
-            res.status(400).send({ error: { message: 'Error: No ZKML proof provided as params.' } });
-            return;
-        }
-        // extract the zkml proof for this commit
-        const { verifierKey, circuitSettingsSer, proofSer, srsSer } = params.zkmlProof;
         // Finally create the commit
         const commit = await prisma.commit.create({
             data: {
@@ -277,18 +362,25 @@ commitRouter.post('/create', async (req, res) => {
                 status,
                 branchId: branchId, // makes the necessary updates in the branch model
                 commitHash,
+                architecture, // architecuture is required in the current version
                 params: {
                     // creates a new entry in the parameter schema containing the parameters for this commit
                     create: {
                         params: params.params, // Assumes params is an object with base64 encoded data
-                        ZKMLProof: {
-                            create: {
-                                verifierKey,
-                                circuitSettingsSer,
-                                proofSer,
-                                srsSer
-                            }
-                        }
+                        ...(params.zkmlProof.verifierKey &&
+                            params.zkmlProof.circuitSettingsSer &&
+                            params.zkmlProof.proofSer &&
+                            params.zkmlProof.srsSer &&
+                            {
+                                ZKMLProof: {
+                                    create: {
+                                        verifierKey: params.zkmlProof.verifierKey,
+                                        circuitSettingsSer: params.zkmlProof.circuitSettingsSer,
+                                        proofSer: params.zkmlProof.proofSer,
+                                        srsSer: params.zkmlProof.srsSer
+                                    }
+                                }
+                            })
                     },
                 },
                 committerId: committer.id // makes the necessary updates in the user schema
@@ -305,7 +397,7 @@ commitRouter.post('/create', async (req, res) => {
                 data: { updatedAt: new Date() }
             })
         ]);
-        res.status(201).json({ data: commit });
+        res.status(201).json({ data: commit, warnings });
     }
     catch (error) {
         console.error('Error creating commit:', error);

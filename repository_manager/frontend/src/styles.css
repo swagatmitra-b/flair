@@ -1,4 +1,14 @@
-.violet-button {
+/* Global reset to ensure full viewport coverage */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #181818; /* Dark background */
+  }
+  
+  /* Violet button styling remains the same */
+  .violet-button {
     background-color: violet;
     color: white;
     border: none;
@@ -6,4 +16,30 @@
     padding: 10px 20px;
     font-size: 16px;
     cursor: pointer;
-}
+  }
+  
+  /* Home container now spans the full viewport width and height */
+  .home-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    min-height: 100vh;
+    padding: 20px;
+    background: #181818; /* Dark background */
+  }
+  
+  /* Centered display board with a dark theme */
+  .display-board {
+    background: #282828; /* Dark card background */
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+    margin-top: 20px;
+    text-align: center;
+    width: 100%;
+    max-width: 600px;
+    color: #ffffff; /* White text for contrast */
+  }
+  

@@ -1,9 +1,10 @@
 // Handler for the merkle trees
 // Debashish Buragohain
 import { createTree } from '@metaplex-foundation/mpl-bubblegum';
-import { generateSigner, Umi, TransactionSignature, PublicKey } from '@metaplex-foundation/umi';
+import { generateSigner, Umi, PublicKey } from '@metaplex-foundation/umi';
 import { prisma } from "../prisma/index.js";
 import { MerkleTreeConfig } from "./types";
+import bs58 from 'bs58';
 
 // the config for the merkleTree
 export const merkleTreeConfig: MerkleTreeConfig = {
@@ -12,7 +13,7 @@ export const merkleTreeConfig: MerkleTreeConfig = {
     canopyDepth: 14,
 };
 
-// creates a merkle tree and stores it in the database
+// creates a merkle tree and stores it in the database and returns a base58 encoded address of the merkle tree
 export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
     try {
         const merkleTree = generateSigner(umi);
@@ -21,10 +22,14 @@ export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
             ...merkleTreeConfig
         });
         const tx = await createTreeTx.sendAndConfirm(umi);
+        const treeAddress = merkleTree.publicKey;                       // already a base58 encoded string
+        const treePrivateKey = bs58.encode(merkleTree.secretKey);       // encode the secret key of the merkle tree into base58 format
+        const txSignature = bs58.encode(tx.signature);                  // encode the transaction signature of the merkle tree into base58 format
+
         console.log('Transaction:', tx.result);
-        console.log('Signature:', tx.signature);
-        console.log(`Merkle Tree created with address: ${merkleTree.publicKey}
-            \nSecret Key: ${merkleTree.secretKey}
+        console.log('Signature:', txSignature);
+        console.log(`Merkle Tree created with address: ${treeAddress}
+            \nSecret Key: ${treePrivateKey}
             \nSave the keypair for future usage.`);
         // this is to be done on the admin dashboard itself where we have access to the phantom wallet            
 
@@ -33,13 +38,14 @@ export async function createMerkleTree(umi: Umi): Promise<string | undefined> {
         await prisma.merkleTree.create({
             data: {
                 mintAuthority: umi.identity.publicKey,      // the mint authority is the currently instantiated wallet for umi
-                secret: merkleTree.secretKey.toString(),    // secret key of the merkle tree is not actually used anywhere
-                address: merkleTree.publicKey.toString(),   // the address of the merkle tree will be required everytime we mint a new NFT
+                secret: treePrivateKey,    // secret key of the merkle tree is not actually used anywhere
+                address: treeAddress,      // the address of the merkle tree will be required everytime we mint a new NFT
                 totalLeaves,                                // the number of nfts that can be stored in the tree
-                remainingLeaves: totalLeaves                // remaining of the leaves that can be used to store in the tree
+                remainingLeaves: totalLeaves,               // remaining of the leaves that can be used to store in the tree
+                signature: txSignature,                     // signature of the create tree transaction
             }
-        });
-        return merkleTree.publicKey.toString();
+        });        
+        return treeAddress;
     }
     catch (err) {
         console.error('Error creating merkle tree:', err);

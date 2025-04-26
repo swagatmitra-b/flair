@@ -17,7 +17,7 @@ const pinata = new PinataSDK({
 export async function uploadToIpfs(modelPath: string): Promise<string | undefined> {
     try {
         const inputFile = fs.readFileSync(modelPath);
-        // check here itself if the model already exists in ipfs
+        // check here itself if the model ealready exists in ipfs
         const cid = await computeCID(inputFile);
         if (!cid) {
             throw new Error('Failed to compte CID of uploaded file.');

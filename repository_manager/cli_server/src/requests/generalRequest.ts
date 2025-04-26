@@ -1,6 +1,5 @@
 import { requestParams } from "./types";
 import { MemoryStoredTokenGen } from "../auth/general.js";
-import fetch from 'node-fetch';
 import { DateTime } from 'luxon';
 import b58 from 'bs58';
 import { parseSignInMessage } from "./abnf_parser.js";

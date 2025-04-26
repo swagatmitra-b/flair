@@ -119,7 +119,7 @@ repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoHash } = req.params;
-        const { name, addContributorIds = [], removeContributorIds = [], addAdminIds = [], removeAdminIds = [], addWriteAccessIds = [], removeWriteAccessIds = [], metadata, baseModelHash, } = req.body;
+        const { name, addContributorIds = [], removeContributorIds = [], addAdminIds = [], removeAdminIds = [], addWriteAccessIds = [], removeWriteAccessIds = [], metadata, } = req.body;
         if (!repoHash) {
             res.status(400).send({ error: { message: 'Repository hash not provided to update.' } });
             return;
@@ -163,7 +163,6 @@ repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
                 ...(updatedAdminIds && { adminIds: updatedAdminIds }),
                 ...(updatedWriteAccessIds && { writeAccessIds: updatedWriteAccessIds }),
                 ...(updatedMetdata && { metadata: updatedMetdata }),
-                ...(baseModelHash && { baseModelHash }),
                 ...(name && { name }), // in case we want to change the name of the repository
                 updatedAt: new Date(),
             },

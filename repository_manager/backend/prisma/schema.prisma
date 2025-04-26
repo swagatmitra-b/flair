@@ -3,8 +3,7 @@ generator client {
 
   // uncomment this line in windows
 
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]    
-
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -33,7 +32,7 @@ model User {
 
 model Repository {
   id             String             @id @default(auto()) @map("_id") @db.ObjectId
-  name           String             // name of the repository needs to be mandatorily as a main parameter
+  name           String // name of the repository needs to be mandatorily as a main parameter
   repoHash       String             @unique
   branches       Branch[] // a single repository might contain serveral branches
   writeAccessIds String[]           @default([]) // list of wallet addresses of the contribtors who can write to the repository. Iniitialized with the wallet addrdess of the creator
@@ -47,7 +46,8 @@ model Repository {
   ownerId        String             @db.ObjectId
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   // base model
-  baseModelHash  String?            @unique // cid of the uploaded model is the hash in this case
+  baseModelHash  String?            @unique
+  baseModel      BaseModelData?
   // the base model Uri will be calculated based on the existing IPFS gateway
   // baseModelUri   String?
   collection     Collection?        @relation(fields: [collectionId], references: [id])
@@ -89,28 +89,32 @@ model Commit {
   // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
   // for a merger commit, this will be the merged parameters
   // for an accepted commit this will be the local parameters
-  metrics              Metric // the metrics of the model (e.g. accuracy, loss etc.)
+
+  // for the current version the metric is an optional field
+  metrics      Metric? // the metrics of the model (e.g. accuracy, loss etc.)
+  architecture String // new field included
+
   // which branch the commit belongs to
-  branchId             String       @db.ObjectId
+  branchId         String  @db.ObjectId
   // when the branch is deleted so are the commmits in the branch
-  branch               Branch       @relation(fields: [branchId], references: [id])
+  branch           Branch  @relation(fields: [branchId], references: [id])
   // committer data included with new user model created
-  committerAddress     String // wallet address of the contributor  
+  committerAddress String // wallet address of the contributor  
   // when the user is deleted the commit is not deleted
-  committerId          String       @db.ObjectId
-  committer            User         @relation(fields: [committerId], references: [id])
+  committerId      String  @db.ObjectId
+  committer        User    @relation(fields: [committerId], references: [id])
   // a commit is only soft deleted
-  isDeleted            Boolean      @default(false)
+  isDeleted        Boolean @default(false)
   // Nft converted commit properties
-  nft                  Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
-  nftId                String?      @unique @db.ObjectId
-  verified             Boolean      @default(false) // if the ZKML proof of the model has been verified
+  nft              Nft?    @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftId            String? @unique @db.ObjectId
+  verified         Boolean @default(false) // if the ZKML proof of the model has been verified
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
   id          String     @id @default(auto()) @map("_id") @db.ObjectId
-  params      String // base64 encoded blosc compressed parameters 
+  params      String     @unique // base64 encoded blosc compressed parameters 
   commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
   commit      Commit     @relation(fields: [commitId], references: [id])
   ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
@@ -135,6 +139,7 @@ model MerkleTree {
   mintAuthority   String // public key of the wallet that has mint authority on this merkleTree
   active          Boolean  @default(false) // if this is the current merkle tree that is being used
   address         String   @unique // public key of the merkle tree
+  signature       String   @unique // signature of the merkle tree creation signature
   secret          String   @unique // secret key of the merkle tree
   assetIds        String[] @unique // the assetIds minted in this merkle tree
   totalLeaves     Int // total leaves in the merkle tree
@@ -188,4 +193,10 @@ type RepositoryMetdata {
   creator     String // wallet address that has created the Repository
   framework   String
   modelUri    String? // file uri of the original model, on which the parameters will be applied    
+}
+
+// the base model data must also include its details now
+type BaseModelData {
+  extension String
+  size      Float
 }

@@ -34,6 +34,31 @@ export class MemoryStoredTokenGen {
     }
   }
   
+  // a similar singleton class for storing the auth token in the local storage instead of in memory
+  export class LocalStorageTokenGen {
+    private static instance: LocalStorageTokenGen;
+    private key = 'authToken'; // choose a key name
+    private constructor() {}
+    static getInstance(): LocalStorageTokenGen {
+      if (!LocalStorageTokenGen.instance) {
+        LocalStorageTokenGen.instance = new LocalStorageTokenGen();
+      }
+      return LocalStorageTokenGen.instance;
+    }
+  
+    public getToken(): string | null {
+      return localStorage.getItem(this.key);
+    }
+  
+    public setToken(token: string): void {
+      localStorage.setItem(this.key, token);
+    }
+  
+    public clearToken(): void {
+      localStorage.removeItem(this.key);
+    }
+  }
+  
   /**
    * Creates an authentication token to be passed to the server
    * via auth headers, returns the following format:
@@ -61,9 +86,8 @@ export class MemoryStoredTokenGen {
   };
 
 
-  // creates the sign in token and signs in and stores in memory
-  export const genSignIn = async (publicKey: PublicKey | null, signMessage: ((message: Uint8Array) => Promise<Uint8Array>) | undefined ) : Promise<Boolean> => {
-
+  // creates the sign in token and signs in and stores in memory and returns the auth token
+  export const genSignIn = async (publicKey: PublicKey, signMessage: ((message: Uint8Array) => Promise<Uint8Array>)) : Promise<string> => {
     if (!publicKey || !signMessage) throw new Error(`Could not connect to wallet.`);
     const signInData: SolanaSignInInput = await getSignInData(publicKey);        // fetch the sign in data from the backend    
     // !-- uncomment if using SIWS message generation
@@ -119,8 +143,9 @@ export class MemoryStoredTokenGen {
       // const umi = await initializeUmi(adapter);
       // setUmi(umi);
 
-      MemoryStoredTokenGen.getInstance().setToken(authToken);    
-      return true;
+      // MemoryStoredTokenGen.getInstance().setToken(authToken);    
+      LocalStorageTokenGen.getInstance().setToken(authToken);
+      return authToken;
     }
     else {
       throw new Error('Could not sign in.');

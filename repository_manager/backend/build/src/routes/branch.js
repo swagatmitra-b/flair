@@ -63,7 +63,7 @@ branchRouter.post('/create', async (req, res) => {
             return;
         }
         // if the base model is not uploaded we cannot create a branch
-        if (!matchRepo.baseModelHash) {
+        if (!matchRepo.baseModel || !matchRepo.baseModelHash) {
             res.status(400).send({ error: { message: 'No base model uploaded. Cannot create a new branch.' } });
             return;
         }

@@ -18,6 +18,7 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
     try {
         // first do a check that the user is actually uploading to his model only
         const pk = authorizedPk(res);
+
         const repo = await prisma.repository.findUnique({
             where: { id: req.repoId }, include: {
                 branches: true
@@ -27,7 +28,7 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
             res.status(400).send({ error: { message: 'Repository does not exist to upload the base model into.' } });
             return;
         }
-        if (repo.baseModelHash && repo.branches) {
+        if (repo.baseModel && repo.branches) {
             res.status(400).send({ error: { message: 'Model already uploaded to repository. ' } })
             return;
         }
@@ -41,6 +42,20 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
             res.status(500).send({ error: { message: 'No file uploaded!' } });
             return;
         }
+
+        const { fileExtension } = req;
+        const { size } = req.file;
+
+        if (!fileExtension) {
+            res.status(400).send({ error: { message: 'Invalid file extension of the file.' } })
+            return;
+        }
+
+        if (!size) {
+            res.status(400).send({ error: { message: 'Invalid size of the file.' } });
+            return;
+        }
+
         // reached here means the file is saved in the folder
         const modelPath = path.join(req.file.destination, req.file.filename);
         if (!fs.existsSync(modelPath)) {
@@ -58,10 +73,14 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
             where: { id: req.repoId! },
             data: {
                 baseModelHash: cid,
+                baseModel: {
+                    size,
+                    extension: fileExtension,
+                },
                 updatedAt: new Date()
             }
         });
-        res.status(200).json({ data: { cid } });
+        res.status(200).json({ data: { cid, fileExtension: fileExtension, url: constructIPFSUrl(cid) } });
         return;
     }
     catch (err) {
@@ -82,12 +101,12 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
             res.status(404).send({ error: { message: 'Repository does not exist.' } });
             return;
         }
-        if (!currentRepo.baseModelHash) {
+        if (!currentRepo.baseModel || !currentRepo.baseModelHash) {
             res.status(400).send({ error: { message: 'No base model to delete in the repository.' } });
             return;
         }
         const reposWithThisModel = await prisma.repository.count({
-            where: { repoHash: currentRepo.baseModelHash }
+            where: { baseModelHash: currentRepo.baseModelHash }
         });
         // if this is the only repo with the model actually unpin the model from IPFS
         if (reposWithThisModel <= 1) {
@@ -103,7 +122,7 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
         await prisma.repository.update({
             where: { id: req.repoId },
             data: {
-                baseModelHash: null,
+                baseModel: null,
                 updatedAt: new Date()
             }
         });
@@ -132,12 +151,12 @@ modelRouter.get('/fetch_url', async (req, res) => {
         res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
-    if (!repo.baseModelHash) {
+    if (!repo.baseModel || !repo.baseModelHash) {
         res.status(400).send({ error: { message: 'Repository does not contain a base model.' } });
         return;
     }
     const url = constructIPFSUrl(repo.baseModelHash);
-    res.status(200).json({ data: url });
+    res.status(200).json({ data: url, fileExtension: repo.baseModel.extension });
 });
 
 export { modelRouter };

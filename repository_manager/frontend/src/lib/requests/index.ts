@@ -1,13 +1,13 @@
 import { DateTime } from 'luxon';
 import { MemoryStoredTokenSiws } from "../auth/siws";
 import { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
-import { MemoryStoredTokenGen } from "../auth/general";
+import { LocalStorageTokenGen } from "../auth/general";
 import b58 from 'bs58';
 import { parseSignInMessage } from "../auth/helper/abnf_prarser";
 
 // SIWS request function. In here, the token does not include the action because the default action in SIWS is the sign in action
 // therefore we send particularly the action for the SIWS, that must be compared.
-const siwsRequest = async (contents: requestParams) => {
+export const siwsRequest = async (contents: requestParams) => {
   const { method, url, data, action } = contents;
   // try to reuse existing token
   let { input, output } = MemoryStoredTokenSiws.getInstance();
@@ -49,55 +49,61 @@ const siwsRequest = async (contents: requestParams) => {
 
 // General workflow requests
 // For the general workflow, the action is included in the token itself. Therefore we check it.
-const genRequest = async (contents: requestParams) => {
+export const genRequest = async (contents: requestParams): Promise<Response> => {
   const { method, url, data, action } = contents;
-  
-  let authToken;
   // Sign in is the action equivalent to SIWS authentication in the general workflow.
   // Try to reuse existing token.
-  const memoryToken = MemoryStoredTokenGen.getInstance().token;
-  if (!memoryToken) {
+  // const memoryToken = MemoryStoredTokenGen.getInstance().token;
+  const localStorageToken = LocalStorageTokenGen.getInstance().getToken();
+  if (!localStorageToken) {
     throw new Error('User not signed in. Please sign in first.');
   }
-
-  // In the current version we are not re-signing the user from here.
-  if (memoryToken) {
-    const [, msg] = memoryToken.split("."); // msg here contains the ABNF-like string that pops up in the user's wallet
-    // Check the expiration time for the token and the associated action
-    const decodedSignInMessage = new TextDecoder().decode(b58.decode(msg));
-    const parsedDecoded = parseSignInMessage(decodedSignInMessage);
-    const actionInToken = parsedDecoded['Action'] as string;
-    const expirationTime = parsedDecoded['Expiration Time'] as string;
-    if (!actionInToken || !expirationTime) 
-      throw new Error("Required fields (Action, Expiration Time) are missing from token. Please sign in again.");
-
-    // Check token expiration: Convert the ISO string to a Unix timestamp
-    const expUnix = DateTime.fromISO(expirationTime).toUnixInteger();
-    if (DateTime.local().toUTC().toUnixInteger() > expUnix) {
-      throw new Error("Expired token. Please sign in again");
+  try {
+    // verify the token at this point
+    const verified = verifyToken(localStorageToken, action || 'signin');    // the default action is the signin action
+    if (verified) {
+      // Final request for the general workflow request
+      return await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer universal${localStorageToken}`
+        },
+        body: data ? JSON.stringify(data) : undefined,
+        method: method ? method : data ? "POST" : "GET"
+      })
     }
-
-    if (actionInToken !== action)
-      throw new Error(`Action mismatch in token. Desired action: ${action} Action in token: ${actionInToken}`);
-
-    authToken = memoryToken;        
+    else {
+      throw new Error('Error: Auth token invalid for request.');
+    }
   }
-  if (!authToken) throw new Error('Auth token not generated for request.');
-
-  // Final request for the general workflow request
-  return await fetch(url, {
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer universal${authToken}`
-    },
-    body: data ? JSON.stringify(data) : undefined,
-    method: method ? method : data ? "POST" : "GET"
-  })
-    .then(r => r.json())
-    .catch(err => console.error(`Error sending auth token to backend: ${err}`));
+  catch (err: any) {
+    LocalStorageTokenGen.getInstance().clearToken();      // clear the local storage token now    
+    throw new Error(`Error in token verification: ${err.message}`);
+  }
 };
 
+// verify if the token we have is valid or not in terms of expiration time and action
+export const verifyToken = (memoryToken: string, action: string): Boolean => {
+  const [, msg] = memoryToken.split("."); // msg here contains the ABNF-like string that pops up in the user's wallet
+  // Check the expiration time for the token and the associated action
+  const decodedSignInMessage = new TextDecoder().decode(b58.decode(msg));
+  const parsedDecoded = parseSignInMessage(decodedSignInMessage);
+  const actionInToken = parsedDecoded['Action'] as string;
+  const expirationTime = parsedDecoded['Expiration Time'] as string;
+  if (!actionInToken || !expirationTime)
+    throw new Error("Required fields (Action, Expiration Time) are missing from token. Please sign in again.");
+  // Check token expiration: Convert the ISO string to a Unix timestamp
+  const expUnix = DateTime.fromISO(expirationTime).toUnixInteger();
+  if (DateTime.local().toUTC().toUnixInteger() > expUnix) {
+    throw new Error("Expired token. Please sign in again");
+  }
+  if (actionInToken !== action)
+    throw new Error(`Action mismatch in token. Desired action: ${action} Action in token: ${actionInToken}`);
+  return true;
+}
+
+// parameters for the request
 export interface requestParams {
   method?: string;
   url: string;
@@ -115,10 +121,10 @@ export const request = async (contents: requestParams) => {
     return await siwsRequest(defaultedContents);
   }
   // if connected using the general workflow
-  else if (MemoryStoredTokenGen.getInstance().token) {
+  else if (LocalStorageTokenGen.getInstance().getToken()) {
     return await genRequest(defaultedContents);
   }
   else {
-    throw new Error('No wallet connected. Cannot make request.');
+    throw new Error('No auth token found. Cannot make request.');
   }
 };

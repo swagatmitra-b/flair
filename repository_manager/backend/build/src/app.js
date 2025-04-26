@@ -3,27 +3,30 @@
 import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
-import { createTreeContext, signInContext } from './middleware/auth/index.js';
-import { authHandler } from './middleware/auth/index.js';
-import { authRouter, repoRouter, treeRouter } from './routes/index.js';
+import { signInContext } from './middleware/auth/index.js';
+import { authHandler
+// ByPassAuth
+ } from './middleware/auth/index.js';
+import { authRouter, repoRouter, treeRouter, backendWalletRouter } from './routes/index.js';
+import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 const PORT = process.env.PORT;
 const app = express();
 // Middleware
 app.use(morgan('combined'));
 app.use(cors());
 app.use(express.json());
-// SIWS authentication implemented at this position
+// trust the proxy
+app.set('trust proxy', true);
 app.use('/auth', authRouter);
 // authorized routes
 app.use('/repo', 
 // uncomment this when you want to bypass authentication
 // ByPassAuth(signInContext),
 authHandler(signInContext), repoRouter);
-// tree route must be general authenticated
-app.use('/tree', authHandler(createTreeContext), 
-// uncomment this when you want to bypass authentication
-// ByPassAuth(signInContext),
-treeRouter);
+// backend wallet is restricted to be accessed only from localhost
+app.use('/systemWallet', authHandler(signInContext), restrictToLocalHost, backendWalletRouter);
+// for the tree route we need to attach the middlewares on individual routes
+app.use('/tree', treeRouter);
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });

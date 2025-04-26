@@ -16,14 +16,17 @@ import "@solana/wallet-adapter-react-ui/styles.css";
 import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { AutoConnectProvider } from "./components/AutoConnectProvider";
 import { SiwsSupportProvider } from "./components/SiwsSupportProvider";
+import { SignedInProvider } from "./components/signInTokenProivder";
 import { AdapterProvider } from "./components/AdapterProvider";
 
-import Home from "./pages/Home";
+import Auth from "./pages/Auth";
+import TreeAuth from './pages/treeAuth';
 
 const queryClient = new QueryClient();
 
 export const App: FC = () => {
-    const network = WalletAdapterNetwork.Mainnet;
+    // by default we are going for devnet
+    const network = import.meta.env.VITE_SOLANA_NETWORK == 'mainnet' ? WalletAdapterNetwork.Mainnet : WalletAdapterNetwork.Devnet;
     const endpoint = useMemo(() => clusterApiUrl(network), [network]);
     const wallets = useMemo(
         () => [
@@ -43,19 +46,22 @@ export const App: FC = () => {
         <AdapterProvider>
             <SiwsSupportProvider>
                 <AutoConnectProvider>
-                    <QueryClientProvider client={queryClient}>
-                        <ConnectionProvider endpoint={endpoint}>
-                            <WalletProvider wallets={wallets} onError={onWalletError} autoConnect={true}>
-                                <WalletModalProvider>
-                                    <Router>
-                                        <Routes>
-                                            <Route path="/" element={<Home />} />
-                                        </Routes>
-                                    </Router>
-                                </WalletModalProvider>
-                            </WalletProvider>
-                        </ConnectionProvider>
-                    </QueryClientProvider>
+                    <SignedInProvider>
+                        <QueryClientProvider client={queryClient}>
+                            <ConnectionProvider endpoint={endpoint}>
+                                <WalletProvider wallets={wallets} onError={onWalletError} autoConnect={true}>
+                                    <WalletModalProvider>
+                                        <Router>
+                                            <Routes>
+                                                <Route path="/" element={<Auth />} />
+                                                <Route path="/tree" element={<TreeAuth />} />
+                                            </Routes>
+                                        </Router>
+                                    </WalletModalProvider>
+                                </WalletProvider>
+                            </ConnectionProvider>
+                        </QueryClientProvider>
+                    </SignedInProvider>
                 </AutoConnectProvider>
             </SiwsSupportProvider>
         </AdapterProvider>

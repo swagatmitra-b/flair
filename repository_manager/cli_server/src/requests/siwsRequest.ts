@@ -1,7 +1,6 @@
 import { MemoryStoredTokenSiws } from "../auth/siws.js";
 import { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
 import { requestParams } from "./types";
-import fetch from 'node-fetch';
 
 // SIWS request function. In here, the token does not include the action because the default action in siws is the sign in action
 // therefore we send particularly the action for the siws, that must be compared.

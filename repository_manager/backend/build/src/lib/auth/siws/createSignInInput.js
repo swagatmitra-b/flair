@@ -31,3 +31,34 @@ export const createSignInData = async (address, expiryInMins = 10) => {
     };
     return signInData;
 };
+// creating the signing in message for the tree creation
+export const createTreeMessageData = async (address, expiryInMins = 10) => {
+    if (!address) {
+        throw new Error('No wallet address provided to generate sign in data.');
+    }
+    const now = new Date();
+    const uri = process.env.href;
+    const currentUrl = new URL(uri);
+    const domain = currentUrl.host;
+    // default expiry time for phantom is 10 mins
+    const expirationTime = DateTime.local().toUTC().plus({ minutes: expiryInMins }).toISO();
+    // convert the date object into a string
+    const currentDateTime = now.toISOString();
+    // so the signInData can be kept empty in most cases: all fields are optional
+    // this will create the fields and additional fields when we sign in using Phantom    
+    const signInData = {
+        // address not provided, the wallet determines it itself
+        uri,
+        domain,
+        address,
+        action: 'createTree',
+        statement: "Confirming this message will create a new Merkle Tree for this wallet, which will require Gas Fees. Proceed only when confirmed.",
+        version: "1", // current version for the message which must be 1 for this specification
+        nonce: uuidv4(), // random alphanumeric nonce based on UUID
+        chainId: 'mainnet', // chainid is always a string like this
+        issuedAt: currentDateTime,
+        expirationTime,
+        resources: ['https://phantom.com/learn/developers/sign-in-with-solana', 'https://phantom.app/']
+    };
+    return signInData;
+};

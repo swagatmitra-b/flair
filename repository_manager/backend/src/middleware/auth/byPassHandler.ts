@@ -4,7 +4,9 @@ import { createUser } from "../../lib/auth/user/index.js";
 import { prisma } from "../../lib/prisma/index.js";
 
 // bypass the authentication for testing
-// generates a temporary public key every authentication
+// generates a temporary id _anonymous for the session
+
+// Debashish Buragohain
 
 export const ByPassAuth: Web3AuthHandlerCreator = (ctx) => async (req, res, next) => {
     // in the bypass handler, before creating a new anonymous account we remove the previous anonymous accounts

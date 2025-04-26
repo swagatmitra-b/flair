@@ -26,7 +26,6 @@ export const genAuth: Web3AuthHandlerCreator = (ctx) => (req, res, next) => {
     res.status(401).send({ error: {message:  err.message} });
     return;
   }
-
 }
 
 // extract the authoorized public key that is stored in the locals property

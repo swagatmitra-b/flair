@@ -1,6 +1,9 @@
 import { Request } from "express";
 import multer, { FileFilterCallback } from "multer";
 
+// the allowed file types must be consistent everywhere
+export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl'];
+const maxSize = process.env.BASEMODEL_MAX_SIZE || 20;       // in MB
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -14,9 +17,9 @@ const storage = multer.diskStorage({
 
 // apply some other filters here
 const fileFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
-    const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl'];
     const fileExt = file.originalname.split(".").pop()?.toLowerCase();
     if (fileExt && allowedTypes.includes(fileExt)) {
+        req.fileExtension = fileExt;        // attach the file extension to the request now
         cb(null, true);
     } else {
         cb(new Error("Invalid file type! Only ONNX, H5, PT, PKL and PTH files are allowed."));
@@ -25,4 +28,7 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallb
 
 // setup the middleware to upload the base model
 // the model must be sent under the base model field in the request
-export const uploader = multer({ storage, fileFilter }).single('baseModel');
+export const uploader = multer({
+    storage, fileFilter,
+    limits: { fileSize: (maxSize as number) * 1024 * 1024 }
+}).single('baseModel');
