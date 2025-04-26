@@ -1,5 +1,6 @@
+import pickle
 import time
-from typing import Any, Iterator, Optional
+from typing import Any, Iterator, Optional, Union
 import requests
 
 
@@ -39,6 +40,15 @@ class SharedFolderHTTPAuth:
             "Accept": "application/octet-stream",
         }
 
+
+    def get_raw_folder(self) -> "SharedFolderHTTPAuth":
+        """
+        The Keras callback calls `.get_raw_folder()` before writing
+        models/metrics as raw bytes. Since this class already handles
+        raw bytes directly, just return self.
+        """
+        return self
+    
     def _url(self, key: str) -> str:
         return f"{self.base_url}/files/{key}"
 
@@ -71,41 +81,44 @@ class SharedFolderHTTPAuth:
         if resp.status_code == 404:
             return False
         resp.raise_for_status()
-
-    def get(self, key: str, default: Optional[bytes] = None) -> Optional[bytes]:
-        """
-        Poll on success flag, then GET the raw bytes of `key`.
-        Returns `default` if never succeeds within retries.
-        """
-        tries = self.max_retry
-        while tries:
-            if self._exists_success_flag(key):
-                url = self._url(key)
-                resp = requests.get(url, headers=self._headers, timeout=self.timeout)
-                if resp.status_code == 200:
-                    return resp.content
-                elif resp.status_code == 404:
-                    return default
-                else:
-                    resp.raise_for_status()
-            time.sleep(self.retry_sleep_time)
-            tries -= 1
-        return default
+        
+    def get(self, key: str, default: Optional[bytes] = None) -> Optional[Union[bytes, dict]]:
+        # … wait for success flag …
+        resp = requests.get(self._url(key), headers=self._headers, timeout=self.timeout)
+        if resp.status_code == 200:
+            raw = resp.content
+            # If you know this key holds a pickled dict, unpickle:
+            if not key.endswith(".json"):
+                try:
+                    return pickle.loads(raw)
+                except Exception:
+                    return raw
+            # else (if you still have .json keys) return raw or json
+            return raw
 
     def __getitem__(self, key: str) -> Optional[bytes]:
         return self.get(key)
 
-    def __setitem__(self, key: str, value: bytes) -> None:
+    def __setitem__(self, key: str, value: Union[bytes, bytearray, dict]) -> None:
         """
-        Upload raw bytes under `key` via HTTP PUT, then set success flag.
+        Always send raw bytes for everything.
+        If value is a dict, pickle it first.
         """
-        if not isinstance(value, (bytes, bytearray)):
-            raise ValueError(f"Value must be bytes, got {type(value)}")
         url = self._url(key)
+        headers = {**self._headers, "Content-Type": "application/octet-stream"}
+
+        # Pickle dicts into bytes
+        if isinstance(value, dict):
+            data = pickle.dumps(value)
+        elif isinstance(value, (bytes, bytearray)):
+            data = value
+        else:
+            raise ValueError(f"Expected bytes or dict for {key}, got {type(value)}")
+
         resp = requests.put(
             url,
-            headers={**self._headers, "Content-Type": "application/octet-stream"},
-            data=value,
+            headers=headers,
+            data=data,
             timeout=self.timeout,
         )
         resp.raise_for_status()
