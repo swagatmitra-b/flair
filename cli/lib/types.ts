@@ -1,11 +1,13 @@
 export type burnOptions = {
-  file: string | true;
-  model: string | true;
+  path?: string | true;
+  model?: string | true;
   description: string | true;
 };
 
-export type loadOptions = {
-  file: string | true;
-  model: string | true;
-  weightHash: string | true;
+export type setOptions = {
+  path?: string | true | undefined;
+  model?: string | true | undefined;
+  set: true;
 };
+
+export type meltOptions = { branch: string | true };

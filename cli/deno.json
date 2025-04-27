@@ -1,9 +1,7 @@
 {
   "tasks": {
-    "up": "deno run --allow-run --allow-env --allow-write --allow-read --allow-ffi main.ts flair up",
-    "cmp": "deno compile --allow-run --allow-env --allow-write --allow-read --allow-ffi main.ts",
-    "cmpl": "deno compile --allow-run --allow-env --allow-write --allow-read --allow-ffi --target x86_64-unknown-linux-gnu main.ts",
-    "rm": "rm -rf .flair test.py"
+    "cmp": "deno compile --allow-run --allow-net --allow-env --allow-write --allow-read --allow-ffi --include lib/spa -o flair src/main.ts && sudo mv flair.exe /c/Program\\ Files/flair",
+    "cmpl": "deno compile --allow-run --allow-net --allow-env --allow-write --allow-read --allow-ffi --target x86_64-unknown-linux-gnu -o flair src/main.ts"
   },
   "imports": {
     "@cliffy/command": "jsr:@cliffy/command@^1.0.0-rc.7",
