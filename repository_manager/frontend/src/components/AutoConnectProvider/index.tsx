@@ -1,6 +1,6 @@
 import { useLocalStorage } from '@solana/wallet-adapter-react';
 import type { FC, ReactNode } from 'react';
-import React, { createContext, useContext } from 'react';
+import { createContext, useContext } from 'react';
 
 // the auto connect provider for the dapp
 // just yes or no if auto connect or not

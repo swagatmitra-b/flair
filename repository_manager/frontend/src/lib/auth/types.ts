@@ -1,8 +1,6 @@
 // defining a common type for specific solana actions
 // Debashish Buragohain
 
-import { PublicKey } from "@solana/web3.js";
-
 export interface SolanaActionMessage {
     /**
      * Optional EIP-4361 Domain.

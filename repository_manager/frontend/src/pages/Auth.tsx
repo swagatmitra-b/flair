@@ -91,7 +91,7 @@ export default function Auth() {
   }
 
   return (
-    <div className="Auth-container">
+    <div className="home-container">
       <h1>Sign into Flair</h1>
       <div className="display-board">
         {connectedDetails ? (
