@@ -10,6 +10,19 @@ import { getCurrentTree, updateCurrentTree } from "./tree.js";
 import { prisma } from "../prisma/index.js";
 import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
 import { createNft } from "@metaplex-foundation/mpl-token-metadata";
+import { pinata } from "../ipfs/pinata.js";
+import { constructIPFSUrl } from "../../routes/basemodel.js";
+// upload the metadata to Pinata
+export async function uploadMetadataToIPFS(metadata) {
+    try {
+        const upload = await pinata.upload.json(metadata);
+        return upload.IpfsHash;
+    }
+    catch (err) {
+        console.error('Error uploading Metadata to IPFS:', err);
+        return undefined;
+    }
+}
 // takes a commit and converts it into Nft and returns the asset id
 export const convertCommitToNft = async (umi, commitHash) => {
     const commit = await prisma.commit.findUnique({ where: { commitHash }, include: { nft: true } });
@@ -42,8 +55,15 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
     if (!umi.identity) {
         throw new Error('Crticial Error: Wallet not connected. Cannot mint cNft.');
     }
-    const metadataUri = await umi.uploader.uploadJson(metadata)
-        .catch(err => { throw new Error('Error uploading Nft metadata: ' + err); });
+    // in the latest version we would not be uploading the data to Arweave but instead to Pinata and
+    // attach the Pinata Uri as the metadata uri of the cNft
+    // const metadataUri = await umi.uploader.uploadJson(metadata)
+    //     .catch(err => { throw new Error('Error uploading Nft metadata: ' + err) });
+    const metadataCID = await uploadMetadataToIPFS(metadata);
+    if (!metadataCID) {
+        throw new Error('Could not upload metadata to IPFS');
+    }
+    const metadataUri = constructIPFSUrl(metadataCID);
     const leafOwner = publicKey(metadata.committer);
     // fetch the current merkle tree address from the backend
     const merkleTreeAdress = await getCurrentTree();
@@ -62,7 +82,7 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
             creators: [{
                     address: umi.identity.publicKey,
                     verified: true,
-                    share: 0
+                    share: 100
                 }],
             collection: { key: collectionMint, verified: true }
         }
@@ -91,7 +111,7 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
         }
     });
     // return the asset id, the text signature and the address of the uploaded merkle tree
-    return assetId;
+    return { assetId, metadataCID, metadataUri };
 };
 // fetch the cnft from its asset id
 export async function fetchCnft(umi, assetId) {
@@ -127,33 +147,49 @@ export async function convertRepoToCollection(umi, repoHash) {
         throw new Error('Error creating collection: Repository does not contain any base model.');
     }
     const repoMetadata = await createRepositoryMetadata(repo);
-    const collectionAddress = await createCollection(umi, repoMetadata);
-    return collectionAddress.toString();
+    console.log("Repo metadata created:", repoMetadata);
+    const { collectionAddress, collectionId } = await createCollection(umi, repoMetadata);
+    // at this point update the repository data for the collection
+    await prisma.repository.update({ where: { repoHash }, data: { collectionId } });
+    return collectionAddress;
 }
 // function to create a collection for the repository
 export async function createCollection(umi, metadata) {
-    if (!umi.identity) {
+    if (!umi.identity.publicKey) {
         throw new Error('Crticial Error: Wallet not connected. Cannot create Nft collection.');
     }
-    const metadataUri = await umi.uploader.uploadJson(metadata)
-        .catch(err => { throw new Error('Error uploading Nft collection metadata: ', err); });
-    const collectionSigner = generateSigner(umi);
-    const mint = collectionSigner.publicKey;
-    const { signature } = await createNft(umi, {
-        mint,
-        name: metadata.name,
-        uri: metadataUri,
-        isCollection: true, // main catch for collection
-        sellerFeeBasisPoints: percentAmount(0)
-    }).sendAndConfirm(umi);
-    // update the collection in prisma
-    await prisma.collection.create({
-        data: {
-            address: mint.toString(),
-            signature: base58.deserialize(signature)[0],
-            privateKey: base58.deserialize(collectionSigner.secretKey)[0],
-            owner: metadata.owner,
+    try {
+        // in the current version we are uploading the metadata to Pinata itself 
+        // const metadataUri = await umi.uploader.uploadJson(metadata);
+        const metadataCID = await uploadMetadataToIPFS(metadata);
+        if (!metadataCID) {
+            throw new Error('Error uploading collection metadata to IPFS.');
         }
-    });
-    return mint;
+        const metadataUri = constructIPFSUrl(metadataCID);
+        const collectionSigner = generateSigner(umi);
+        const { signature } = await createNft(umi, {
+            mint: collectionSigner,
+            name: metadata.name,
+            uri: metadataUri,
+            isCollection: true, // main catch for collection
+            sellerFeeBasisPoints: percentAmount(0)
+        }).sendAndConfirm(umi);
+        // update the collection in prisma
+        const newCollection = await prisma.collection.create({
+            data: {
+                address: collectionSigner.publicKey,
+                signature: base58.deserialize(signature)[0],
+                privateKey: base58.deserialize(collectionSigner.secretKey)[0],
+                owner: metadata.owner,
+            }
+        });
+        return {
+            collectionAddress: collectionSigner.publicKey,
+            collectionId: newCollection.id
+        };
+    }
+    catch (err) {
+        console.error('Error uploading Nft collection metadata ', err);
+        throw new Error('Error uploading Nft collection metadata ', err);
+    }
 }

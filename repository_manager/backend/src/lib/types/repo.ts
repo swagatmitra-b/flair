@@ -7,7 +7,6 @@ export interface RepositoryMetdata {
     useCase: string | undefined,
     creator: string,    // wallet address that has created the Repository
     framework: 'PyTorch' | 'TensorFlow',
-    modelUri: string | undefined // file uri of the original model, on which the parameters will be applied    
 }
 
 // all fields are required for creating a collection Nft of a repository
@@ -17,7 +16,6 @@ export interface RepositoryMetadataWithAllRequiredFields {
     useCase: string,
     creator: string,    // wallet address that has created the Repository
     framework: 'PyTorch' | 'TensorFlow',
-    modelUri: string // file uri of the original model, on which the parameters will be applied    
 }
 
 // the metadata for the repository as an Nft collection

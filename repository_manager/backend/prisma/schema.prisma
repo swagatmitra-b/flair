@@ -20,14 +20,16 @@ enum CommitStatus {
 
 // user model needed to be created
 model User {
-  id           String        @id @default(auto()) @map("_id") @db.ObjectId
-  username     String?       @unique
-  metadata     UserMetadata? // the metadata to be displayed for the user, by default not required
-  wallet       String        @unique // walet address of the user
-  repositories Repository[] // repositories created by the user
-  commits      Commit[] // commits created by the user
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now())
+  id                String        @id @default(auto()) @map("_id") @db.ObjectId
+  username          String?       @unique
+  metadata          UserMetadata? // the metadata to be displayed for the user, by default not required
+  wallet            String        @unique // walet address of the user
+  repositories      Repository[] // repositories created by the user
+  commits           Commit[] // commits created by the user
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @default(now())
+  nftCredit         Int           @default(100)
+  lastCreditUpdated DateTime      @default(now())
 }
 
 model Repository {
@@ -80,7 +82,7 @@ model Commit {
   previousMergerCommit String // this is mandatory for all commits
   relatedMergerCommit  String? // only for accepted commits
   status               CommitStatus // the status of this particuar commit
-  rejectedMessage      String? // (Optional) why the commit was rejected in case it was rejected.  
+  rejectedMessage      String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
   message              String // commit message
   paramHash            String       @unique // hash of the parmeters for the commit
   params               Params? // the param is stored as a separate model
@@ -149,14 +151,15 @@ model MerkleTree {
 
 // details for the nft collection i.e. a repository
 model Collection {
-  id         String      @id @default(auto()) @map("_id") @db.ObjectId
-  address    String      @unique
-  signature  String      @unique
-  privateKey String      @unique
-  owner      String
-  repository Repository?
-  nft        Nft[]
-  createdAt  DateTime    @default(now())
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  address     String      @unique
+  signature   String      @unique
+  privateKey  String      @unique
+  owner       String
+  repository  Repository?
+  nft         Nft[]
+  createdAt   DateTime    @default(now())
+  metadataCID String // metadata of the collection uploaded to IPFS
 }
 
 // details of the nft
@@ -171,6 +174,7 @@ model Nft {
   commit            Commit?     @relation("CommitToNft")
   collection        Collection? @relation(fields: [colectionId], references: [id])
   colectionId       String      @unique @db.ObjectId
+  metadataCID       String // CID of the metadata of the Nft uploaded to IPFS
 }
 
 type Metric {
@@ -192,7 +196,6 @@ type RepositoryMetdata {
   useCase     String?
   creator     String // wallet address that has created the Repository
   framework   String
-  modelUri    String? // file uri of the original model, on which the parameters will be applied    
 }
 
 // the base model data must also include its details now

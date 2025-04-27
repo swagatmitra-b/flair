@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { CommitType } from '../lib/types/repo.js';
 import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
-import { convertCommitToNft } from '../lib/nft/nft.js';
+import { convertCommitToNft, fetchCnft, fetchCNftFromSignature } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
 
 const commitRouter = Router();
@@ -41,7 +41,7 @@ commitRouter.get('/hash/:commitHash/pull', async (req, res) => {
                     include: {
                         collection: true
                     }
-                },              
+                },
             }
         });
         if (!commit) {
@@ -93,7 +93,7 @@ commitRouter.get('/latest', async (req, res) => {
                     include: {
                         collection: true
                     }
-                },              
+                },
             }
         });
         if (!latestCommit) {
@@ -475,5 +475,35 @@ commitRouter.post('/hash/:commitHash/createNft', async (req, res, next) => {
         return;
     }
 });
+
+// commit nft view route
+commitRouter.get('/hash/:commitHash/viewNft', async (req, res, next) => {
+    try {
+        const { commitHash } = req.params;
+        const commit = await prisma.commit.findUnique({
+            where: { commitHash },
+            include: {
+                nft: true
+            }
+        });
+        if (!commit) {
+            res.status(400).send({ error: { message: 'Commit does not exist.' } });
+            return;
+        }
+        if (!commit.nftId || !commit.nft || !commit.nft.signature || !commit.nft.merkleTreeAddress) {
+            res.status(400).send({ error: { message: 'Commit is not an Nft' } });
+            return;
+        }
+
+        const asset = await fetchCNftFromSignature(umi, commit.nft.merkleTreeAddress, commit.nft.signature);
+        // const asset = await fetchCnft(umi, commit.nft.assetId);
+        
+        res.status(200).json(asset);
+    }
+    catch (err) {
+        res.status(400).send({ error: { message: `${err}` } });
+        return;
+    }
+})
 
 export { commitRouter };

@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { computeCID } from './cid.js';
 import { prisma } from '../prisma/index.js';
-const pinata = new PinataSDK({
+export const pinata = new PinataSDK({
     pinataJwt: process.env.PINATA_JWT,
     pinataGateway: process.env.GATEWAY_URL,
 });
@@ -43,7 +43,7 @@ export async function uploadToIpfs(modelPath) {
         return upload.IpfsHash;
     }
     catch (err) {
-        console.error('Error uploading to IPFS:', err);
+        console.error('Error uploading Base Model to IPFS:', err);
         return undefined;
     }
 }

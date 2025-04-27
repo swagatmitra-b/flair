@@ -47,7 +47,9 @@ repoRouter.get('/owner/:ownerAddress/name/:name', async (req, res) => {
 // Example route to get a repository
 repoRouter.get('/hash/:repoHash', async (req, res) => {
     const { repoHash } = req.params;
-    const matchRepo = await prisma.repository.findFirst({ where: { repoHash } });
+    const matchRepo = await prisma.repository.findUnique({
+        where: { repoHash },
+    });
     if (!matchRepo) {
         res.status(404).send({ error: { message: 'Repository not found.' } });
         return;

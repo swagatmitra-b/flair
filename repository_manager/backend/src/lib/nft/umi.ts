@@ -3,7 +3,9 @@
 
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import { mplBubblegum } from "@metaplex-foundation/mpl-bubblegum";
-import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
+// import { irysUploader } from "@metaplex-foundation/umi-uploader-irys";
+import { mockStorage } from '@metaplex-foundation/umi-storage-mock';
+// import { nftStorageUploader } from '@metaplex-foundation/umi-uploader-nft-storage';
 import { mplTokenMetadata } from "@metaplex-foundation/mpl-token-metadata";
 import { dasApi } from '@metaplex-foundation/digital-asset-standard-api';
 import { createSignerFromKeypair, KeypairSigner, PublicKey, signerIdentity, Umi } from "@metaplex-foundation/umi";
@@ -15,7 +17,8 @@ const rpc: string = process.env.RPC_URL!;
 const umi = createUmi(rpc)
     .use(mplBubblegum())
     .use(mplTokenMetadata())
-    .use(irysUploader({ address: process.env.UPLOADER_URL }))
+    // .use(irysUploader({ address: process.env.UPLOADER_URL }))
+    .use(mockStorage())
     .use(dasApi());
 
 const anonymousKeypair = Keypair.generate();

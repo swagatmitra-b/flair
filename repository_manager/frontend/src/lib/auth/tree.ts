@@ -56,13 +56,14 @@ export const getTreeSignInData = async (publicKey: web3.PublicKey): Promise<Sola
 
 
 // tree sign in function
+// we are signing into the tree wallet using the universal sign in workflow
 export const treeSignIn = async (publicKey: PublicKey, signMessage: ((message: Uint8Array) => Promise<Uint8Array>)): Promise<string> => {
   if (!publicKey || !signMessage) throw new Error('Could not connect to wallet for tree sign in.');
   const treeSignInData: SolanaActionMessage = await getTreeSignInData(publicKey);
   let treeSignInMessage: string = createTreeSignInMessageText(treeSignInData);
   treeSignInMessage += '\n';
   // create the auth token for the tree sign in
-  const authToken = await createAuthToken(treeSignInMessage, {
+  const authToken = 'universal' + await createAuthToken(treeSignInMessage, {
     publicKey,
     signMessage
   });

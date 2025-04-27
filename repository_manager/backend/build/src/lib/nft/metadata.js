@@ -1,6 +1,7 @@
 // metadata generator for commit and repository Nfts
 // Debashish Buragohain
 import { prisma } from "../prisma/index.js";
+import { constructIPFSUrl } from "../../routes/basemodel.js";
 // function to create the metadata of the commit Nft
 export const createCommitMetadata = async (commit) => {
     const metadata = {};
@@ -70,13 +71,12 @@ export function parseMetrics(metric) {
 // create the metadata for uploading in the collection
 export const createRepositoryMetadata = async (repo) => {
     const metadata = {};
-    const { name, description, useCase, creator, framework, modelUri } = parseRepoMetadata(repo.metadata);
+    const { name, description, useCase, creator, framework } = parseRepoMetadata(repo.metadata);
     metadata.name = name;
     metadata.description = description;
     metadata.useCase = useCase;
     metadata.creator = creator;
     metadata.framework = framework;
-    metadata.modelUri = modelUri;
     metadata.createdAt = repo.createdAt.toISOString();
     metadata.owner = repo.ownerAddress;
     const { baseModelHash } = repo;
@@ -84,6 +84,7 @@ export const createRepositoryMetadata = async (repo) => {
         throw new Error('base model hash is a required field.');
     }
     metadata.baseModelHash = baseModelHash;
+    metadata.baseModelUri = constructIPFSUrl(baseModelHash); // in the latest version we calculate the url dynamically
     return metadata;
 };
 // we cannot have undefined fields the metadata of the nft
@@ -91,9 +92,9 @@ export function parseRepoMetadata(repoMetadata) {
     if (typeof repoMetadata !== "object" || repoMetadata === null || Array.isArray(repoMetadata)) {
         throw new Error("Invalid commit metrics: Expected an object.");
     }
-    const { name, description, useCase, creator, framework, modelUri } = repoMetadata;
-    if (!name || !description || !useCase || !creator || !framework || !modelUri) {
+    const { name, description, useCase, creator, framework } = repoMetadata;
+    if (!name || !description || !useCase || !creator || !framework) {
         throw new Error("Missing required repository metadata fields.");
     }
-    return { name, description, useCase, creator, framework, modelUri };
+    return { name, description, useCase, creator, framework };
 }

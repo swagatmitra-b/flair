@@ -6,6 +6,7 @@ import { commitMetrics, CommitNftMetdata } from "../types/commit";
 import { prisma } from "../prisma/index.js";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { RepositoryMetadataWithAllRequiredFields, RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
+import { constructIPFSUrl } from "../../routes/basemodel.js"; 
 
 // function to create the metadata of the commit Nft
 export const createCommitMetadata = async (commit: Commit): Promise<CommitNftMetdata> => {
@@ -80,13 +81,12 @@ export function parseMetrics(metric: JsonValue): commitMetrics {
 // create the metadata for uploading in the collection
 export const createRepositoryMetadata = async (repo: Repository): Promise<RepositoryNftCollectionMetadata> => {
     const metadata: Partial<RepositoryNftCollectionMetadata> = {};
-    const { name, description, useCase, creator, framework, modelUri } = parseRepoMetadata(repo.metadata);
+    const { name, description, useCase, creator, framework } = parseRepoMetadata(repo.metadata);
     metadata.name = name;
     metadata.description = description;
     metadata.useCase = useCase;
     metadata.creator = creator;
     metadata.framework = framework;
-    metadata.modelUri = modelUri;
     metadata.createdAt = repo.createdAt.toISOString();
     metadata.owner = repo.ownerAddress;
     const { baseModelHash } = repo;
@@ -94,6 +94,7 @@ export const createRepositoryMetadata = async (repo: Repository): Promise<Reposi
         throw new Error('base model hash is a required field.');
     }
     metadata.baseModelHash = baseModelHash;
+    metadata.baseModelUri= constructIPFSUrl(baseModelHash);        // in the latest version we calculate the url dynamically
     return metadata as RepositoryNftCollectionMetadata;
 }
 
@@ -102,10 +103,10 @@ export function parseRepoMetadata(repoMetadata: JsonValue): RepositoryMetadataWi
     if (typeof repoMetadata !== "object" || repoMetadata === null || Array.isArray(repoMetadata)) {
         throw new Error("Invalid commit metrics: Expected an object.");
     }
-    const { name, description, useCase, creator, framework, modelUri } = repoMetadata as Record<string, unknown>;
-    if (!name || !description || !useCase || !creator || !framework || !modelUri) {
+    const { name, description, useCase, creator, framework } = repoMetadata as Record<string, unknown>;
+    if (!name || !description || !useCase || !creator || !framework) {
         throw new Error("Missing required repository metadata fields.");
     }
-    return { name, description, useCase, creator, framework, modelUri } as RepositoryMetadataWithAllRequiredFields;
+    return { name, description, useCase, creator, framework } as RepositoryMetadataWithAllRequiredFields;
 }
 
