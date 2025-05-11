@@ -1,9 +1,8 @@
 generator client {
   provider = "prisma-client-js"
-
-  // uncomment this line in windows
-
-  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
+  // uncomment this line in windows  
+  // binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -60,17 +59,18 @@ model Repository {
 
 // repository contains branches
 model Branch {
-  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  id           String             @id @default(auto()) @map("_id") @db.ObjectId
   name         String // name of the branch
-  branchHash   String     @unique
+  branchHash   String             @unique
   description  String? // description of the branch's purpose
   latestParams String? // base64 encoded model parameters for the latest mode parameters
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @default(now()) // timestamp of the last commit
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @default(now()) // timestamp of the last commit
   commits      Commit[] // commits in that branch
   // the repository to which the branch belongs
-  repositoryId String     @db.ObjectId // repository id for this branch
-  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  repositoryId String             @db.ObjectId // repository id for this branch
+  repository   Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  SharedFolder SharedFolderFile[] // shared folder is basically an array of shared folder files
 }
 
 // branches contain commits
@@ -91,36 +91,53 @@ model Commit {
   // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
   // for a merger commit, this will be the merged parameters
   // for an accepted commit this will be the local parameters
-
   // for the current version the metric is an optional field
-  metrics      Metric? // the metrics of the model (e.g. accuracy, loss etc.)
-  architecture String // new field included
-
+  metrics              Metric? // the metrics of the model (e.g. accuracy, loss etc.)
+  architecture         String // new field included
   // which branch the commit belongs to
-  branchId         String  @db.ObjectId
+  branchId             String       @db.ObjectId
   // when the branch is deleted so are the commmits in the branch
-  branch           Branch  @relation(fields: [branchId], references: [id])
+  branch               Branch       @relation(fields: [branchId], references: [id])
   // committer data included with new user model created
-  committerAddress String // wallet address of the contributor  
+  committerAddress     String // wallet address of the contributor  
   // when the user is deleted the commit is not deleted
-  committerId      String  @db.ObjectId
-  committer        User    @relation(fields: [committerId], references: [id])
+  committerId          String       @db.ObjectId
+  committer            User         @relation(fields: [committerId], references: [id])
   // a commit is only soft deleted
-  isDeleted        Boolean @default(false)
+  isDeleted            Boolean      @default(false)
   // Nft converted commit properties
-  nft              Nft?    @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
-  nftId            String? @unique @db.ObjectId
-  verified         Boolean @default(false) // if the ZKML proof of the model has been verified
+  nft                  Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftId                String?      @unique @db.ObjectId
+  verified             Boolean      @default(false) // if the ZKML proof of the model has been verified
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
-  params      String     @unique // base64 encoded blosc compressed parameters 
-  commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
-  commit      Commit     @relation(fields: [commitId], references: [id])
-  ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
-  zkmlProofId String?    @unique @db.ObjectId
+  id               String            @id @default(auto()) @map("_id") @db.ObjectId
+  // this is the only thing that needs to be changed
+  // params will now be the shared folder structure
+  // params      String     @unique // base64 encoded blosc compressed parameters 
+  sharedFolderId   String            @unique @db.ObjectId
+  sharedFolderFile SharedFolderFile? @relation(fields: [sharedFolderId], references: [id]) // points to the shared folder file
+  commitId         String            @unique @db.ObjectId // needs to be unique for a one to one relationship
+  commit           Commit            @relation(fields: [commitId], references: [id])
+  ZKMLProof        ZKMLProof?        @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
+  zkmlProofId      String?           @unique @db.ObjectId
+}
+
+// defining the shared folder model for storing the latest training data
+model SharedFolderFile {
+  id                         String   @id @default(auto()) @map("_id") @db.ObjectId
+  branchId                   String   @db.ObjectId
+  // when the branch is deleted so are the commmits in the branch
+  branch                     Branch   @relation(fields: [branchId], references: [id])
+  params                     Params? // back relation to the params object, non included shared folders in commits will not have the params property fulled
+  committerAddress           String   @db.ObjectId // who has done the training
+  metrics_after_aggregation  Bytes[] // bytes array for the metrics before aggregation
+  metrics_before_aggregation Bytes[] // bytes array for the metrics after aggregation
+  // for the current version we are not storing the model after aggregation
+  model                      Bytes? // stores the pickled model of that file
+  createdAt                  DateTime @default(now()) // we always need the latest shared folder for this branch and this user
 }
 
 model ZKMLProof {
@@ -159,7 +176,7 @@ model Collection {
   repository  Repository?
   nft         Nft[]
   createdAt   DateTime    @default(now())
-  metadataCID String // metadata of the collection uploaded to IPFS
+  metadataCID String? // metadata of the collection uploaded to IPFS
 }
 
 // details of the nft
@@ -174,7 +191,7 @@ model Nft {
   commit            Commit?     @relation("CommitToNft")
   collection        Collection? @relation(fields: [colectionId], references: [id])
   colectionId       String      @unique @db.ObjectId
-  metadataCID       String // CID of the metadata of the Nft uploaded to IPFS
+  metadataCID       String? // CID of the metadata of the Nft uploaded to IPFS
 }
 
 type Metric {

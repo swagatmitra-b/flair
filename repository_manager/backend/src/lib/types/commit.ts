@@ -29,7 +29,7 @@ export interface CommitNftMetdata {
 }
 
 export interface commitParameters {
-    params: string,
+    // params: string,              // in the latest version the params will not be sent in here they would be fetched from the shared folder model
     zkmlProof: zkmlDeserialized
 }
 

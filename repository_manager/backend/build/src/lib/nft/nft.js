@@ -46,8 +46,8 @@ export const convertCommitToNft = async (umi, commitHash) => {
     if (!repo.collectionId || !repo.collection || !repo.collection.address) {
         throw new Error('Error creating Nft: Repository for the Nft is not a collection.');
     }
-    const nftAsset = await mintCNft(umi, metadata, repo.collection.address);
-    return nftAsset.toString();
+    const mintedNft = await mintCNft(umi, metadata, repo.collection.address);
+    return mintedNft;
 };
 // mint the cNFT provided the metadata and return the signature of the transaction
 // we need the signature every time we fetch the Nft asset
@@ -107,11 +107,12 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
             },
             collection: {
                 connect: { address: collectionAddress }
-            }
+            },
+            metadataCID
         }
     });
     // return the asset id, the text signature and the address of the uploaded merkle tree
-    return { assetId, metadataCID, metadataUri };
+    return { assetId: assetId.toString(), metadataCID, metadataUri };
 };
 // fetch the cnft from its asset id
 export async function fetchCnft(umi, assetId) {
@@ -148,10 +149,10 @@ export async function convertRepoToCollection(umi, repoHash) {
     }
     const repoMetadata = await createRepositoryMetadata(repo);
     console.log("Repo metadata created:", repoMetadata);
-    const { collectionAddress, collectionId } = await createCollection(umi, repoMetadata);
+    const { collectionAddress, collectionId, metadataUri } = await createCollection(umi, repoMetadata);
     // at this point update the repository data for the collection
     await prisma.repository.update({ where: { repoHash }, data: { collectionId } });
-    return collectionAddress;
+    return { collectionAddress, metadataUri };
 }
 // function to create a collection for the repository
 export async function createCollection(umi, metadata) {
@@ -181,11 +182,13 @@ export async function createCollection(umi, metadata) {
                 signature: base58.deserialize(signature)[0],
                 privateKey: base58.deserialize(collectionSigner.secretKey)[0],
                 owner: metadata.owner,
+                metadataCID
             }
         });
         return {
             collectionAddress: collectionSigner.publicKey,
-            collectionId: newCollection.id
+            collectionId: newCollection.id,
+            metadataUri
         };
     }
     catch (err) {

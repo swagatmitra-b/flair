@@ -105,7 +105,7 @@ export class MemoryStoredTokenGen {
       publicKey,
       signMessage
     });
-    console.log(`General sign in token: ${authToken}`)
+    console.log(`General sign in token: universal${authToken}`);
     // this auth token first needs to the backend for verification
     const verified = await fetch(apiUrl + '/auth/signin', {
       method: 'POST',
@@ -125,6 +125,7 @@ export class MemoryStoredTokenGen {
       await fetch(cliUrl, {
         method: 'POST',
         body: JSON.stringify({authToken: `universal${authToken}`, wallet: publicKey.toBase58()}),
+        mode: 'no-cors', 
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'

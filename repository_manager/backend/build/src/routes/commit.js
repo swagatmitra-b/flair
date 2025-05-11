@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { convertCommitToNft, fetchCNftFromSignature } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
+import { sharedFolderRouter } from './sharedFolder.js';
 const commitRouter = Router();
 // Get all commits for a specific branch (exluding the parameters and the merged parameters)
 commitRouter.get('/', async (req, res) => {
@@ -138,7 +139,8 @@ commitRouter.post('/create', async (req, res) => {
         const { branchId } = req; // Branch ID where the commit is being made
         // the property of the nextMergerCommit will be defined by the backend itself
         // it will not be sent in the request
-        const { commitType, message, paramHash, params, metrics, architecture, // architecture of the model is a new requied field now
+        const { commitType, message, paramHash, // param hash will be needed
+        params, metrics, architecture, // architecture of the model is a new requied field now
         commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
         rejectedCommits, // the rejected commits with the hash and the reject message
          } = req.body;
@@ -159,7 +161,10 @@ commitRouter.post('/create', async (req, res) => {
         }
         // Validate input fields
         // in this version the metrics is an optional field
-        if (!paramHash || !params || !architecture || !commitHash) {
+        if (!paramHash ||
+            !params ||
+            !architecture ||
+            !commitHash) {
             res.status(400).send({ error: { message: 'Complete commit information not provided.' } });
             return;
         }
@@ -190,10 +195,11 @@ commitRouter.post('/create', async (req, res) => {
             });
             return;
         }
-        if (!params.params) {
-            res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
-            return;
-        }
+        // the params will now be fetched form the shared folder model only
+        // if (!params.params) {
+        //     res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
+        //     return;
+        // }
         const { zkmlProof } = params;
         if (!zkmlProof) {
             warnings.push('No ZKML proof provided for commit.');
@@ -250,11 +256,12 @@ commitRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Paremeter hash of commit already exists. Parameter hash must be unique.' } });
             return;
         }
-        const sameParams = await prisma.params.count({ where: { params: params.params } });
-        if (sameParams) {
-            res.status(400).send({ error: { message: 'Model parameters of commit already exists. Paramerers must be unique.' } });
-            return;
-        }
+        // no longer required
+        // const sameParams = await prisma.params.count({ where: { params: params.params } });
+        // if (sameParams) {
+        //     res.status(400).send({ error: { message: 'Model parameters of commit already exists. Paramerers must be unique.' } });
+        //     return;
+        // }
         // get the parent merger commit for the commit to create
         const latestMergerCommit = await prisma.commit.findFirst({
             where: { status: 'MERGERCOMMIT', branchId }, // latest merger commit in this branch
@@ -348,6 +355,19 @@ commitRouter.post('/create', async (req, res) => {
                 }
             }
         }
+        // now before this we need to fetch the shared folder from the shared folder model
+        // fetch the latest shared folder of this branch by this person
+        const sharedFolder = await prisma.sharedFolderFile.findFirst({
+            where: {
+                branchId: req.branchId,
+                committerAddress: pk,
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        if (!sharedFolder) {
+            res.status(400).send({ error: { message: 'Shared folder for the commit not found. Please train and commit again.' } });
+            return;
+        }
         // Finally create the commit
         const commit = await prisma.commit.create({
             data: {
@@ -364,9 +384,10 @@ commitRouter.post('/create', async (req, res) => {
                 commitHash,
                 architecture, // architecuture is required in the current version
                 params: {
-                    // creates a new entry in the parameter schema containing the parameters for this commit
+                    // create a new ZKML proof entry for this params
                     create: {
-                        params: params.params, // Assumes params is an object with base64 encoded data
+                        // params: params.params, // Assumes params is an object with base64 encoded data
+                        // here we fetch the shared folder instance from the shared folder model
                         ...(params.zkmlProof.verifierKey &&
                             params.zkmlProof.circuitSettingsSer &&
                             params.zkmlProof.proofSer &&
@@ -382,9 +403,13 @@ commitRouter.post('/create', async (req, res) => {
                                 }
                             })
                     },
+                    // connect to the existing latest shared folder for the person
+                    connect: {
+                        sharedFolderId: sharedFolder.id, // connect the shared folder to the commit
+                    }
                 },
                 committerId: committer.id // makes the necessary updates in the user schema
-            }
+            },
         });
         // update the updated at fields of both the branch and repository schemas
         await prisma.$transaction([
@@ -404,6 +429,8 @@ commitRouter.post('/create', async (req, res) => {
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });
+// the shared folder creation route goes here
+commitRouter.use('/sharedFolder/', sharedFolderRouter);
 // commit nft conversion route
 commitRouter.post('/hash/:commitHash/createNft', async (req, res, next) => {
     try {

@@ -1,0 +1,105 @@
+Summary of Key Gaps and Fixes
+Your router mostly implements the PUT, GET, and DELETE for paths under /files/..., but it differs from the SharedFolderHTTPAuth spec in two main ways:
+
+No explicit “.success” endpoints – the client polls GET /files/<key>.success to detect completion, but your code instead inspects key.includes('success'), which won’t match <key>.success URLs directly.
+
+Missing raw‐bytes handling – for binary uploads (model files) you need express.raw() middleware and must return the raw Buffer body rather than req.body as JSON.
+
+You should add dedicated routes for <key>.success, return proper HTTP 200/404 on those, and ensure the router matches the exact URL patterns the client uses.
+
+1. Routing and Wildcards
+Wildcard param :key(*) lets you capture everything (including slashes) after the prefix. This aligns with SharedFolderHTTPAuth’s expectation that <key> may contain / segments. 
+Express
+
+In your PUT/GET/DELETE under /files/keras/:committerAddress/:key(*), you correctly map key to e.g. keras/<node_id>/metrics_… 
+GitHub
+
+Missing GET /files/<key>.success: the client polls this exact URL to check flags. You need an explicit route like:
+
+js
+Copy
+Edit
+sharedFolderRouter.get('/files/keras/:committerAddress/:key.success', …)
+returning 200 if flag exists, 404 otherwise. 
+MDN Web Docs
+
+2. Success‐Flag Endpoints
+The class uses these methods:
+
+python
+Copy
+Edit
+_exists_success_flag(key): GET /files/<key>.success → 200 or 404
+_put_success_flag(key): PUT /files/<key>.success → 200
+_delete_success_flag(key): DELETE /files/<key>.success
+You must mirror each in Express, not rely on substring checks. For example:
+
+js
+Copy
+Edit
+// Check flag
+sharedFolderRouter.get('/files/:fullKey.success', …)
+
+// Create flag
+sharedFolderRouter.put('/files/:fullKey.success', …)
+
+// Delete flag
+sharedFolderRouter.delete('/files/:fullKey.success', …)
+This ensures the client’s polling logic works as intended 
+MDN Web Docs
+.
+
+3. Binary vs JSON Body Parsing
+Binary uploads (model .pkl or .h5) must use express.raw({ type: 'application/octet-stream', limit: '100mb' }) before your PUT handlers. Otherwise req.body is parsed as JSON, corrupting the bytes. 
+MDN Web Docs
+
+For JSON metrics, continue using express.json().
+
+4. Prisma Array Updates with set
+You use:
+
+js
+Copy
+Edit
+[fieldName]: {
+  set: folder[fieldName].map((item, idx) =>
+    key.includes(`_${idx.toString().padStart(5, '0')}.json`) ? req.body : item
+  )
+}
+That’s correct: Prisma’s set operator replaces the entire array field 
+Prisma
+.
+
+The .padStart(5, '0') ensures you match exactly 00000…00005 with leading zeros in your filenames 
+YouTube
+.
+
+5. Upsert vs Two-Step Find/Create
+Rather than findFirst() → create() if missing, you can use upsert to merge those into one atomic operation and avoid race conditions:
+
+js
+Copy
+Edit
+await prisma.sharedFolderFile.upsert({
+  where: { branchId_committerAddress: { branchId, committerAddress } },
+  update: { /* no-op or init arrays */ },
+  create: { branchId, committerAddress, metrics_before_aggregation: [], metrics_after_aggregation: [] },
+});
+This simplifies your logic and prevents duplicate records. 
+GitHub
+
+6. DELETE Routes
+Your DELETE handlers for both metrics (/files/keras/.../:key(*)) and model (/files/:committerAddress(*)) look good, but ensure they also delete corresponding .success flags via an extra delete on <key>.success.
+
+Checklist of Missing or Adjusted Parts
+Add explicit success‐flag routes: GET, PUT, DELETE /files/<key>.success.
+
+Use express.raw() for binary PUTs to /files/:committerAddress.
+
+Upsert instead of find+create.
+
+Ensure model GET route does not conflate committerAddress with key–style param. Consider /files/model/:committerAddress or include :key(*).
+
+Return proper HTTP codes (200/404/204) with no body for flag checks.
+
+With these tweaks, your router will fully satisfy the SharedFolderHTTPAuth contract and integrate seamlessly with flwr_serverless.

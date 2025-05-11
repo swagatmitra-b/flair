@@ -18,6 +18,7 @@ app.use(express.json());
 // Define the POST /authToken endpoint
 app.post('/authToken', (req: Request, res: Response) => {
     try {
+        console.log(req.body);
         let { authToken, wallet } = req.body as { authToken?: string, wallet?: string };
         // Check if authToken is provided
         if (!authToken) {
