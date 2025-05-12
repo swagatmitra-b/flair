@@ -1,10 +1,10 @@
 import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
-import { CommitType } from '../lib/types/repo.js';
 import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
 import { convertCommitToNft, fetchCnft, fetchCNftFromSignature } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
+import { v4 as uuidV4 } from 'uuid';
 import { sharedFolderRouter } from './sharedFolder.js';
 
 const commitRouter = Router();
@@ -108,65 +108,27 @@ commitRouter.get('/latest', async (req, res) => {
     }
 });
 
-// get all the pending unmerged commits since the last merge
-commitRouter.get('/pending', async (req, res) => {
-    try {
-        // first get the latest merged commit id
-        const latestMergedCommit = await prisma.commit.findFirst({
-            where: { status: 'MERGERCOMMIT' },
-            orderBy: { createdAt: 'desc' }
-        });
-        if (!latestMergedCommit) {
-            console.error('Unresolved conflict. No merged commits present in the branch.');
-            res.status(500).send({ error: { message: 'Internal Server Error' } });
-            return;
-        }
-        const unmergedCommits = await prisma.commit.findMany({
-            where: {
-                status: 'PENDING',
-                previousMergerCommit: latestMergedCommit.commitHash
-            },
-            orderBy: { createdAt: 'asc' }   // sort serially in the order when they were created
-        });
-        res.status(200).json({ data: unmergedCommits });
-    } catch (err) {
-        console.error('Error retrieving the latest commit:', err);
-        res.status(500).send({ error: { message: 'Internal Server Error' } });
-    }
-});
-
 // create the new commit to the branch
-// the commit can be a merger commit or a general commit
-// this route is also responsible for updating the status of PENDING commits and removing rejected parameters
+// no merger commit in this version
+// all commits are accepted commits
 commitRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res); // Get the contributor's wallet address
-        const { branchId } = req; // Branch ID where the commit is being made
-        // the property of the nextMergerCommit will be defined by the backend itself
-        // it will not be sent in the request
+        const { branchId } = req;     // Branch ID where the commit is being made
 
         const {
-            commitType,
             message,
             paramHash,               // param hash will be needed
             params,
             metrics,
             architecture,            // architecture of the model is a new requied field now
-            commitHash,
-            acceptedCommits,         // the hash array of the accepted commits if it is a merger commit
-            rejectedCommits,         // the rejected commits with the hash and the reject message
         }:
             {
-                commitType: CommitType,
                 message: string,
                 paramHash: string,
                 params: commitParameters,
                 metrics: commitMetrics,
                 architecture: string,
-                commitHash: string,
-                // reserved for the system commits
-                acceptedCommits: string[] | undefined,          // accepted and rejected commits are undefined for general commits
-                rejectedCommits: RejectedCommits | undefined,   // only needed in case of system commits 
             } = req.body;
 
 
@@ -181,7 +143,7 @@ commitRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
             return;
         }
-        if (commitType !== 'SYSTEM' && !message) {
+        if (!message) {
             res.status(400).send({ error: { message: 'Commit message is required.' } });
             return;
         }
@@ -189,19 +151,18 @@ commitRouter.post('/create', async (req, res) => {
         if (!branchId) {
             throw new Error('Criticial Error: branchId not attached to response.');
         }
-
         // Validate input fields
         // in this version the metrics is an optional field
         if (
             !paramHash ||
             !params ||
-            !architecture ||
-            !commitHash) {
+            !architecture) {
             res.status(400).send({ error: { message: 'Complete commit information not provided.' } });
             return;
         }
 
-        // get the committer id
+        const commitHash = uuidV4(); // Generate a unique commit hash
+        // get the committer id        
         const committer = await prisma.user.findFirst({
             where: { wallet: pk }
         });
@@ -232,7 +193,6 @@ commitRouter.post('/create', async (req, res) => {
             return;
         }
 
-
         // the params will now be fetched form the shared folder model only
         // if (!params.params) {
         //     res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
@@ -248,32 +208,15 @@ commitRouter.post('/create', async (req, res) => {
         else {
             // ------------------- Uncomment if you want the ZKML field to be mandatory -------------------------
             // // extract the zkml proof for this commit
-            const { verifierKey, circuitSettingsSer, proofSer, srsSer } = zkmlProof;
-            // // additional checks for the zkml proof settings
-            // if (!verifierKey) {
-            //     res.status(400).send({ error: { message: 'No ZKML verifier key found in the commit.' } });
-            //     return;
-            // }
-            // if (!circuitSettingsSer) {
-            //     res.status(400).send({ error: { message: 'No ZKML circuit settings Ser found in the commit.' } });
-            //     return;
-            // }
-            // if (!proofSer) {
-            //     res.status(400).send({ error: { message: "No ZKML proof Ser found in the commit." } });
-            //     return;
-            // }
-            // if (!srsSer) {
-            //     res.status(400).send({ error: { message: 'No ZKML srsSer found in the commit.' } });
-            //     return;
-            // }
+            const { proof, settings, verification_key } = zkmlProof;
+
             // ZKML fields are not mandatory but if provided they must be unique
-            if (verifierKey && circuitSettingsSer && proofSer && srsSer) {
+            if (proof && settings && verification_key) {
                 const sameZKMLProofs = await prisma.zKMLProof.count({
                     where: {
-                        verifierKey,
-                        circuitSettingsSer,
-                        proofSer,
-                        srsSer
+                        proof,
+                        settings,
+                        verification_key
                     }
                 });
                 // if same zkml proofs are found the commit cannot be created
@@ -297,123 +240,7 @@ commitRouter.post('/create', async (req, res) => {
             return;
         }
 
-        // no longer required
-        // const sameParams = await prisma.params.count({ where: { params: params.params } });
-        // if (sameParams) {
-        //     res.status(400).send({ error: { message: 'Model parameters of commit already exists. Paramerers must be unique.' } });
-        //     return;
-        // }
-
-
-        // get the parent merger commit for the commit to create
-        const latestMergerCommit = await prisma.commit.findFirst({
-            where: { status: 'MERGERCOMMIT', branchId },        // latest merger commit in this branch
-            orderBy: { createdAt: 'desc' }
-        });
-
-        // the previous commit hash can never be undefined but only be the genesis hash as defined in the .env file
-        // fallback mechanism included if the env file is not loaded
-        const previousMergerCommit = latestMergerCommit?.commitHash ?? process.env.GENESIS_HASH ?? "_GENESIS_";
-
-        // const previousMergerCommit = (latestMergerCommit !== null) ? latestMergerCommit.commitHash : (commitLength == 0) ? process.env.GENESIS_HASH : undefined;
-        if (!previousMergerCommit) {
-            console.error('Critical Error: Previous commit hash of non-empty branch is undefined.');
-            res.status(500).send({ error: { message: 'Internal Server Error' } });
-            return;
-        }
-
-
-        // the first commit is the only commit that is committed by the user and still a MERGER_COMMIT
-        // Commit message section
-        // Default status for a new commit is pending unless it is the first commit in the branch for which it is the merger commit
-        const commitLength = await prisma.commit.count({ where: { branchId } });
-        const status = commitType == 'SYSTEM' ? 'MERGERCOMMIT' : commitLength == 0 ? 'MERGERCOMMIT' : 'PENDING';
-        const commitMessage = commitType == 'SYSTEM' ? '_SYSTEM_COMMIT_' : message;
-
-        //  ---------------------------------- Handling of merger commits comes here --------------------------------------
-
-        if (commitType == 'SYSTEM') {
-
-            if (!acceptedCommits || !rejectedCommits) {
-                res.status(400).send({ error: { message: 'Accepted and Rejected Commits are mandatory for a merger commit.' } });
-                return;
-            }
-            // if the merger commit is created then first check if the number of accepted and rejected commits is equal to all the commits since the last merger commit
-            const pendingCommitCount = await prisma.commit.count({
-                where: {
-                    previousMergerCommit,
-                    status: 'PENDING'
-                }
-            });
-            if (pendingCommitCount !== acceptedCommits.length + rejectedCommits.length) {
-                res.status(401).send({ error: { message: "All pending commits must be included creating a merger commit." } })
-                return;
-            }
-
-            for (const cmt of acceptedCommits) {
-                const updatedCommit = await prisma.commit.update({
-                    where: { commitHash: cmt },
-                    data: {
-                        status: 'MERGED',
-                        verified: true
-                    },
-                    include: { params: true }
-                });
-
-                // ------------------------------------ ZKML Proof handling --------------------------------------------
-                // !-- this deletes the verified proof since we have already verified it
-                // !!-- the ZKML proof is a big file to store. Currently we are removing it once the commits are accepted.
-                // !!------          But change this later on need            --------------
-
-                if (updatedCommit.params) {
-
-                    // in reality all commits must contain ZKML proofs and its verification cannot be skipped                    
-                    // the merger must check if all the ZKML proofs have been verified before creating a Merger Commit !
-
-                    // !! -- For Testing we consider that the ZKML proof may be empty
-                    // !! But in production environments this cannot be empty
-
-                    const proofRecordCount = await prisma.zKMLProof.count({ where: { paramId: updatedCommit.params.id } });
-                    if (proofRecordCount > 0)
-                        await prisma.zKMLProof.delete({
-                            where: { paramId: updatedCommit.params.id }
-                        });
-                    else {
-                        warnings.push(`High Level Warning!! Commit that does not contain ZKML proof has been merged. Commit Details: 
-                        \n Commit Hash: ${updatedCommit.commitHash}
-                        \n Committed by ID: ${updatedCommit.committerId}
-                        \n Commit Message: ${updatedCommit.message}
-                        \n Commit Time: ${updatedCommit.createdAt}`);
-                    }
-                }
-            }
-
-            const rejectedCommitIds: string[] = [];
-            for (const cmt of rejectedCommits) {
-                const updatedRejectedCmt = await prisma.commit.update({
-                    where: { commitHash: cmt.commit },
-                    data: {
-                        status: 'REJECTED',
-                        rejectedMessage: cmt.message
-                    }
-                });
-                rejectedCommitIds.push(updatedRejectedCmt.id);
-            }
-
-            // for the rejected commits delete all the parameters for those commits
-            for (const id of rejectedCommitIds) {
-                const paramToDelete = await prisma.params.findUnique({ where: { commitId: id } });
-                if (paramToDelete) {
-                    await prisma.params.delete({ where: { commitId: id } });
-                    // also delete the associated zkml proof for this param if it exists 
-                    // For rejected commits it is allowable to have the ZKML proof as optional
-                    const rejectedZKMLProofCount = await prisma.zKMLProof.count({ where: { paramId: paramToDelete.id } })
-                    if (rejectedZKMLProofCount > 0)
-                        await prisma.zKMLProof.delete({ where: { paramId: paramToDelete.id } });
-                }
-            }
-        }
-
+        // merger commit structure removed
         // now before this we need to fetch the shared folder from the shared folder model
         // fetch the latest shared folder of this branch by this person
         const sharedFolder = await prisma.sharedFolderFile.findFirst({
@@ -432,33 +259,30 @@ commitRouter.post('/create', async (req, res) => {
         const commit = await prisma.commit.create({
             data: {
                 committerAddress: pk,
-                previousMergerCommit,
-                message: commitMessage,
-                paramHash,
+                message,
                 // in the current version we have removed the local and merged parameters
                 // for an accepted commit it is the local parameters and for a merger commit it is the merged parameters
                 metrics,
-                // another condition is that if it is the very first commit in the branch, its status will be always accepted
-                status,
                 branchId: branchId,            // makes the necessary updates in the branch model
                 commitHash,
-                architecture,                  // architecuture is required in the current version
+                status: 'MERGED',              // for this version this is always merged
+                verified: true,                // since we are mandating the zkml proof, therefore its always verified
+                architecture,                  // architecuture is required in the current version                
+                paramHash,                     // hash of the parameters for this commit       
                 params: {
                     // create a new ZKML proof entry for this params
                     create: {
                         // params: params.params, // Assumes params is an object with base64 encoded data
                         // here we fetch the shared folder instance from the shared folder model
-                        ...(params.zkmlProof.verifierKey &&
-                            params.zkmlProof.circuitSettingsSer &&
-                            params.zkmlProof.proofSer &&
-                            params.zkmlProof.srsSer &&
+                        ...(params.zkmlProof.proof &&
+                            params.zkmlProof.settings &&
+                            params.zkmlProof.verification_key &&
                         {
                             ZKMLProof: {
                                 create: {
-                                    verifierKey: params.zkmlProof.verifierKey,
-                                    circuitSettingsSer: params.zkmlProof.circuitSettingsSer,
-                                    proofSer: params.zkmlProof.proofSer,
-                                    srsSer: params.zkmlProof.srsSer
+                                    verification_key: params.zkmlProof.verification_key,
+                                    proof: params.zkmlProof.proof,
+                                    settings: params.zkmlProof.settings,
                                 }
                             }
                         }

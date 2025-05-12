@@ -1,5 +1,5 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
   // uncomment this line in windows  
   // binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
@@ -79,8 +79,6 @@ model Branch {
 model Commit {
   id                   String       @id @default(auto()) @map("_id") @db.ObjectId
   commitHash           String       @unique // hash of the current commit
-  previousMergerCommit String // this is mandatory for all commits
-  relatedMergerCommit  String? // only for accepted commits
   status               CommitStatus // the status of this particuar commit
   rejectedMessage      String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
   message              String // commit message
@@ -141,13 +139,12 @@ model SharedFolderFile {
 }
 
 model ZKMLProof {
-  id                 String  @id @default(auto()) @map("_id") @db.ObjectId
-  verifierKey        String
-  circuitSettingsSer String
-  proofSer           String
-  srsSer             String
-  param              Params? @relation("paramToProof")
-  paramId            String? @unique @db.ObjectId
+  id               String  @id @default(auto()) @map("_id") @db.ObjectId
+  proof            String  @unique // the proof of the model
+  settings         String  @unique // the settings of the proof
+  verification_key String  @unique // the verification key of the proof
+  param            Params? @relation("paramToProof")
+  paramId          String? @unique @db.ObjectId
 }
 
 // These schemas can never be deleted
@@ -201,15 +198,16 @@ type Metric {
 
 // metadata type as an embedded document
 type UserMetadata {
-  name        String?
-  email       String?
-  displayText String?
-  profileUrl  String?
+  name         String?
+  email        String?
+  displayText  String?
+  profileImage String? // base 64 encoded image of the user
+  bio          String? // bio of the user
 }
 
 type RepositoryMetdata {
   name        String
-  description String
+  description String?
   useCase     String?
   creator     String // wallet address that has created the Repository
   framework   String

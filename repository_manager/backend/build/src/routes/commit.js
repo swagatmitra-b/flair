@@ -131,19 +131,15 @@ commitRouter.get('/pending', async (req, res) => {
     }
 });
 // create the new commit to the branch
-// the commit can be a merger commit or a general commit
-// this route is also responsible for updating the status of PENDING commits and removing rejected parameters
+// no merger commit in this version
+// all commits are accepted commits
 commitRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res); // Get the contributor's wallet address
         const { branchId } = req; // Branch ID where the commit is being made
-        // the property of the nextMergerCommit will be defined by the backend itself
-        // it will not be sent in the request
-        const { commitType, message, paramHash, // param hash will be needed
+        const { message, paramHash, // param hash will be needed
         params, metrics, architecture, // architecture of the model is a new requied field now
-        commitHash, acceptedCommits, // the hash array of the accepted commits if it is a merger commit
-        rejectedCommits, // the rejected commits with the hash and the reject message
-         } = req.body;
+        commitHash, } = req.body;
         // --------------------------------- Commit Parameter validation section ----------------------------------------------------- //            
         let warnings = []; // in case a warning needs to be sent along with the response            
         // cannot create a commit if the base model is not uploaded
@@ -152,7 +148,7 @@ commitRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
             return;
         }
-        if (commitType !== 'SYSTEM' && !message) {
+        if (!message) {
             res.status(400).send({ error: { message: 'Commit message is required.' } });
             return;
         }

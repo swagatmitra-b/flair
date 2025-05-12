@@ -1,14 +1,12 @@
 // the format as is stored in db
 export type zkmlDeserialized = {
-    verifierKey: string,
-    circuitSettingsSer: string,
-    proofSer: string,
-    srsSer: string,
+    proof: string,
+    settings: string,
+    verification_key: string,
 }
 
 export type zkmlSerialized = {
-    verifierKey: Uint8ClampedArray,
-    circuitSettingsSer: Uint8ClampedArray,
-    proofSer: Uint8ClampedArray,
-    srsSer: Uint8ClampedArray,
+    proof: Uint8ClampedArray,
+    settings: Uint8ClampedArray,
+    verification_key: Uint8ClampedArray,
 }

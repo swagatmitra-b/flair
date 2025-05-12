@@ -1,8 +1,9 @@
 // type declarations for the user schema
 
-export type UserMetdata = {
+export type UserMetadata = {
     name: string | undefined;
     email: string | undefined;
     displayText: string | undefined;
-    profileUri: string | undefined;
+    profileImage: string | undefined;
+    bio: string | undefined;
 }

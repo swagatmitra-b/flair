@@ -2,7 +2,7 @@ import { Request } from "express";
 import multer, { FileFilterCallback } from "multer";
 
 // the allowed file types must be consistent everywhere
-export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl'];
+export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl', 'py'];
 const maxSize = process.env.BASEMODEL_MAX_SIZE || 20;       // in MB
 
 const storage = multer.diskStorage({
@@ -22,7 +22,7 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallb
         req.fileExtension = fileExt;        // attach the file extension to the request now
         cb(null, true);
     } else {
-        cb(new Error("Invalid file type! Only ONNX, H5, PT, PKL and PTH files are allowed."));
+        cb(new Error("Invalid file type! Only ONNX, Py, H5, PT, PKL and PTH files are allowed."));
     }
 };
 

@@ -1,6 +1,6 @@
 import multer from "multer";
 // the allowed file types must be consistent everywhere
-export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl'];
+export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl', 'py'];
 const maxSize = process.env.BASEMODEL_MAX_SIZE || 20; // in MB
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -19,7 +19,7 @@ const fileFilter = (req, file, cb) => {
         cb(null, true);
     }
     else {
-        cb(new Error("Invalid file type! Only ONNX, H5, PT, PKL and PTH files are allowed."));
+        cb(new Error("Invalid file type! Only ONNX, Py, H5, PT, PKL and PTH files are allowed."));
     }
 };
 // setup the middleware to upload the base model

@@ -2,10 +2,8 @@
 // Debashish Buragohain
 
 export interface RepositoryMetdata {
-    name: string,       // name of the repository
     description: string | undefined,
     useCase: string | undefined,
-    creator: string,    // wallet address that has created the Repository
     framework: 'PyTorch' | 'TensorFlow',
 }
 
@@ -25,5 +23,3 @@ export interface RepositoryNftCollectionMetadata extends RepositoryMetadataWithA
     baseModelHash: string;
     baseModelUri: string;
 }
-
-export type CommitType = 'USER' | 'SYSTEM';

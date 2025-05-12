@@ -70,12 +70,8 @@ repoRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Name of a repository cannot contain spaces.' } });
             return;
         }
-        if (name !== metadata.name) {
-            res.status(400).send({ error: { message: 'Mismatch in name of repo and name in metadata.' } });
-            return;
-        }
-        if (metadata.creator !== pk) {
-            res.status(400).send({ error: { message: 'Name of creator in metadata does not match the currently signed in user.' } });
+        if (!metadata.framework) {
+            res.status(400).send({ error: { message: 'Framework is a required field in the metadata.' } });
             return;
         }
         // check to ensure that the combination of the user and the repository name is unique
@@ -103,7 +99,15 @@ repoRouter.post('/create', async (req, res) => {
                 contributorIds: [pk],
                 writeAccessIds: [pk],
                 adminIds: [pk],
-                metadata: JSON.parse(JSON.stringify(metadata)),
+                metadata: {
+                    set: {
+                        name: name,
+                        creator: pk,
+                        framework: metadata.framework,
+                        useCase: metadata.useCase || undefined,
+                        description: metadata.description || undefined,
+                    }
+                },
                 repoHash: uuidv4(),
                 ownerId: owner.id
             }

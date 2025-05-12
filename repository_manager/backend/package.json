@@ -33,6 +33,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "gun": "^0.2020.1240",
+    "json-bigint": "^1.0.0",
     "lodash": "^4.17.21",
     "lowdb": "^7.0.1",
     "luxon": "^3.5.0",
@@ -48,6 +49,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
+    "@types/json-bigint": "^1.0.4",
     "@types/lodash": "^4.17.13",
     "@types/luxon": "^3.4.2",
     "@types/morgan": "^1.9.9",

@@ -2,7 +2,8 @@
 // Debashish Buragohain
 import { v4 as uuidv4 } from 'uuid';
 import { DateTime } from 'luxon';
-export const createSignInData = async (address, expiryInMins = 10) => {
+const SIGN_IN_EXPIRY_TIME = parseInt(process.env.SIGN_IN_EXPIRY_TIME || '10', 10);
+export const createSignInData = async (address, expiryInMins = SIGN_IN_EXPIRY_TIME) => {
     if (!address) {
         throw new Error('No wallet address provided to generate sign in data.');
     }

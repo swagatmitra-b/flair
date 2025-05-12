@@ -4,7 +4,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma/index.js";
 import { authorizedPk } from "../middleware/auth/authHandler.js";
-import { UserMetdata } from "../lib/types/user.js";
+import { UserMetadata } from "../lib/types/user.js";
 import { JsonObject } from "@prisma/client/runtime/library";
 
 const userRouter = Router();
@@ -35,7 +35,7 @@ userRouter.get('/profile', async (req, res) => {
 userRouter.put('/update', async (req, res) => {
     try {
         const wallet = authorizedPk(res);
-        const { metadata, username }: { metadata: Partial<UserMetdata>, username: string } = req.body;
+        const { metadata, username }: { metadata: Partial<UserMetadata>, username: string } = req.body;
 
         const existingUser = await prisma.user.findUnique({
             where: { wallet },

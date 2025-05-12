@@ -8,7 +8,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { DateTime } from 'luxon';
 import { SolanaActionMessage } from './types';
 
-export const createSignInData = async (address: string,  expiryInMins: number = 10): Promise<SolanaSignInInput> => { 
+const SIGN_IN_EXPIRY_TIME = parseInt(process.env.SIGN_IN_EXPIRY_TIME || '10', 10);
+
+export const createSignInData = async (address: string,  expiryInMins: number = SIGN_IN_EXPIRY_TIME): Promise<SolanaSignInInput> => { 
     if (!address) {
         throw new Error('No wallet address provided to generate sign in data.');    
     }

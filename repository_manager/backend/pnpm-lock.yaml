@@ -74,6 +74,9 @@ importers:
       gun:
         specifier: ^0.2020.1240
         version: 0.2020.1240(bufferutil@4.0.8)(utf-8-validate@5.0.10)
+      json-bigint:
+        specifier: ^1.0.0
+        version: 1.0.0
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
