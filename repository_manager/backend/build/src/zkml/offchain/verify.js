@@ -4,15 +4,16 @@ import {
 serializeZkmlProof } from './utils';
 import JSONBig from 'json-bigint';
 import { deserialize } from '@ezkljs/engine/nodejs';
+import { stringToUint8ClampedArray } from './utils';
 // the proof needs to be verified on the admin's local system only, we just need to serve it from here in the backend
 export async function verifyProof(deserialized) {
     try {
         const serialized = serializeZkmlProof(deserialized);
-        const { verifierKey, circuitSettingsSer, srsSer, proofSer } = serialized;
-        console.log('settings.json:', JSONBig.stringify(deserialize(circuitSettingsSer), null, 4));
+        const { proof, settings, verification_key } = serialized;
+        console.log('settings.json:', JSONBig.stringify(deserialize(settings), null, 4));
         const startTimeVerify = Date.now();
         // Perform verification
-        const verification = wasmFunctions.verify(proofSer, verifierKey, circuitSettingsSer, srsSer);
+        const verification = wasmFunctions.verify(proof, verification_key, settings, stringToUint8ClampedArray('random_string'));
         // Record end time for verification
         const endTimeVerify = Date.now();
         console.log('Verification time (ms):', endTimeVerify - startTimeVerify);

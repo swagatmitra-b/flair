@@ -17,15 +17,15 @@ export interface CommitNftMetdata {
     baseModelHash: string;              // hash of the base model
     baseModelUri: string;               // uri of the base model
     status: CommitStatusGen;            // even pending commits can be converted into Nft
-    sourceCommit: string;               // the merger commit on which this commit was created
-    mergedCommit: string | 'N/A';       // in case it is a rejected commit
+    // sourceCommit: string;               // the merger commit on which this commit was created
+    // mergedCommit: string | 'N/A';       // in case it is a rejected commit
     committer: string;                  // wallet address of the committer
     paramHash: string;                  // hash of the parameters for this commit
     message: string;
-    messageIfRejected: string | 'N/A';  // The rejection message of the commit in case it was rejected
+    // messageIfRejected: string | 'N/A';  // The rejection message of the commit in case it was rejected
     createdAt: string;                  // ISO string of when the commit was created
     localMetrics: commitMetrics;
-    mergedMetrics: commitMetrics | 'N/A';   // there will be no merged commits in case the commit was rejected
+    // mergedMetrics: commitMetrics | 'N/A';   // there will be no merged commits in case the commit was rejected
 }
 
 export interface commitParameters {

@@ -29,18 +29,16 @@ export function stringToUint8ClampedArray(str: string): Uint8ClampedArray {
 
 export function serializeZkmlProof(deserialized: zkmlDeserialized): zkmlSerialized {
     const serialized: Partial<zkmlSerialized> = {};
-    serialized.circuitSettingsSer = stringToUint8ClampedArray(deserialized.circuitSettingsSer);
-    serialized.proofSer = stringToUint8ClampedArray(deserialized.proofSer);
-    serialized.srsSer = stringToUint8ClampedArray(deserialized.srsSer);
-    serialized.verifierKey = stringToUint8ClampedArray(deserialized.verifierKey);
+    serialized.proof = stringToUint8ClampedArray(deserialized.proof);
+    serialized.settings = stringToUint8ClampedArray(deserialized.settings);
+    serialized.verification_key = stringToUint8ClampedArray(deserialized.verification_key);
     return serialized as zkmlSerialized;
 }
 
 export function deserializeZkmlProof(serialized: zkmlSerialized) : zkmlDeserialized {
     const deserialized: Partial<zkmlDeserialized> = {};
-    deserialized.circuitSettingsSer = uint8ClampedArrayToString(serialized.circuitSettingsSer);
-    deserialized.proofSer = uint8ClampedArrayToString(serialized.proofSer);
-    deserialized.srsSer = uint8ClampedArrayToString(serialized.srsSer);
-    deserialized.verifierKey = uint8ClampedArrayToString(serialized.verifierKey);
+    deserialized.proof = uint8ClampedArrayToString(serialized.proof);
+    deserialized.settings = uint8ClampedArrayToString(serialized.settings);
+    deserialized.verification_key = uint8ClampedArrayToString(serialized.verification_key);
     return deserialized as zkmlDeserialized;
 }

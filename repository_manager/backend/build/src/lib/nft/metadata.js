@@ -27,28 +27,15 @@ export const createCommitMetadata = async (commit) => {
         throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
     }
     metadata.status = commit.status;
-    metadata.sourceCommit = commit.previousMergerCommit;
-    if (commit.status == 'MERGED') {
-        if (!commit.relatedMergerCommit) {
-            throw new Error('Reference to the merger commit not present in merged commit.');
-        }
-        metadata.mergedCommit = commit.relatedMergerCommit;
-        // store the metrics of the related merger commit 
-        const mergerCommit = await prisma.commit.findUnique({ where: { commitHash: commit.relatedMergerCommit } });
-        if (!mergerCommit) {
-            throw new Error('Related merger commit for accepted commit does not exist.');
-        }
-        metadata.mergedMetrics = parseMetrics(mergerCommit.metrics);
-    }
     metadata.committer = commit.committerAddress;
     metadata.paramHash = commit.paramHash;
     metadata.message = commit.message;
-    if (commit.status == 'REJECTED') {
-        if (!commit.rejectedMessage) {
-            throw new Error('Rejection message not present in rejected commit.');
-        }
-        metadata.messageIfRejected = commit.rejectedMessage;
-    }
+    // if (commit.status == 'REJECTED') {
+    //     if (!commit.rejectedMessage) {
+    //         throw new Error('Rejection message not present in rejected commit.');
+    //     }
+    //     metadata.messageIfRejected = commit.rejectedMessage;
+    // }
     metadata.createdAt = commit.createdAt.toISOString();
     metadata.localMetrics = parseMetrics(commit.metrics);
     return metadata;

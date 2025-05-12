@@ -130,7 +130,7 @@ model SharedFolderFile {
   // when the branch is deleted so are the commmits in the branch
   branch                     Branch   @relation(fields: [branchId], references: [id])
   params                     Params? // back relation to the params object, non included shared folders in commits will not have the params property fulled
-  committerAddress           String   @db.ObjectId // who has done the training
+  committerAddress           String  // who has done the training
   metrics_after_aggregation  Bytes[] // bytes array for the metrics before aggregation
   metrics_before_aggregation Bytes[] // bytes array for the metrics after aggregation
   // for the current version we are not storing the model after aggregation
