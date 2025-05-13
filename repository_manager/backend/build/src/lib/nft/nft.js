@@ -112,29 +112,6 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
     // return the asset id, the text signature and the address of the uploaded merkle tree
     return { assetId: assetId.toString(), metadataCID, metadataUri };
 };
-// fetch the cnft from its asset id
-export async function fetchCnft(umi, assetId) {
-    const assetIdPub = publicKey(assetId);
-    const asset = await umi.rpc.getAsset(assetIdPub);
-    const rpcAssetProof = await umi.rpc.getAssetProof(assetIdPub);
-    return { asset, rpcAssetProof };
-}
-// fetch the nft by using its signature and its merkle tree
-export async function fetchCNftFromSignature(umi, merkleTree, signature) {
-    if (!umi.rpc) {
-        throw new Error('Critical error: No rpc connected to fetch cNft data.');
-    }
-    const serialzed = base58.serialize(signature);
-    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, serialzed);
-    const [assetId, bump] = findLeafAssetIdPda(umi, {
-        merkleTree: publicKey(merkleTree),
-        leafIndex: leaf.nonce,
-    });
-    const asset = await umi.rpc.getAsset(assetId);
-    // fetch the proof of the aset
-    const rpcAssetProof = await umi.rpc.getAssetProof(assetId);
-    return { asset, rpcAssetProof };
-}
 // convert the repo to a collection and return the address of the collection
 export async function convertRepoToCollection(umi, repoHash) {
     const repo = await prisma.repository.findUnique({ where: { repoHash } });

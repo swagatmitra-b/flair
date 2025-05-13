@@ -152,29 +152,31 @@ export type FectchedCNft = {
 }
 
 // fetch the cnft from its asset id
-export async function fetchCnft(umi: Umi, assetId: string): Promise<FectchedCNft> {
-    const assetIdPub = publicKey(assetId);
-    const asset = await umi.rpc.getAsset(assetIdPub);
-    const rpcAssetProof = await umi.rpc.getAssetProof(assetIdPub);
-    return { asset, rpcAssetProof };
-}
+// not included in the current version
+// export async function fetchCnft(umi: Umi, assetId: string): Promise<FectchedCNft> {
+//     const assetIdPub = publicKey(assetId);
+//     const asset = await umi.rpc.getAsset(assetIdPub);
+//     const rpcAssetProof = await umi.rpc.getAssetProof(assetIdPub);
+//     return { asset, rpcAssetProof };
+// }
 
 // fetch the nft by using its signature and its merkle tree
-export async function fetchCNftFromSignature(umi: Umi, merkleTree: string, signature: string): Promise<FectchedCNft> {
-    if (!umi.rpc) {
-        throw new Error('Critical error: No rpc connected to fetch cNft data.');
-    }
-    const serialzed = base58.serialize(signature);
-    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, serialzed);
-    const [assetId, bump] = findLeafAssetIdPda(umi, {
-        merkleTree: publicKey(merkleTree),
-        leafIndex: leaf.nonce,
-    });
-    const asset = await umi.rpc.getAsset(assetId);
-    // fetch the proof of the aset
-    const rpcAssetProof = await umi.rpc.getAssetProof(assetId);
-    return { asset, rpcAssetProof };
-}
+// not included in the current verision
+// export async function fetchCNftFromSignature(umi: Umi, merkleTree: string, signature: string): Promise<FectchedCNft> {
+//     if (!umi.rpc) {
+//         throw new Error('Critical error: No rpc connected to fetch cNft data.');
+//     }
+//     const serialzed = base58.serialize(signature);
+//     const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, serialzed);
+//     const [assetId, bump] = findLeafAssetIdPda(umi, {
+//         merkleTree: publicKey(merkleTree),
+//         leafIndex: leaf.nonce,
+//     });
+//     const asset = await umi.rpc.getAsset(assetId);
+//     // fetch the proof of the aset
+//     const rpcAssetProof = await umi.rpc.getAssetProof(assetId);
+//     return { asset, rpcAssetProof };
+// }
 
 export interface RepoToCollectionResponse {
     collectionAddress: PublicKey<string>;

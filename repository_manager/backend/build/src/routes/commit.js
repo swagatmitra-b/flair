@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
-import { convertCommitToNft, fetchCNftFromSignature } from '../lib/nft/nft.js';
+import { convertCommitToNft } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
 import { v4 as uuidV4 } from 'uuid';
 import { sharedFolderRouter } from './sharedFolder.js';
@@ -302,30 +302,31 @@ commitRouter.post('/hash/:commitHash/createNft', async (req, res, next) => {
     }
 });
 // commit nft view route
-commitRouter.get('/hash/:commitHash/viewNft', async (req, res, next) => {
-    try {
-        const { commitHash } = req.params;
-        const commit = await prisma.commit.findUnique({
-            where: { commitHash },
-            include: {
-                nft: true
-            }
-        });
-        if (!commit) {
-            res.status(400).send({ error: { message: 'Commit does not exist.' } });
-            return;
-        }
-        if (!commit.nftId || !commit.nft || !commit.nft.signature || !commit.nft.merkleTreeAddress) {
-            res.status(400).send({ error: { message: 'Commit is not an Nft' } });
-            return;
-        }
-        const asset = await fetchCNftFromSignature(umi, commit.nft.merkleTreeAddress, commit.nft.signature);
-        // const asset = await fetchCnft(umi, commit.nft.assetId);
-        res.status(200).json(asset);
-    }
-    catch (err) {
-        res.status(400).send({ error: { message: `${err}` } });
-        return;
-    }
-});
+// not included in the current version
+// commitRouter.get('/hash/:commitHash/viewNft', async (req, res, next) => {
+//     try {
+//         const { commitHash } = req.params;
+//         const commit = await prisma.commit.findUnique({
+//             where: { commitHash },
+//             include: {
+//                 nft: true
+//             }
+//         });
+//         if (!commit) {
+//             res.status(400).send({ error: { message: 'Commit does not exist.' } });
+//             return;
+//         }
+//         if (!commit.nftId || !commit.nft || !commit.nft.signature || !commit.nft.merkleTreeAddress) {
+//             res.status(400).send({ error: { message: 'Commit is not an Nft' } });
+//             return;
+//         }
+//         const asset = await fetchCNftFromSignature(umi, commit.nft.merkleTreeAddress, commit.nft.signature);
+//         // const asset = await fetchCnft(umi, commit.nft.assetId);
+//         res.status(200).json(asset);
+//     }
+//     catch (err) {
+//         res.status(400).send({ error: { message: `${err}` } });
+//         return;
+//     }
+// })
 export { commitRouter };
