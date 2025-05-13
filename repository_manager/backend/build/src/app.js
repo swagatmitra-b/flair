@@ -7,7 +7,7 @@ import { signInContext } from './middleware/auth/index.js';
 import { authHandler
 // ByPassAuth
  } from './middleware/auth/index.js';
-import { authRouter, repoRouter, treeRouter, backendWalletRouter } from './routes/index.js';
+import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
 const PORT = process.env.PORT;
 const app = express();
 // Middleware
@@ -17,6 +17,7 @@ app.use(express.json());
 // trust the proxy
 app.set('trust proxy', true);
 app.use('/auth', authRouter);
+app.use('/user', authHandler(signInContext), userRouter);
 // authorized routes
 app.use('/repo', 
 // uncomment this when you want to bypass authentication

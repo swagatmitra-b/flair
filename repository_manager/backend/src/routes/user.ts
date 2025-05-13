@@ -33,37 +33,53 @@ userRouter.get('/profile', async (req, res) => {
 });
 
 userRouter.put('/update', async (req, res) => {
-    try {
-        const wallet = authorizedPk(res);
-        const { metadata, username }: { metadata: Partial<UserMetadata>, username: string } = req.body;
+  try {
+    const wallet = authorizedPk(res);
+    const { metadata, username }: { metadata?: Partial<UserMetadata>, username?: string } = req.body;
 
-        const existingUser = await prisma.user.findUnique({
-            where: { wallet },
-            select: { metadata: true, username: true }
-        });
-
-        if (!existingUser) {
-            res.status(404).send({ error: { message: "User not found." } });
-            return;
-        }
-
-        const updatedMetdata = { ...existingUser.metadata as JsonObject, ...metadata };
-        const updatedData: Record<string, any> = {
-            metadata: updatedMetdata,
-            updatedAt: Date()
-        }
-        if (username) updatedData.username = username;
-        await prisma.user.update({
-            where: { wallet },
-            data: { updatedAt: updatedData }
-        })
+    // Fetch existing user
+    const existingUser = await prisma.user.findUnique({
+      where: { wallet },
+      select: { metadata: true, username: true }
+    });
+    if (!existingUser) {
+      return res.status(404).send({ error: { message: "User not found." } });
     }
-    catch (err) {
-        console.error(`Error updating user profile: ${err}`);
-        res.status(500).send({ error: { message: "Could not update profile." } });
-        return;
+
+    // Merge old and new metadata
+    const mergedMetadata = {
+      ...(existingUser.metadata as Record<string, any>),
+      ...(metadata || {})
+    };
+
+    // Build the update payload
+    const updateData: any = {
+      metadata: { set: mergedMetadata },      // JSON field must use `set`
+      updatedAt: new Date(),                  // use JS Date object
+    };
+    if (username) {
+      updateData.username = username;
     }
+
+    // Perform the update
+    const updatedUser = await prisma.user.update({
+      where: { wallet },
+      data: updateData,
+      include: {                              // optionally return related data
+        repositories: true,
+        commits: true
+      }
+    });
+
+    // Send back the updated record
+    return res.status(200).json({ data: updatedUser });
+  }
+  catch (err) {
+    console.error(`Error updating user profile:`, err);
+    return res.status(500).send({ error: { message: "Could not update profile." } });
+  }
 });
+
 
 
 // deleting the user also deletes all his repositories

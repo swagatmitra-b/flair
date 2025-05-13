@@ -31,30 +31,42 @@ userRouter.put('/update', async (req, res) => {
     try {
         const wallet = authorizedPk(res);
         const { metadata, username } = req.body;
+        // Fetch existing user
         const existingUser = await prisma.user.findUnique({
             where: { wallet },
             select: { metadata: true, username: true }
         });
         if (!existingUser) {
-            res.status(404).send({ error: { message: "User not found." } });
-            return;
+            return res.status(404).send({ error: { message: "User not found." } });
         }
-        const updatedMetdata = { ...existingUser.metadata, ...metadata };
-        const updatedData = {
-            metadata: updatedMetdata,
-            updatedAt: Date()
+        // Merge old and new metadata
+        const mergedMetadata = {
+            ...existingUser.metadata,
+            ...(metadata || {})
         };
-        if (username)
-            updatedData.username = username;
-        await prisma.user.update({
+        // Build the update payload
+        const updateData = {
+            metadata: { set: mergedMetadata }, // JSON field must use `set`
+            updatedAt: new Date(), // use JS Date object
+        };
+        if (username) {
+            updateData.username = username;
+        }
+        // Perform the update
+        const updatedUser = await prisma.user.update({
             where: { wallet },
-            data: { updatedAt: updatedData }
+            data: updateData,
+            include: {
+                repositories: true,
+                commits: true
+            }
         });
+        // Send back the updated record
+        return res.status(200).json({ data: updatedUser });
     }
     catch (err) {
-        console.error(`Error updating user profile: ${err}`);
-        res.status(500).send({ error: { message: "Could not update profile." } });
-        return;
+        console.error(`Error updating user profile:`, err);
+        return res.status(500).send({ error: { message: "Could not update profile." } });
     }
 });
 // deleting the user also deletes all his repositories

@@ -9,7 +9,7 @@ import {
   authHandler
   // ByPassAuth
 } from './middleware/auth/index.js';
-import { authRouter, repoRouter, treeRouter, backendWalletRouter } from './routes/index.js';
+import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
 import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 
 
@@ -25,6 +25,9 @@ app.use(express.json());
 app.set('trust proxy', true);
 
 app.use('/auth', authRouter);
+
+
+app.use('/user', authHandler(signInContext), userRouter);
 
 // authorized routes
 app.use('/repo',
