@@ -43,7 +43,8 @@ userRouter.put('/update', async (req, res) => {
       select: { metadata: true, username: true }
     });
     if (!existingUser) {
-      return res.status(404).send({ error: { message: "User not found." } });
+       res.status(404).send({ error: { message: "User not found." } });
+       return;
     }
 
     // Merge old and new metadata
@@ -72,11 +73,13 @@ userRouter.put('/update', async (req, res) => {
     });
 
     // Send back the updated record
-    return res.status(200).json({ data: updatedUser });
+    res.status(200).json({ data: updatedUser });
+    return;
   }
   catch (err) {
     console.error(`Error updating user profile:`, err);
-    return res.status(500).send({ error: { message: "Could not update profile." } });
+     res.status(500).send({ error: { message: "Could not update profile." } });
+     return;
   }
 });
 
