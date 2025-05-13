@@ -3,9 +3,7 @@
 import { generateSigner, percentAmount, publicKey } from "@metaplex-foundation/umi";
 // import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 import { base58 } from "@metaplex-foundation/umi/serializers";
-import { findLeafAssetIdPda, mintToCollectionV1, 
-// mintV1,
-parseLeafFromMintV1Transaction } from "@metaplex-foundation/mpl-bubblegum";
+import { findLeafAssetIdPda, mintToCollectionV1, parseLeafFromMintToCollectionV1Transaction } from "@metaplex-foundation/mpl-bubblegum";
 import { getCurrentTree, updateCurrentTree } from "./tree.js";
 import { prisma } from "../prisma/index.js";
 import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
@@ -76,7 +74,7 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
         merkleTree,
         collectionMint,
         metadata: {
-            name: metadata.message,
+            name: metadata.message.substring(0, 32),
             uri: metadataUri,
             sellerFeeBasisPoints: 0,
             creators: [{
@@ -89,7 +87,7 @@ export const mintCNft = async (umi, metadata, collectionAddress) => {
     }).sendAndConfirm(umi, { send: { commitment: 'finalized' } });
     const deserialized = base58.deserialize(signature)[0];
     // fetch the asset from the merkle tree and return it
-    const leaf = await parseLeafFromMintV1Transaction(umi, signature);
+    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, signature);
     const [assetId, bump] = findLeafAssetIdPda(umi, {
         merkleTree: merkleTree,
         leafIndex: leaf.nonce,
@@ -127,7 +125,7 @@ export async function fetchCNftFromSignature(umi, merkleTree, signature) {
         throw new Error('Critical error: No rpc connected to fetch cNft data.');
     }
     const serialzed = base58.serialize(signature);
-    const leaf = await parseLeafFromMintV1Transaction(umi, serialzed);
+    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, serialzed);
     const [assetId, bump] = findLeafAssetIdPda(umi, {
         merkleTree: publicKey(merkleTree),
         leafIndex: leaf.nonce,

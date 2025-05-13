@@ -8,7 +8,8 @@ import {
     findLeafAssetIdPda,
     mintToCollectionV1,
     // mintV1,
-    parseLeafFromMintV1Transaction
+    parseLeafFromMintV1Transaction,
+    parseLeafFromMintToCollectionV1Transaction
 } from "@metaplex-foundation/mpl-bubblegum";
 //  import { NftMetadata, CreateInstructions, CompletedCreateInstructions } from "./types";
 //  import { generateSigner } from "@metaplex-foundation/umi";
@@ -101,7 +102,7 @@ export const mintCNft = async (umi: Umi, metadata: CommitNftMetdata, collectionA
         merkleTree,
         collectionMint,
         metadata: {
-            name: metadata.message,
+            name: metadata.message.substring(0,32),
             uri: metadataUri,
             sellerFeeBasisPoints: 0,
             creators: [{
@@ -115,7 +116,7 @@ export const mintCNft = async (umi: Umi, metadata: CommitNftMetdata, collectionA
 
     const deserialized = base58.deserialize(signature)[0]
     // fetch the asset from the merkle tree and return it
-    const leaf = await parseLeafFromMintV1Transaction(umi, signature);
+    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, signature);
     const [assetId, bump] = findLeafAssetIdPda(umi, {
         merkleTree: merkleTree,
         leafIndex: leaf.nonce,
@@ -164,7 +165,7 @@ export async function fetchCNftFromSignature(umi: Umi, merkleTree: string, signa
         throw new Error('Critical error: No rpc connected to fetch cNft data.');
     }
     const serialzed = base58.serialize(signature);
-    const leaf = await parseLeafFromMintV1Transaction(umi, serialzed);
+    const leaf = await parseLeafFromMintToCollectionV1Transaction(umi, serialzed);
     const [assetId, bump] = findLeafAssetIdPda(umi, {
         merkleTree: publicKey(merkleTree),
         leafIndex: leaf.nonce,
