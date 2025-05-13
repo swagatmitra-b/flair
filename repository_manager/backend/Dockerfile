@@ -5,6 +5,8 @@ FROM node:22.14
 
 WORKDIR /usr/app
 
+ENV PORT=4000
+
 # Install OpenSSL (required by Prisma on alpine)
 # RUN apk add --no-cache openssl1.1-compat
 
