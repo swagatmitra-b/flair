@@ -36,7 +36,7 @@ app.use('/repo',
 // backend wallet is restricted to be accessed only from localhost
 app.use('/systemWallet',
   authHandler(signInContext),
-  restrictToLocalHost,
+  // restrictToLocalHost,       uncomment to restrict this route only to the local host
   backendWalletRouter
 );
 

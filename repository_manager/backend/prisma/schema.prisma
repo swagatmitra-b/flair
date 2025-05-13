@@ -77,50 +77,48 @@ model Branch {
 // a single commit happens from only a single person
 // not like the way currently federated learning happens
 model Commit {
-  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
-  commitHash           String       @unique // hash of the current commit
-  status               CommitStatus // the status of this particuar commit
-  rejectedMessage      String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
-  message              String // commit message
-  paramHash            String       @unique // hash of the parmeters for the commit
-  params               Params? // the param is stored as a separate model
-  createdAt            DateTime     @default(now()) // when the commit was created  
-  statusUpdatedAt      DateTime?
+  id               String       @id @default(auto()) @map("_id") @db.ObjectId
+  commitHash       String       @unique // hash of the current commit
+  status           CommitStatus // the status of this particuar commit
+  rejectedMessage  String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
+  message          String // commit message
+  paramHash        String       @unique // hash of the parmeters for the commit
+  params           Params? // the param is stored as a separate model
+  createdAt        DateTime     @default(now()) // when the commit was created  
+  statusUpdatedAt  DateTime?
   // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
   // for a merger commit, this will be the merged parameters
   // for an accepted commit this will be the local parameters
   // for the current version the metric is an optional field
-  metrics              Metric? // the metrics of the model (e.g. accuracy, loss etc.)
-  architecture         String // new field included
+  metrics          Metric? // the metrics of the model (e.g. accuracy, loss etc.)
+  architecture     String // new field included
   // which branch the commit belongs to
-  branchId             String       @db.ObjectId
+  branchId         String       @db.ObjectId
   // when the branch is deleted so are the commmits in the branch
-  branch               Branch       @relation(fields: [branchId], references: [id])
+  branch           Branch       @relation(fields: [branchId], references: [id])
   // committer data included with new user model created
-  committerAddress     String // wallet address of the contributor  
+  committerAddress String // wallet address of the contributor  
   // when the user is deleted the commit is not deleted
-  committerId          String       @db.ObjectId
-  committer            User         @relation(fields: [committerId], references: [id])
+  committerId      String       @db.ObjectId
+  committer        User         @relation(fields: [committerId], references: [id])
   // a commit is only soft deleted
-  isDeleted            Boolean      @default(false)
+  isDeleted        Boolean      @default(false)
   // Nft converted commit properties
-  nft                  Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
-  nftId                String?      @unique @db.ObjectId
-  verified             Boolean      @default(false) // if the ZKML proof of the model has been verified
+  nft              Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
+  nftId            String?      @unique @db.ObjectId
+  verified         Boolean      @default(false) // if the ZKML proof of the model has been verified
 }
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
-  id               String            @id @default(auto()) @map("_id") @db.ObjectId
-  // this is the only thing that needs to be changed
-  // params will now be the shared folder structure
-  // params      String     @unique // base64 encoded blosc compressed parameters 
-  sharedFolderId   String            @unique @db.ObjectId
-  sharedFolderFile SharedFolderFile? @relation(fields: [sharedFolderId], references: [id]) // points to the shared folder file
-  commitId         String            @unique @db.ObjectId // needs to be unique for a one to one relationship
-  commit           Commit            @relation(fields: [commitId], references: [id])
-  ZKMLProof        ZKMLProof?        @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
-  zkmlProofId      String?           @unique @db.ObjectId
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  params      String     @unique // base64 encoded blosc compressed parameters 
+  // sharedFolderId   String            @unique @db.ObjectId
+  // sharedFolderFile SharedFolderFile? @relation(fields: [sharedFolderId], references: [id]) // points to the shared folder file
+  commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
+  commit      Commit     @relation(fields: [commitId], references: [id])
+  ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
+  zkmlProofId String?    @unique @db.ObjectId
 }
 
 // defining the shared folder model for storing the latest training data
@@ -129,8 +127,8 @@ model SharedFolderFile {
   branchId                   String   @db.ObjectId
   // when the branch is deleted so are the commmits in the branch
   branch                     Branch   @relation(fields: [branchId], references: [id])
-  params                     Params? // back relation to the params object, non included shared folders in commits will not have the params property fulled
-  committerAddress           String  // who has done the training
+  // params                     Params? // back relation to the params object, non included shared folders in commits will not have the params property fulled
+  committerAddress           String // who has done the training
   metrics_after_aggregation  Bytes[] // bytes array for the metrics before aggregation
   metrics_before_aggregation Bytes[] // bytes array for the metrics after aggregation
   // for the current version we are not storing the model after aggregation

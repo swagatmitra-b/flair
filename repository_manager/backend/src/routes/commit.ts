@@ -6,6 +6,8 @@ import { convertCommitToNft, fetchCnft, fetchCNftFromSignature } from '../lib/nf
 import { umi } from '../lib/nft/umi.js';
 import { v4 as uuidV4 } from 'uuid';
 import { sharedFolderRouter } from './sharedFolder.js';
+import { extractMetricsAfter } from '../lib/sharedFolder/index.js';
+import { parse } from 'path';
 
 const commitRouter = Router();
 
@@ -115,27 +117,19 @@ commitRouter.post('/create', async (req, res) => {
     try {
         const pk = authorizedPk(res); // Get the contributor's wallet address
         const { branchId } = req;     // Branch ID where the commit is being made
-
         const {
             message,
             paramHash,               // param hash will be needed
             params,
-            metrics,
             architecture,            // architecture of the model is a new requied field now
-        }:
-            {
-                message: string,
-                paramHash: string,
-                params: commitParameters,
-                metrics: commitMetrics,
-                architecture: string,
-            } = req.body;
-
-
-
+        }: {
+            message: string,
+            paramHash: string,
+            params: commitParameters,
+            architecture: string,
+        } = req.body;
 
         // --------------------------------- Commit Parameter validation section ----------------------------------------------------- //            
-
         let warnings = [];              // in case a warning needs to be sent along with the response            
         // cannot create a commit if the base model is not uploaded
         const repo = await prisma.repository.findUnique({ where: { id: req.repoId } });
@@ -193,11 +187,10 @@ commitRouter.post('/create', async (req, res) => {
             return;
         }
 
-        // the params will now be fetched form the shared folder model only
-        // if (!params.params) {
-        //     res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
-        //     return;
-        // }
+        if (!params.params) {
+            res.status(400).send({ error: { message: 'Error: No parameters (weights) provided.' } });
+            return;
+        }
 
         const { zkmlProof } = params;
         if (!zkmlProof) {
@@ -255,6 +248,17 @@ commitRouter.post('/create', async (req, res) => {
             res.status(400).send({ error: { message: 'Shared folder for the commit not found. Please train and commit again.' } });
             return;
         }
+        // now that we have the shared folder we extract the metrics from it
+        const metricsRaw = extractMetricsAfter(sharedFolder);
+        const metricsExtracted = metricsRaw.at(-1);
+        if (!metricsExtracted) {
+            res.status(400).send({ error: { message: 'Metrics not found in the shared folder.' } });
+            return;
+        }
+        const metricsFinal = {
+            accuracy: parseFloat(metricsExtracted.accuracy),
+            loss: parseFloat(metricsExtracted.loss),
+        }
         // Finally create the commit
         const commit = await prisma.commit.create({
             data: {
@@ -262,7 +266,7 @@ commitRouter.post('/create', async (req, res) => {
                 message,
                 // in the current version we have removed the local and merged parameters
                 // for an accepted commit it is the local parameters and for a merger commit it is the merged parameters
-                metrics,
+                metrics: metricsFinal,
                 branchId: branchId,            // makes the necessary updates in the branch model
                 commitHash,
                 status: 'MERGED',              // for this version this is always merged
@@ -272,7 +276,7 @@ commitRouter.post('/create', async (req, res) => {
                 params: {
                     // create a new ZKML proof entry for this params
                     create: {
-                        // params: params.params, // Assumes params is an object with base64 encoded data
+                        params: params.params, // Assumes params is an object with base64 encoded data
                         // here we fetch the shared folder instance from the shared folder model
                         ...(params.zkmlProof.proof &&
                             params.zkmlProof.settings &&
@@ -288,10 +292,6 @@ commitRouter.post('/create', async (req, res) => {
                         }
                         )
                     },
-                    // connect to the existing latest shared folder for the person
-                    connect: {
-                        sharedFolderId: sharedFolder.id, // connect the shared folder to the commit
-                    }
                 },
                 committerId: committer.id      // makes the necessary updates in the user schema
             },
@@ -306,7 +306,7 @@ commitRouter.post('/create', async (req, res) => {
             prisma.repository.update({
                 where: { id: req.repoId! },
                 data: { updatedAt: new Date() }
-            })
+            }),
         ]);
         res.status(201).json({ data: commit, warnings });
     } catch (error) {

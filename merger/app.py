@@ -16,6 +16,7 @@ shared_folder = SharedFolderHTTPAuth(
 )
 node = AsyncFederatedNode(strategy=strategy, 
                           shared_folder=shared_folder,
+                          # wallet address of the user is the node id
                           node_id="DzpefiVYkPED7Kbit6fWRiXQ1zSmBy17AN15NVTx1tcd")
 
 # Define dataset and model parameters

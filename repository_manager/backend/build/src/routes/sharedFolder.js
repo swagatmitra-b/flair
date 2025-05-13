@@ -3,9 +3,61 @@
 import { prisma } from "../lib/prisma/index.js";
 import { Router, raw } from "express";
 import { authorizedPk } from "../middleware/auth/authHandler.js";
+import { extractMetricsBefore, extractMetricsAfter } from "../lib/sharedFolder/index.js";
 // models before and after aggregation are not allowed to be shared in the shared folder
 const prohibitedKeys = ['model_before_aggregation', 'model_after_aggregation'];
 const sharedFolderRouter = Router();
+// current metrics of the shared folder
+sharedFolderRouter.get('/metrics', async (req, res) => {
+    const { branchId } = req;
+    const pk = authorizedPk(res);
+    if (!branchId) {
+        res.status(400).send({ error: { message: "Branch ID is required." } });
+        return;
+    }
+    // find the shared folder for this branch and this user
+    const matchedSharedFolder = await prisma.sharedFolderFile.findFirst({
+        where: { branchId, committerAddress: pk },
+    });
+    if (!matchedSharedFolder) {
+        res.status(404).send({ error: { message: "Shared folder not found." } });
+        return;
+    }
+    const metricsBefore = extractMetricsBefore(matchedSharedFolder);
+    const metricsAfter = extractMetricsAfter(matchedSharedFolder);
+    // Send only metrics before and after aggregation
+    res.status(200).json({
+        metrics_before_aggregation: metricsBefore,
+        metrics_after_aggregation: metricsAfter,
+    });
+});
+// the first route is the get route for the current shared folder
+sharedFolderRouter.get('/pull', async (req, res) => {
+    const { branchId } = req;
+    const pk = authorizedPk(res);
+    if (!branchId) {
+        res.status(400).send({ error: { message: "Branch ID is required." } });
+        return;
+    }
+    // find the shared folder for this branch and this user
+    const matchedSharedFolder = await prisma.sharedFolderFile.findFirst({
+        where: { branchId, committerAddress: pk },
+    });
+    if (!matchedSharedFolder) {
+        res.status(404).send({ error: { message: "Shared folder not found." } });
+        return;
+    }
+    const metricsBefore = extractMetricsBefore(matchedSharedFolder);
+    const metricsAfter = extractMetricsAfter(matchedSharedFolder);
+    // Now you can send back a pure-JSON structure:
+    res.status(200).json({
+        data: {
+            ...matchedSharedFolder,
+            metrics_after_aggregation: metricsAfter,
+            metrics_before_aggregation: metricsBefore,
+        }
+    });
+});
 // Upload metrics (binary) to shared folder
 sharedFolderRouter.put('/files/keras/:committerAddress/:key', raw({ type: 'application/octet-stream', limit: '50mb' }), async (req, res) => {
     try {

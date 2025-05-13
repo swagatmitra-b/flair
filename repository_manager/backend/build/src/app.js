@@ -8,7 +8,6 @@ import { authHandler
 // ByPassAuth
  } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter, backendWalletRouter } from './routes/index.js';
-import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 const PORT = process.env.PORT;
 const app = express();
 // Middleware
@@ -24,7 +23,9 @@ app.use('/repo',
 // ByPassAuth(signInContext),
 authHandler(signInContext), repoRouter);
 // backend wallet is restricted to be accessed only from localhost
-app.use('/systemWallet', authHandler(signInContext), restrictToLocalHost, backendWalletRouter);
+app.use('/systemWallet', authHandler(signInContext), 
+// restrictToLocalHost,       uncomment to restrict this route only to the local host
+backendWalletRouter);
 // for the tree route we need to attach the middlewares on individual routes
 app.use('/tree', treeRouter);
 // Handle 404
