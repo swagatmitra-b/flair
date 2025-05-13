@@ -8,7 +8,7 @@ WORKDIR /usr/app
 # Set default environment variables
 ENV PORT=4000
 ENV HOST=127.0.0.1
-ENV DATABASE_URL="mongodb://localhost:2717,localhost:2727,localhost:2737/Flair?replicaSet=FlairReplicaSet"
+ENV DATABASE_URL="mongodb+srv://flair:flairaiapp@flair.bbz4gta.mongodb.net/flair"
 
 # Install OpenSSL (required by Prisma on alpine)
 # RUN apk add --no-cache openssl1.1-compat

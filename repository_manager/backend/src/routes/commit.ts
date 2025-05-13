@@ -2,7 +2,10 @@ import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
-import { convertCommitToNft, fetchCnft, fetchCNftFromSignature } from '../lib/nft/nft.js';
+import { convertCommitToNft, 
+    // fetchCnft, 
+    // fetchCNftFromSignature
+ } from '../lib/nft/nft.js';
 import { umi } from '../lib/nft/umi.js';
 import { v4 as uuidV4 } from 'uuid';
 import { sharedFolderRouter } from './sharedFolder.js';
