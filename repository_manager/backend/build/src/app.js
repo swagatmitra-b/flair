@@ -8,7 +8,7 @@ import { authHandler
 // ByPassAuth
  } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
-const PORT = process.env.PORT;
+const PORT = parseInt(process.env.PORT || '4000');
 const app = express();
 // Middleware
 app.use(morgan('combined'));
@@ -38,6 +38,6 @@ app.use('/tree', treeRouter);
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });
 });
-app.listen(parseInt(PORT), '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server listening on port ${PORT}`);
 });
