@@ -12,6 +12,7 @@ import {
 import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
 import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 
+const PORT = parseInt(process.env.PORT!) || 4000;
 const app = express();
 
 // Middleware
@@ -54,8 +55,6 @@ app.use('/tree', treeRouter);
 app.all('*', (req, res, next) => {
   res.status(404).send({ error: '404 Not Found' });
 });
-
-const PORT = 4000;
 
 app.listen(PORT,  () => {
   console.log(`Server listening on port ${PORT}`);
