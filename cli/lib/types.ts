@@ -1,6 +1,8 @@
 export type burnOptions = {
   path?: string | true;
   model?: string | true;
+  dataPath?: string | true;
+  dataInstance?: string | true;
   description: string | true;
 };
 
