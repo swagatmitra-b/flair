@@ -1,30 +1,54 @@
 'use client';
 
+import { request } from '@/lib/requests';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 type inputProps = {
   close: (isOpen: boolean) => void;
   data: {
-    fullName: string;
+    name: string;
     username: string;
     bio: string;
-    website: string;
-    twitter: string;
-    linkedin: string;
-    phone: string;
     email: string;
+    displayText: string;
+    profileImage: string;
   };
 };
 
 const EditProfile: React.FC<inputProps> = ({ close, data }) => {
   const [formData, setFormData] = useState(data);
-
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const router = useRouter();
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async () => {
+    try {
+      const res = await request({
+        method: 'PUT',
+        url: `${process.env.NEXT_PUBLIC_API_URL}/user/update`,
+        data: {
+          username: formData.username,
+          metadata: {
+            name: formData.name,
+            displayText: formData.displayText,
+            bio: formData.bio,
+            profileImage: formData.profileImage,
+          },
+        },
+        action: 'signin',
+      });
+
+      const data = await res.json();
+      console.log('Response:', data);
+      close(false);
+      window.location.reload();
+    } catch (err) {
+      console.log('Error in submiting form', err);
+    }
   };
 
   return (
@@ -44,7 +68,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
           <input
             type="text"
             name="fullName"
-            value={formData.fullName}
+            value={formData.name}
             onChange={handleChange}
             placeholder="Full Name"
             className="bg-transparent text-white text-center font-semibold border-b border-gray-600 focus:outline-none"
@@ -66,7 +90,10 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
           className="text-sm text-gray-300 bg-gray-800 w-[90%] px-2 py-1"
         />
         <div className="flex gap-2 text-sm mt-2">
-          <button className="px-2 py-2 bg-gray-600 text-white font-semibold rounded-lg w-32 hover:bg-gray-500 transition">
+          <button
+            onClick={handleSubmit}
+            className="px-2 py-2 bg-gray-600 text-white font-semibold rounded-lg w-32 hover:bg-gray-500 transition"
+          >
             Save Changes
           </button>
           <button
@@ -80,7 +107,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
 
       {/* Editable Links */}
       <div className="text-sm flex flex-col gap-2 text-gray-300 space-y-2 mt-4 px-4">
-        <input
+        {/* <input
           type="text"
           name="website"
           value={formData.website}
@@ -111,7 +138,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
           onChange={handleChange}
           placeholder="📞 Phone"
           className="bg-transparent w-full border-b border-gray-700 focus:outline-none"
-        />
+        /> */}
         <input
           type="email"
           name="email"

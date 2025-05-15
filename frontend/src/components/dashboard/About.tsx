@@ -1,4 +1,6 @@
 const About: React.FC = () => {
+  const storedData = localStorage.getItem('user');
+  const displayText = storedData ? JSON.parse(storedData).displayText : '';
   return (
     <div className="flex flex-col gap-8">
       <div className="bg-[#161b22] p-4">
@@ -6,11 +8,7 @@ const About: React.FC = () => {
           <h3 className="text-lg font-semibold">About me</h3>
           <button className="text-sm text-gray-400">✏️</button>
         </div>
-        <p className="text-gray-300 mt-2 text-sm">
-          Lorem ipsum dolor sit amet, consectetur adipiscing elit. Et, interdum enim orci sociis
-          aliquet. Scelerisque nulla integer egestas arcu. Vitae nisi magna imperdiet sed. Sit
-          metus, gravida a vel, purus. Eget ligula cursus facilisi neque sed.
-        </p>
+        <p className="text-gray-300 mt-2 text-sm">{displayText}</p>
       </div>
 
       {/* Attendance Chart (Static) */}
@@ -55,7 +53,7 @@ const About: React.FC = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default About
+export default About;

@@ -1,23 +1,36 @@
-'use client'
-import Image from 'next/image'
-import EditProfile from './EditProfile'
-import { useState } from 'react'
+'use client';
+import Image from 'next/image';
+import EditProfile from './EditProfile';
+import { useEffect, useState } from 'react';
+import { request } from '@/lib/requests';
 
-const data = {
-  fullName: 'John Doe',
-  username: 'johndoe123',
-  bio: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-  website: 'myportfolio.com',
-  twitter: '@twitter_username',
-  linkedin: 'my_linkedin_profile',
-  phone: '+000000000',
-  email: 'johndoe@example.com',
-}
+// const data = {
+//   fullName: 'John Doe',
+//   username: 'johndoe123',
+//   bio: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+//   website: 'myportfolio.com',
+//   twitter: '@twitter_username',
+//   linkedin: 'my_linkedin_profile',
+//   phone: '+000000000',
+//   email: 'johndoe@example.com',
+// };
 
 const LeftPanel: React.FC = () => {
-  const [isEditProfile, setIsEditProfile] = useState(false)
+  const storedData = localStorage.getItem('user');
+  const data = storedData
+    ? JSON.parse(storedData)
+    : {
+        usernmae: '',
+        name: '',
+        bio: '',
+        email: '',
+        displayText: '',
+        photoImage: '',
+      };
+  const [isEditProfile, setIsEditProfile] = useState(false);
+
   if (isEditProfile) {
-    return <EditProfile close={() => setIsEditProfile(false)} data={data} />
+    return <EditProfile close={() => setIsEditProfile(false)} data={data} />;
   } else {
     return (
       <div className="flex flex-col gap-4 min-w-72 w-72">
@@ -33,7 +46,7 @@ const LeftPanel: React.FC = () => {
 
         <div className="flex flex-col text-center gap-2 items-center">
           <div className="flex flex-col leading-4">
-            <h2 className="text-xl font-semibold">{data.fullName}</h2>
+            <h2 className="text-xl font-semibold">{data.name}</h2>
             <h6 className="text-gray-400">{data.username}</h6>
           </div>
           <p className="text-gray-300 text-sm">{data.bio}</p>
@@ -47,15 +60,15 @@ const LeftPanel: React.FC = () => {
 
         {/* Links */}
         <div className="text-sm text-gray-400 space-y-2 mt-4 px-4">
-          <p>{data.website}</p>
+          {/* <p>{data.website}</p>
           <p>{data.twitter}</p>
           <p>{data.linkedin}</p>
-          <p>{data.phone}</p>
+          <p>{data.phone}</p> */}
           <p>{data.email}</p>
         </div>
       </div>
-    )
+    );
   }
-}
+};
 
-export default LeftPanel
+export default LeftPanel;

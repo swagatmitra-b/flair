@@ -1,6 +1,7 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
+import { request } from '@/lib/requests';
+import React, { useState } from 'react';
 
 const Page: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -8,20 +9,38 @@ const Page: React.FC = () => {
     description: '',
     usecase: '',
     frameworks: '',
-  })
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
-    })
-  }
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    console.log('Form Submitted:', formData)
-    alert('Repository Created!')
-  }
+    });
+  };
+  // working
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('Form Submitted:', formData);
+    try {
+      const response = await request({
+        method: 'POST',
+        url: `${process.env.NEXT_PUBLIC_API_URL}/repo/create`,
+        data: {
+          name: formData.name,
+          metadata: {
+            name: formData.name,
+            description: formData.description,
+            useCase: formData.usecase,
+            framework: formData.frameworks,
+          },
+        },
+        action: 'signin',
+      });
+      const data = await JSON.stringify(response);
+    } catch (err) {
+      console.log('repo creation error', err);
+    }
+  };
 
   return (
     <section className="min-h-screen bg-[#0d1117] text-gray-200 px-4 sm:px-6 py-32">
@@ -108,7 +127,7 @@ const Page: React.FC = () => {
         </form>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default Page
+export default Page;

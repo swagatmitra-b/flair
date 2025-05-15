@@ -1,15 +1,27 @@
-import Link from 'next/link'
-import { useState } from 'react'
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
-const Repositories: React.FC = () => {
-  const username = 'karock'
-  const [searchQuery, setSearchQuery] = useState('')
+type Repo = {
+  name: string;
+  description: string;
+  updateAt: string;
+  repoHash: string;
+};
 
-  const filteredRepos = repositories.filter(
-    repo =>
+type RepositoriesProps = {
+  repos: Repo[];
+};
+
+const Repositories: React.FC<RepositoriesProps> = ({ repos }) => {
+  const username = usePathname();
+  const [searchQuery, setSearchQuery] = useState('');
+  console.log('repos', repos);
+  const filteredRepos = repos.filter(
+    (repo: Repo) =>
       repo.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       repo.description.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  );
 
   return (
     <section className="flex flex-col gap-8 p-4 rounded-lg shadow-md">
@@ -26,7 +38,7 @@ const Repositories: React.FC = () => {
         </Link>
       </div>
       <div className="flex flex-col gap-4">
-        {filteredRepos.map((repo, index) => (
+        {filteredRepos.map((repo: Repo, index: number) => (
           <RepositoryCard
             key={index}
             username={username}
@@ -38,21 +50,21 @@ const Repositories: React.FC = () => {
         ))}
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default Repositories
+export default Repositories;
 
 const RepositoryCard: React.FC<{
-  username: string
-  name: string
-  description: string
-  updateAt: string
-  repoName: string
+  username: string;
+  name: string;
+  description: string;
+  updateAt: string;
+  repoName: string;
 }> = ({ username, name, description, updateAt, repoName }) => {
   return (
     <div className="bg-[#161b22] p-4 px-6 rounded-xl shadow-md flex flex-col gap-2">
-      <Link href={`/${username}/${repoName}`} className="text-lg font-semibold text-blue-400">
+      <Link href={`${username}/${repoName}`} className="text-lg font-semibold text-blue-400">
         {name}
       </Link>
       <span className="flex justify-between items-center w-full">
@@ -60,8 +72,8 @@ const RepositoryCard: React.FC<{
         <p className="text-gray-500 text-xs">Updated at: {updateAt}</p>
       </span>
     </div>
-  )
-}
+  );
+};
 
 const repositories = [
   {
@@ -94,4 +106,4 @@ const repositories = [
     updateAt: '2023-10-05',
     repoHash: '9876543210fedcba',
   },
-]
+];
