@@ -1,75 +1,47 @@
 # 🚀 Flair – Privacy-Preserving ML Collaboration
-
 Train machine learning models together without ever sharing your private data.
 
----
+When you train an AI, it usually needs access to data. But what if your data is private—like hospital patient records, financial transactions, or personal AI assistants? With Flair, your data stays on your device.
+
+Instead of sending your data to a server, Flair sends the model to you. It learns from your data privately and only sends back small updates (like improved settings). These updates are combined with others to improve the global AI model without ever exposing anyone’s data.
+
+Every contribution is verifiable and stored as an NFT, proving your work and ensuring that only authorized people can access model details.
 
 ## 🔒 Why Flair?
+Flair is different from other collaborative ML platforms like Hugging Face because it is built for privacy. No one—not even Flair—can extract data from your models.
 
-Flair is built for privacy—you train models on your device and never expose your raw data. Unlike other collaborative ML platforms, Flair guarantees:
-
-- ✅ **Your Data Stays Private**  
-  Models train on your device; only parameter updates (not the data) are shared.
-
-- ✅ **Verifiable Training**  
-  Every update is accompanied by a Zero‑Knowledge Proof, so others can confirm the work without seeing your data.
-
-- ✅ **Full Ownership**  
-  Each commit is minted as an NFT on Solana, providing immutable proof of your contribution.
-
-- ✅ **Access Control**  
-  Only authorized collaborators can view model metadata and updates.
-
----
+- ✅ Your Data Stays Private – The model trains on your device, and only updates (not your data) are shared.
+- ✅ Verifiable Training – Others can verify that your training is legit without seeing any details.
+- ✅ Full Ownership – Every commit you make is recorded as an NFT, proving your intellectual work.
+- ✅ Access Control – Only authorized people can access model details, ensuring total security.
 
 ## 🛠 How It Works
-
-1. **Upload a Model**  
-   Create a new ML model repository.
-
-2. **Invite Collaborators**  
-   Just like GitHub, invite trusted teammates.
-
-3. **Train Locally**  
-   The model is shipped to each device—your data never leaves.
-
-4. **Share Updates, Not Data**  
-   You only push gradient or weight updates back to the repo.
-
-5. **Verify with ZK Proofs**  
-   Each update is paired with a Zero‑Knowledge Proof for authenticity.
-
-6. **Own Your Work**  
-   Finalized updates are stored as NFTs on Solana, cementing your intellectual property.
-
----
+- 1️⃣ Upload a model – Start by creating a new ML model repository.
+- 2️⃣ Invite trusted collaborators – Just like GitHub, invite contributors to train the model.
+- 3️⃣ Train Locally – Models are trained on personal devices—your data never leaves your system.
+- 4️⃣ Share Updates, Not Data – Only model updates (not the actual data) are shared and merged.
+- 5️⃣ Verify with Zero-Knowledge Proofs – Contributions are checked for authenticity without exposing any data.
+- 6️⃣ Own Your Work – Every update is stored as an NFT, ensuring proof of contribution.
 
 ## 🔗 Supported Framework
-
-- **PyTorch**
-
----
+- PyTorch
 
 ## 🚀 Get Started
+- Create a new repository
+- Push an untrained model
+- Invite collaborators
+- Contributors train the model locally
+- Push updates (not data!)
+- Verify & merge contributions
 
-1. Create a new repository  
-2. Push an untrained model  
-3. Invite collaborators  
-4. Collaborators train locally  
-5. Push updates (not data!)  
-6. Verify & merge contributions  
-7. Mint your commit updates as NFTs
+## 🔐 Zero-Knowledge Proofs – Training Verified, Data Hidden 🛡️  
 
----
+A **Zero-Knowledge Proof (ZKP)** lets a contributor prove that they’ve trained a machine learning model on their private data **without actually revealing the data.**  
 
-## 🔐 Zero‑Knowledge Proofs – Training Verified, Data Hidden 🛡️
+✅ Your updates are **verified** as legit, but no one can see your data.  
+✅ Prevents **fraud**—ensures real contributions without revealing secrets.  
+✅ **Privacy first** – Keeps all training data hidden from others.  
 
-A Zero‑Knowledge Proof (ZKP) lets contributors prove they’ve properly trained a model on private data without revealing the data itself.
+This ensures **Flair remains 100% private while still allowing global collaboration.**  
 
-- ✅ **Proof of Authenticity** – Verifies updates without exposing training data.  
-- ✅ **Fraud Prevention** – Ensures real, verifiable contributions.  
-- ✅ **Privacy First** – Keeps all the training data strictly confidential.
-
----
-
-🔹 **Train smarter. Collaborate securely. Own your work. Flair makes machine learning truly private.**  
+🔹 Train smarter. Collaborate securely. Own your work. Flair makes machine learning truly private. 🚀
