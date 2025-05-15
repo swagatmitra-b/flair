@@ -4,6 +4,29 @@ import { Router } from "express";
 import { prisma } from "../lib/prisma/index.js";
 import { authorizedPk } from "../middleware/auth/authHandler.js";
 const userRouter = Router();
+userRouter.get('/user/:wallet', async (req, res) => {
+    try {
+        const { wallet } = req.params;
+        // include the repositories and commits for the user                
+        const user = await prisma.user.findUnique({
+            where: { wallet },
+            include: {
+                repositories: true,
+                commits: true
+            }
+        });
+        if (!user) {
+            res.status(404).json({ error: "User not found" });
+            return;
+        }
+        res.status(200).json({ data: user });
+    }
+    catch (err) {
+        console.error(`Error getting profile: ${err}`);
+        res.status(500).send({ error: { message: 'Could not update profile.' } });
+        return;
+    }
+});
 userRouter.get('/profile', async (req, res) => {
     try {
         const wallet = authorizedPk(res);
