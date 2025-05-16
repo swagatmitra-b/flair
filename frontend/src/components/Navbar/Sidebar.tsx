@@ -29,11 +29,11 @@ const Sidebar: React.FC<SidebarProps> = ({ close }) => {
     LocalStorageTokenGen.clearToken();
     localStorage.removeItem('user');
     localStorage.removeItem('curUser');
-    localStorage.removeItem('username');
+    localStorage.removeItem('myUsername');
     router.push('/login');
     console.log('Logged out.');
   };
-
+  const username = localStorage.getItem('myUsername');
   return (
     <div
       className="fixed top-0 right-0 h-full bg-gray-900 overflow-hidden transition-all duration-300 ease-linear"
@@ -54,31 +54,12 @@ const Sidebar: React.FC<SidebarProps> = ({ close }) => {
           </button>
         </div>
         <div className="flex flex-col pl-8 py-4 gap-4">
-          <Link className="flex items-center justify-start gap-2" href={'/'}>
+          <Link className="flex items-center justify-start gap-2" href={'/' + username}>
             {' '}
             <House size={20} />
-            Home
+            Profile
           </Link>
-          <Link className="flex items-center justify-start gap-2" href={'/'}>
-            {' '}
-            <House size={20} />
-            Home
-          </Link>
-          <Link className="flex items-center justify-start gap-2" href={'/'}>
-            {' '}
-            <House size={20} />
-            Home
-          </Link>
-          <Link className="flex items-center justify-start gap-2" href={'/'}>
-            {' '}
-            <House size={20} />
-            Home
-          </Link>
-          <Link className="flex items-center justify-start gap-2" href={'/'}>
-            {' '}
-            <House size={20} />
-            Home
-          </Link>
+
           <button className="flex items-center justify-start gap-2" onClick={logout}>
             {' '}
             Logout

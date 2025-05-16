@@ -1,16 +1,17 @@
 'use client';
 
+import CircularProgress from '@/components/CircularProgress';
 import ModelStats from '@/components/ModelStats';
-import Readme from '@/components/Readme';
 import { request } from '@/lib/requests';
 import { ChevronRight, History, Pencil, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { use, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 
 const Page = (props: { params: Promise<{ repo_name: string }> }) => {
   const { repo_name } = use(props.params);
-  const repo_hash = '5345c1b8-49ff-4ece-8bdd-c44a8d7701ce';
+  const [repo_hash, setRepoHash] = useState('');
   const [repoDetails, setRepoDetails] = useState<{
     name: string;
     description: string;
@@ -33,6 +34,25 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
     description: string;
   } | null>(null);
 
+  const [lastCommitDetails, setLastCommitDetails] = useState<{
+    metrics: {
+      accuracy: number;
+      loss: number;
+    };
+    id: string;
+    hash: string;
+    message: string;
+    committerId: string;
+    createdAt: string;
+    status: string;
+    branchId: string;
+  } | null>(null);
+  const [totalCommits, setTotalCommits] = useState<number>(0);
+  const [lastCommitterDetails, setLastCommiterDetails] = useState<{
+    address: string;
+    profileImage: string;
+    username: string;
+  } | null>(null);
   // --- About section ---
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [aboutText, setAboutText] = useState('');
@@ -72,12 +92,12 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
       try {
         const response = await request({
           method: 'GET',
-          // url: `${process.env.NEXT_PUBLIC_API_URL}/repo/name/${repo_name}`,
-          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}`,
+          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/name/${repo_name}`,
           action: 'signin',
         });
         const data = await response.json();
-        console.log('Repo Details:', data);
+        setRepoHash(data.data.repoHash);
+        // console.log('Repo Details:', data);
         setRepoDetails({
           name: data.data.name,
           description: data.data.metadata.description,
@@ -88,20 +108,25 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
           contributorIds: data.data.contributorIds,
         });
       } catch (err) {
+        toast.error('Error in fetching details');
         console.log('Error in Fetching Repo Details:', err);
       }
     };
     fetchData();
   }, []);
 
+  // fetching contributors, creators, main branch and all the commits
   useEffect(() => {
-    if (repoDetails) {
+    const fetchAll = async () => {
+      if (!repoDetails) return;
+
       setAboutText(repoDetails.description);
       setFramework(repoDetails.framework);
       setUseCases(repoDetails.useCase);
       setContributorIds(repoDetails.contributorIds);
 
-      const fetchContributors = async (id: string) => {
+      setContributors([]);
+      const contributorPromises = repoDetails.contributorIds.map(async id => {
         try {
           const response = await request({
             method: 'GET',
@@ -109,65 +134,108 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
             action: 'signin',
           });
           const data = await response.json();
-          return data.data.username;
+          return { id, username: data.data.username };
         } catch (err) {
+          toast.error('Error in fetching details');
+
           console.log('Error in fetching contributors data', err);
+          return null;
         }
-      };
-      setContributors([]);
-      for (const id of repoDetails.contributorIds) {
-        fetchContributors(id)
-          .then(username => {
-            setContributors(prev => [...prev, { id, username }]);
-          })
-          .catch(err => {
-            console.log('Error in fetching contributors data', err);
-          });
+      });
+
+      const contributorResults = await Promise.all(contributorPromises);
+      setContributors(contributorResults.filter(Boolean) as { id: string; username: string }[]);
+
+      try {
+        const creatorRes = await request({
+          method: 'GET',
+          url: `${process.env.NEXT_PUBLIC_API_URL}/user/user/${repoDetails.creator}`,
+          action: 'signin',
+        });
+        const creatorData = await creatorRes.json();
+        setCreatorDetails({
+          username: creatorData.data.username,
+          name: creatorData.data.metadata.name,
+          id: creatorData.data.id,
+          profileImage: creatorData.data.metadata.profileImage,
+        });
+      } catch (err) {
+        toast.error('Error in fetching details');
+
+        console.log('Error in Fetching Creators Data', err);
       }
 
-      const fetchCreator = async () => {
-        try {
-          const response = await request({
-            method: 'GET',
-            url: `${process.env.NEXT_PUBLIC_API_URL}/user/user/${repoDetails.creator}`,
-            action: 'signin',
-          });
-          const data = await response.json();
-          console.log('Creator Details:', data);
-          setCreatorDetails({
-            username: data.data.username,
-            name: data.data.metadata.name,
-            id: data.data.id,
-            profileImage: data.data.metadata.profileImage,
-          });
-        } catch (err) {
-          console.log('Error in Fetching Creators Data', err);
-        }
-      };
-      fetchCreator();
+      try {
+        const branchRes = await request({
+          method: 'GET',
+          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}/branch`,
+          action: 'signin',
+        });
+        const branchData = await branchRes.json();
+        const newBranch = {
+          id: branchData.data[0].id,
+          hash: branchData.data[0].branchHash,
+          name: branchData.data[0].name,
+          description: branchData.data[0].description,
+        };
+        console.log(newBranch);
+        setBranch(newBranch);
 
-      const fetchBranch = async () => {
-        try {
-          const response = await request({
-            method: 'GET',
-            url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}/branch`,
-            action: 'signin',
-          });
-          const data = await response.json();
-          setBranch({
-            id: data.data.id,
-            hash: data.data.branchHash,
-            name: data.data.name,
-            description: data.data.description,
-          });
-          console.log('Branch Details', data);
-        } catch (err) {
-          console.log('Error in fetching the branch', err);
+        // Now fetch commit
+        const commitRes = await request({
+          method: 'GET',
+          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}/branch/hash/${newBranch.hash}/commit`,
+          action: 'signin',
+        });
+        const commitData = await commitRes.json();
+        const tot_commit = commitData.data.length;
+        let commiterAddress;
+        // since only merged commit now
+        for (let i = tot_commit - 1; i >= 0; i--) {
+          if (i === tot_commit - 1 || commitData.data[i].status === 'MERGERCOMMIT') {
+            const lastCommit = {
+              metrics: commitData.data[tot_commit - 1].metrics,
+              id: commitData.data[tot_commit - 1].id,
+              hash: commitData.data[tot_commit - 1].commitHash,
+              message: commitData.data[tot_commit - 1].message,
+              committerId: commitData.data[tot_commit - 1].committerId,
+              createdAt: commitData.data[tot_commit - 1].createdAt,
+              status: commitData.data[tot_commit - 1].status,
+              branchId: commitData.data[tot_commit - 1].branchId,
+            };
+            commiterAddress = commitData.data[i].committerAddress;
+            setLastCommitDetails(lastCommit);
+            console.log('last commit', lastCommit);
+            setTotalCommits(i + 1);
+            break;
+          }
         }
-      };
-      fetchBranch();
-      console.log(branch, creatorDetails); // es lint issue
-    }
+        // console.log('Commit Details:', commitData);
+
+        // fetch the committer of last Commit details
+        const response = await request({
+          method: 'GET',
+          url: `${process.env.NEXT_PUBLIC_API_URL}/user/user/${commiterAddress}`,
+          action: 'signin',
+        });
+        const committerData = await response.json();
+        const committerDetails = {
+          username: committerData.data.username,
+          profileImage: committerData.data.metadata.profileImage,
+          address: committerData.data.address,
+        };
+        setLastCommiterDetails(committerDetails);
+        // console.log('CommiterData', committerDetails);
+      } catch (err) {
+        toast.error('Error in fetching details');
+
+        console.log('Error in fetching commiterdata', err);
+      }
+    };
+
+    fetchAll();
+
+    console.log(creatorDetails, branch); // es lint issue
   }, [repoDetails]);
 
   const handleSave = async () => {
@@ -189,7 +257,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
       action: 'signin',
     });
     const data = await response.json();
-    console.log('Updated Repo Details:', data);
+    // console.log('Updated Repo Details:', data);
     setRepoDetails({
       name: data.data.name,
       description: data.data.metadata.description,
@@ -211,13 +279,26 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
       <div className="flex items-center gap-4 border-b border-gray-500 pb-3 px-10">
         <Image
           className="rounded-full h-10 w-10"
-          src={'/dummy/profile.png'}
-          // src={creatorDetails?.profileImage ? creatorDetails?.profileImage : '/dummy/profile.png'}
+          src={creatorDetails?.profileImage ?? '/dummy/profile.png'}
+          // src={'/dummy/profile.png'}
           width={40}
           height={40}
           alt="creatorAvatar"
         />
-        <h2 className="text-xl font-semibold text-white">{repo_name}</h2>
+        <h2 className="text-xl font-semibold text-white">{repoDetails?.name}</h2>
+        <button
+          className=" text-gray-300 text-xs px-3 py-1 rounded hover:bg-blue-400"
+          onClick={() => {
+            if (repoDetails?.repoHash) {
+              navigator.clipboard.writeText(repoDetails.repoHash);
+              toast.success('Repo Hash copied to clipboard!', {
+                autoClose: 1000,
+              });
+            }
+          }}
+        >
+          {repoDetails?.repoHash}
+        </button>
         <div className="flex-grow"></div>
       </div>
       <div className="flex justify-center items-start mt-8">
@@ -227,40 +308,60 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
             <div className="flex items-center gap-2">
               <Image
                 className="h-8 w-8 rounded-full"
-                src={'/dummy/profile.png'}
+                src={lastCommitterDetails?.profileImage ?? '/dummy/profile.png'}
                 width={16}
                 height={16}
                 alt="avater"
               ></Image>
               <h4 className="text-sm text-gray-300 font-bold">
-                johnCena{' '}
-                <span className="font-normal text-gray-400"> trained on a lot of data </span>
+                {lastCommitterDetails?.username}
+                <span className="font-normal text-gray-400"> {lastCommitDetails?.message} </span>
               </h4>
             </div>
             <div className="flex-grow-1"></div>
             {/* TODO: navigate to another page where all the commits will be displayed */}
             <div className="flex items-center gap-1 text-sm text-gray-400">
               <History size={20} />
-              <p className="">15 Commits</p>
+              <p className="">{totalCommits} Commits</p>
               <Link
-                href={`/${'hirak'}/${repo_name}/commits`}
+                href={`/${creatorDetails?.username}/${repoDetails?.name}/commits`}
                 className="text-gray-400 hover:text-blue-400"
               >
                 <ChevronRight /> {}
               </Link>
             </div>
           </div>
-
-          <Readme readme="Readme content goes here" />
+          {/* <Readme readme="Readme content goes here" /> */}
+          <div className="w-full flex mt-10 items-center justify-center gap-8">
+            <div className="flex flex-col  items-start">
+              <h1 className="text-3xl font-bold text-white">
+                Accuracy: {(lastCommitDetails?.metrics?.accuracy ?? 0) * 100}%
+              </h1>
+              <h2 className="text-3xl text-gray-300">
+                Loss:{' '}
+                {lastCommitDetails?.metrics?.loss
+                  ? lastCommitDetails.metrics.loss.toFixed(4)
+                  : 'N/A'}
+              </h2>
+            </div>
+            <CircularProgress accuracy={lastCommitDetails?.metrics?.accuracy ?? 0} radius={100} />
+          </div>
         </div>
 
         <div className="min-w-80 h-full border-l border-gray-500 p-4 pl-8 flex flex-col gap-4">
           {/* Model Stats */}
-          <div className="flex flex-col gap-2">
-            <h3 className="text-lg font-semibold text-white">Model Stats</h3>
-            <ModelStats accuracy={0.75} loss={0.15} />{' '}
-          </div>
-          <hr className="border-gray-500" />
+          {lastCommitDetails && (
+            <>
+              <div className="flex flex-col gap-2">
+                <h3 className="text-lg font-semibold text-white">Model Stats</h3>
+                <ModelStats
+                  accuracy={lastCommitDetails?.metrics.accuracy}
+                  loss={lastCommitDetails?.metrics.loss}
+                />{' '}
+              </div>
+              <hr className="border-gray-500" />
+            </>
+          )}
           {/* About Section */}
           {aboutText && (
             <>

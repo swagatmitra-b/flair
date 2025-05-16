@@ -47,7 +47,7 @@ const LeftPanel: React.FC = () => {
         <div className="flex justify-center ">
           <Image
             className="rounded-full border-4 h-60 w-60 border-gray-700"
-            src={data?.profileImage}
+            src={data?.profileImage !== '' ? data.profileImage : '/dummy/profile.png'}
             width={100}
             height={100}
             alt="Profile Picture"

@@ -2,13 +2,13 @@ import ModelStats from '@/components/ModelStats';
 import Readme from '@/components/Readme';
 import Image from 'next/image';
 
-type PageProps = {
+interface PageProps {
   params: {
     username: string;
     repo_name: string;
     commitHash: string;
   };
-};
+}
 
 const Page = ({ params }: PageProps) => {
   const { username, repo_name, commitHash } = params;

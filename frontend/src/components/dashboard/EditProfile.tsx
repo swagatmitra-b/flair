@@ -50,6 +50,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
       close(false);
       window.location.reload();
     } catch (err) {
+      toast.error('Error updating profile');
       console.log('Error in submiting form', err);
     }
   };

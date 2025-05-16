@@ -1,9 +1,12 @@
 'use client';
 
 import { request } from '@/lib/requests';
+import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const Page: React.FC = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -36,9 +39,16 @@ const Page: React.FC = () => {
         },
         action: 'signin',
       });
-      const data = await JSON.stringify(response);
+      const data = await response.json();
       console.log('Response:', data);
+      if (data.data) {
+        toast.success('Repository created successfully');
+        router.push(`/repository/${data.data.repoHash}`);
+      } else if (data.error) {
+        toast.error(data.error.message);
+      }
     } catch (err) {
+      toast.error('Error creating repository');
       console.log('repo creation error', err);
     }
   };

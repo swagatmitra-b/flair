@@ -129,13 +129,12 @@ export default function Auth() {
           <div className="">
             {connectedDetails ? (
               <div>
-                <p>
-                  <strong>Wallet Address:</strong> {connectedDetails.walletAddress}
-                </p>
+                <p>Loding</p>
+                <p>{/* <strong>Wallet Address:</strong> {connectedDetails.walletAddress} */}</p>
                 <p>
                   <strong>Status:</strong> Signed In
                 </p>
-                <p>Details: {connectedDetails.details}</p>
+                {/* <p>Details: {connectedDetails.details}</p> */}
                 <button onClick={logout}>Logout</button>
               </div>
             ) : (

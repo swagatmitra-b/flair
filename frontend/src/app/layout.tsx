@@ -1,6 +1,7 @@
 'use client';
 import './globals.css';
 
+import { ToastContainer } from 'react-toastify';
 import { useCallback, useMemo } from 'react';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import {
@@ -61,7 +62,10 @@ export default function RootLayout({
                   <QueryClientProvider client={queryClient}>
                     <ConnectionProvider endpoint={endpoint}>
                       <WalletProvider wallets={wallets} onError={onWalletError} autoConnect={true}>
-                        <WalletModalProvider>{children}</WalletModalProvider>
+                        <WalletModalProvider>
+                          {children}
+                          <ToastContainer />
+                        </WalletModalProvider>
                       </WalletProvider>
                     </ConnectionProvider>
                   </QueryClientProvider>

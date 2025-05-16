@@ -1,3 +1,7 @@
+'use client';
+import { request } from '@/lib/requests';
+import { useEffect, useState } from 'react';
+
 type Repo = {
   name: string;
   description: string;
@@ -9,17 +13,79 @@ type RepositoriesProps = {
   repos: Repo[];
 };
 const About: React.FC<RepositoriesProps> = ({ repos }) => {
-  console.log('repos', repos); // eslint issue
+  const [editing, setEditing] = useState(false);
+  const [editedText, setEditedText] = useState('');
   const storedData = localStorage.getItem('user');
+
   const displayText = storedData ? JSON.parse(storedData).displayText : '';
+  const handleSave = async () => {
+    const username = storedData ? JSON.parse(storedData).username : '';
+    const name = storedData ? JSON.parse(storedData).name : '';
+    const bio = storedData ? JSON.parse(storedData).bio : '';
+    const profileImage = storedData ? JSON.parse(storedData).profileImage : '';
+    try {
+      const res = await request({
+        method: 'PUT',
+        url: `${process.env.NEXT_PUBLIC_API_URL}/user/update`,
+        data: {
+          username: username,
+          metadata: {
+            name: name,
+            displayText: editedText,
+            bio: bio,
+            profileImage: profileImage,
+          },
+        },
+        action: 'signin',
+      });
+
+      const data = await res.json();
+      console.log('Response:', data);
+      setEditing(false);
+      window.location.reload();
+    } catch (err) {
+      console.log('Error in submiting form', err);
+    }
+  };
+  useEffect(() => {
+    setEditedText(displayText);
+  }, [displayText]);
+
   return (
     <div className="flex flex-col gap-8">
       <div className="bg-[#161b22] p-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">About me</h3>
-          <button className="text-sm text-gray-400">✏️</button>
+          <button className="text-sm text-gray-400" onClick={() => setEditing(true)}>
+            ✏️
+          </button>
         </div>
-        <p className="text-gray-300 mt-2 text-sm">{displayText}</p>
+        {editing ? (
+          <>
+            <textarea
+              placeholder={'Write something about yourself...'}
+              className="bg-[#161b22] text-gray-300 mt-2 text-sm p-2 border border-gray-700 w-full"
+              value={editedText}
+              onChange={e => setEditedText(e.target.value)}
+            />
+            <div className="flex justify-end mt-2">
+              <button className="text-sm text-blue-400" onClick={handleSave}>
+                Save
+              </button>
+              <button
+                className="text-sm text-red-400 ml-2"
+                onClick={() => {
+                  setEditing(false);
+                  setEditedText(displayText);
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="text-gray-300 mt-2 text-sm">{displayText}</p>
+        )}
       </div>
 
       {/* Attendance Chart (Static) */}
@@ -46,22 +112,15 @@ const About: React.FC<RepositoriesProps> = ({ repos }) => {
 
       {/* Pinned Projects */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-[#161b22] p-4">
-          <h4 className="text-md text-blue-400 font-semibold">📁 Model 1</h4>
-          <p className="text-gray-400 text-sm">Project Description</p>
-          <div className="mt-2 flex justify-between text-sm text-gray-400">
-            <span>Last updated: 1 day ago</span>
-            <span>⭐ 10</span>
+        {repos.map((repo: Repo, index: number) => (
+          <div key={index} className="bg-[#161b22] p-4">
+            <h4 className="text-md text-blue-400 font-semibold">📁{repo.name}</h4>
+            <p className="text-gray-400 text-sm">{repo.description}</p>
+            <div className="mt-2 flex justify-between text-sm text-gray-400">
+              <span>{repo.updateAt}</span>
+            </div>
           </div>
-        </div>
-        <div className="bg-[#161b22] p-4">
-          <h4 className="text-md text-blue-400 font-semibold">📁 Model 2</h4>
-          <p className="text-gray-400 text-sm">Project Description</p>
-          <div className="mt-2 flex justify-between text-sm text-gray-400">
-            <span>Last updated: 2 days ago</span>
-            <span>⭐ 5</span>
-          </div>
-        </div>
+        ))}
       </div>
     </div>
   );

@@ -13,7 +13,6 @@ const Layout = ({
 }>) => {
   const router = useRouter();
   const [username, setUsername] = useState<string | null>(null);
-  const [photo, setPhoto] = useState<string | null>(null);
   useEffect(() => {
     // if not logged in, redirect to login
     if (LocalStorageTokenGen.getToken() === null) {
@@ -32,7 +31,6 @@ const Layout = ({
 
         const data = await response.json();
         setUsername(data.data.username);
-        setPhoto(data.data.metadata.profileImage);
         console.log('Profile data:', data);
 
         localStorage.setItem(
@@ -56,7 +54,7 @@ const Layout = ({
   }
   return (
     <>
-      <FinalNavbar username={username} photo={photo ?? ''} />
+      <FinalNavbar />
 
       <main>{children}</main>
     </>
