@@ -37,6 +37,7 @@ const Page: React.FC = () => {
         action: 'signin',
       });
       const data = await JSON.stringify(response);
+      console.log('Response:', data);
     } catch (err) {
       console.log('repo creation error', err);
     }

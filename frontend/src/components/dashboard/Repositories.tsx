@@ -82,35 +82,35 @@ const RepositoryCard: React.FC<{
   );
 };
 
-const repositories = [
-  {
-    name: 'Sample-Model-1',
-    description: 'This is a description of repository 1.',
-    updateAt: '2023-10-01',
-    repoHash: '1234567890abcdef',
-  },
-  {
-    name: 'Sample-Model-2',
-    description: 'This is a description of repository 2.',
-    updateAt: '2023-10-02',
-    repoHash: 'abcdef1234567890',
-  },
-  {
-    name: 'Sample-Model-3',
-    description: 'This is a description of repository 3.',
-    updateAt: '2023-10-03',
-    repoHash: 'fedcba0987654321',
-  },
-  {
-    name: 'Sample-Model-4',
-    description: 'This is a description of repository 4.',
-    updateAt: '2023-10-04',
-    repoHash: '0123456789abcdef',
-  },
-  {
-    name: 'Sample-Model-5',
-    description: 'This is a description of repository 5.',
-    updateAt: '2023-10-05',
-    repoHash: '9876543210fedcba',
-  },
-];
+// const repositories = [
+//   {
+//     name: 'Sample-Model-1',
+//     description: 'This is a description of repository 1.',
+//     updateAt: '2023-10-01',
+//     repoHash: '1234567890abcdef',
+//   },
+//   {
+//     name: 'Sample-Model-2',
+//     description: 'This is a description of repository 2.',
+//     updateAt: '2023-10-02',
+//     repoHash: 'abcdef1234567890',
+//   },
+//   {
+//     name: 'Sample-Model-3',
+//     description: 'This is a description of repository 3.',
+//     updateAt: '2023-10-03',
+//     repoHash: 'fedcba0987654321',
+//   },
+//   {
+//     name: 'Sample-Model-4',
+//     description: 'This is a description of repository 4.',
+//     updateAt: '2023-10-04',
+//     repoHash: '0123456789abcdef',
+//   },
+//   {
+//     name: 'Sample-Model-5',
+//     description: 'This is a description of repository 5.',
+//     updateAt: '2023-10-05',
+//     repoHash: '9876543210fedcba',
+//   },
+// ];

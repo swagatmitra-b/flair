@@ -2,7 +2,6 @@
 
 import { request } from '@/lib/requests';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 type inputProps = {
@@ -24,7 +23,6 @@ interface Photo {
 
 const EditProfile: React.FC<inputProps> = ({ close, data }) => {
   const [formData, setFormData] = useState(data);
-  const router = useRouter();
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));

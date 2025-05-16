@@ -1,28 +1,24 @@
-'use client'
-import type { Metadata } from 'next'
-import './globals.css'
-import FinalNavbar from '@/components/Navbar/FinalNavbar'
+'use client';
+import './globals.css';
 
-import { FC, useCallback, use, useMemo } from 'react'
-import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react'
+import { useCallback, useMemo } from 'react';
+import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
   TorusWalletAdapter,
-} from '@solana/wallet-adapter-wallets'
-import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
-import { clusterApiUrl } from '@solana/web3.js'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import '@solana/wallet-adapter-react-ui/styles.css'
-import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
-import { AutoConnectProvider } from '@/lib/AutoConnectProvider'
-import { SiwsSupportProvider } from '@/lib/SiwsSupportProvider'
-import { SignedInProvider } from '@/lib/SigninTokenProvider'
-import { AdapterProvider } from '@/lib/AdapterProvider'
+} from '@solana/wallet-adapter-wallets';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import { clusterApiUrl } from '@solana/web3.js';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import '@solana/wallet-adapter-react-ui/styles.css';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { AutoConnectProvider } from '@/lib/AutoConnectProvider';
+import { SiwsSupportProvider } from '@/lib/SiwsSupportProvider';
+import { SignedInProvider } from '@/lib/SigninTokenProvider';
+import { AdapterProvider } from '@/lib/AdapterProvider';
 
-import Auth from '@/components/Auth/Auth'
-
-const queryClient = new QueryClient()
+const queryClient = new QueryClient();
 
 // export const metadata: Metadata = {
 //   title: 'Create Next App',
@@ -32,14 +28,14 @@ const queryClient = new QueryClient()
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   // by default we are going for devnet
   const network =
     process.env.NEXT_PUBLIC_SOLANA_NETWORK == 'mainnet'
       ? WalletAdapterNetwork.Mainnet
-      : WalletAdapterNetwork.Devnet
-  const endpoint = useMemo(() => clusterApiUrl(network), [network])
+      : WalletAdapterNetwork.Devnet;
+  const endpoint = useMemo(() => clusterApiUrl(network), [network]);
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
@@ -47,12 +43,12 @@ export default function RootLayout({
       new TorusWalletAdapter(),
     ],
     [network],
-  )
+  );
 
   // This error handler is invoked when a wallet error occurs.
   const onWalletError = useCallback((error: Error) => {
-    console.error(`Error connecting to wallet: ${error}`)
-  }, [])
+    console.error(`Error connecting to wallet: ${error}`);
+  }, []);
 
   return (
     <html lang="en">
@@ -76,5 +72,5 @@ export default function RootLayout({
         </main>
       </body>
     </html>
-  )
+  );
 }

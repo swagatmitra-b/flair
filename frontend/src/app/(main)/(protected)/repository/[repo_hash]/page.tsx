@@ -1,10 +1,8 @@
 'use client';
 
-import Repositories from '@/components/dashboard/Repositories';
 import ModelStats from '@/components/ModelStats';
 import Readme from '@/components/Readme';
 import { request } from '@/lib/requests';
-import { set } from '@metaplex-foundation/umi/serializers';
 import { ChevronRight, History, Pencil, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -41,7 +39,7 @@ const Page = (props: { params: Promise<{ repo_hash: string }> }) => {
 
   // --- Model URI section ---
   const [isEditingModelURI, setIsEditingModelURI] = useState(false);
-  const [modelURI, setModelURI] = useState('');
+  // const [modelURI, setModelURI] = useState('');
 
   // --- Use Cases section ---
   const [isEditingUseCases, setIsEditingUseCases] = useState(false);
@@ -175,6 +173,8 @@ const Page = (props: { params: Promise<{ repo_hash: string }> }) => {
     };
 
     fetchAll();
+
+    console.log(creatorDetails, branch); // es lint issue
   }, [repoDetails]);
 
   const handleSave = async () => {

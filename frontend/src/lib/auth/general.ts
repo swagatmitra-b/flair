@@ -64,7 +64,7 @@ export const genSignIn = async (
 ): Promise<string> => {
   if (!publicKey || !signMessage) throw new Error(`Could not connect to wallet.`);
   const signInData: SolanaSignInInput = await getSignInData(publicKey);
-  let signInMessage = createSignInMessageText(signInData, 'signin') + '\n';
+  const signInMessage = createSignInMessageText(signInData, 'signin') + '\n';
 
   const authToken = await createAuthToken(signInMessage, { publicKey, signMessage });
   const response = await fetch(apiUrl + '/auth/signin', {

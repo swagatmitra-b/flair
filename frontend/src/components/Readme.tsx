@@ -1,7 +1,8 @@
 type ReadmeProps = {
-  readme: string
-}
+  readme: string;
+};
 const Readme: React.FC<ReadmeProps> = ({ readme }) => {
+  console.log('Readme:', readme);
   return (
     <section className="w-full h-full p-6 bg-gray-800 rounded-lg shadow-md overflow-auto">
       <div className="max-w-none">
@@ -53,7 +54,7 @@ const Readme: React.FC<ReadmeProps> = ({ readme }) => {
         </ul>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default Readme
+export default Readme;

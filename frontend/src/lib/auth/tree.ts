@@ -48,7 +48,7 @@ export const getTreeSignInData = async (
     }
     const createTreeSignInResponse = res as SolanaActionMessage;
     return createTreeSignInResponse;
-  } catch (err: any) {
+  } catch (err) {
     throw new Error(`Error getting tree sign in data: ${err.message}`);
   }
 };

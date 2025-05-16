@@ -1,7 +1,7 @@
 'use client';
 import LeftPanel from './LeftPanel';
 import RightPanel from './RightPanel';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { request } from '@/lib/requests';
 
 const Dashboard: React.FC<{ username: string }> = ({ username }) => {

@@ -3,9 +3,6 @@
 import FinalNavbar from '@/components/Navbar/FinalNavbar';
 import { LocalStorageTokenGen } from '@/lib/auth/general';
 import { request } from '@/lib/requests';
-import { usesignedIn } from '@/lib/SigninTokenProvider';
-import { set } from '@metaplex-foundation/umi/serializers';
-import { useWallet } from '@solana/wallet-adapter-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -46,7 +43,7 @@ const Layout = ({
           }),
         );
         localStorage.setItem('myUsername', data.data.username);
-      } catch (err: any) {
+      } catch (err) {
         console.error('Request failed:', err);
       }
     };

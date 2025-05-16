@@ -9,12 +9,11 @@ const HomePage: React.FC = () => {
       <div className="my-16 h-60 w-120">
         {/* Replace with your logo */}
         <Image
-          className="h-full w-full"
+          className="rounded-full h-full w-full"
           src="/full-logo.jpeg"
           alt="Flair Logo"
           width={500}
           height={300}
-          className="rounded-full"
         />
       </div>
 

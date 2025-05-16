@@ -5,8 +5,7 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { LocalStorageTokenGen } from '@/lib/auth/general';
 import { request, verifyToken } from '@/lib/requests';
-import { usesignedIn } from '@/lib/SigninTokenProvider';
-import { set } from '@metaplex-foundation/umi/serializers';
+import { useSignedIn } from '@/lib/SigninTokenProvider';
 import { useRouter } from 'next/navigation';
 
 interface ConnectedDetails {
@@ -17,7 +16,7 @@ interface ConnectedDetails {
 
 export default function Auth() {
   const [connectedDetails, setConnectedDetails] = useState<ConnectedDetails | undefined>(undefined);
-  const { setsignedIn } = usesignedIn();
+  const { setsignedIn } = useSignedIn();
   const { publicKey, signMessage, signIn } = useWallet();
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -112,7 +111,7 @@ export default function Auth() {
           } else {
             router.push('/register');
           }
-        } catch (err: any) {
+        } catch (err) {
           console.error('Request failed:', err);
         }
       };

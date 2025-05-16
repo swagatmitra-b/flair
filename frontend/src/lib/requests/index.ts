@@ -10,7 +10,7 @@ import { parseSignInMessage } from '../auth/helper/abnf_prarser';
 export const siwsRequest = async (contents: requestParams) => {
   const { method, url, data, action } = contents;
   // try to reuse existing token
-  let { input, output } = MemoryStoredTokenSiws.getInstance();
+  const { input, output } = MemoryStoredTokenSiws.getInstance();
   const isValidToken = (input?: SolanaSignInInput, output?: SolanaSignInOutput): boolean => {
     if (!input || !output) {
       console.warn('Not signed in.');
@@ -75,14 +75,14 @@ export const genRequest = async (contents: requestParams): Promise<Response> => 
     } else {
       throw new Error('Error: Auth token invalid for request.');
     }
-  } catch (err: any) {
+  } catch (err) {
     LocalStorageTokenGen.clearToken(); // clear the local storage token now
-    throw new Error(`Error in token verification: ${err.message}`);
+    throw new Error(`Error in token verification: ${err}`);
   }
 };
 
 // verify if the token we have is valid or not in terms of expiration time and action
-export const verifyToken = (memoryToken: string, action: string): Boolean => {
+export const verifyToken = (memoryToken: string, action: string): boolean => {
   const [, msg] = memoryToken.split('.'); // msg here contains the ABNF-like string that pops up in the user's wallet
   // Check the expiration time for the token and the associated action
   const decodedSignInMessage = new TextDecoder().decode(b58.decode(msg));

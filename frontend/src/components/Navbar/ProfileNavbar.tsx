@@ -1,12 +1,11 @@
-'use client'
-import { Bell, Menu } from 'lucide-react'
-import Image from 'next/image'
-import Link from 'next/link'
-import { useState } from 'react'
-import Sidebar from './Sidebar'
+'use client';
+import { Bell, Menu } from 'lucide-react';
+import Image from 'next/image';
+import { useState } from 'react';
+import Sidebar from './Sidebar';
 
 const ProfileNavbar: React.FC = () => {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <nav className="h-16 fixed w-full z-[100] bg-gray-900 flex items-center px-4 gap-4">
@@ -30,6 +29,6 @@ const ProfileNavbar: React.FC = () => {
         <Menu />
       </button>
     </nav>
-  )
-}
-export default ProfileNavbar
+  );
+};
+export default ProfileNavbar;

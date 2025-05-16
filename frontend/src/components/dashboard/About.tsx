@@ -9,6 +9,7 @@ type RepositoriesProps = {
   repos: Repo[];
 };
 const About: React.FC<RepositoriesProps> = ({ repos }) => {
+  console.log('repos', repos); // eslint issue
   const storedData = localStorage.getItem('user');
   const displayText = storedData ? JSON.parse(storedData).displayText : '';
   return (
