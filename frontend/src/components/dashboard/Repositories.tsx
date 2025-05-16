@@ -14,7 +14,9 @@ type RepositoriesProps = {
 };
 
 const Repositories: React.FC<RepositoriesProps> = ({ repos }) => {
-  const username = usePathname();
+  const path = usePathname();
+  const username = path.split('/')[1];
+  const myUsername = localStorage.getItem('myUsername');
   const [searchQuery, setSearchQuery] = useState('');
   console.log('repos', repos);
   const filteredRepos = repos.filter(
@@ -33,9 +35,14 @@ const Repositories: React.FC<RepositoriesProps> = ({ repos }) => {
           type="text"
           placeholder="Find a repository..."
         />
-        <Link href={'/repository/new'} className="bg-green-500 text-gray-200 py-1 px-3 rounded-lg">
-          New
-        </Link>
+        {username === myUsername && (
+          <Link
+            href={'/repository/new'}
+            className="bg-green-500 text-gray-200 py-1 px-3 rounded-lg"
+          >
+            New
+          </Link>
+        )}
       </div>
       <div className="flex flex-col gap-4">
         {filteredRepos.map((repo: Repo, index: number) => (

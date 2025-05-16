@@ -45,6 +45,7 @@ const Layout = ({
             ...data.data.metadata,
           }),
         );
+        localStorage.setItem('myUsername', data.data.username);
       } catch (err: any) {
         console.error('Request failed:', err);
       }

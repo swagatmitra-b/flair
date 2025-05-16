@@ -2,7 +2,6 @@
 import Image from 'next/image';
 import EditProfile from './EditProfile';
 import { useEffect, useState } from 'react';
-import { request } from '@/lib/requests';
 
 // const data = {
 //   fullName: 'John Doe',
@@ -16,19 +15,30 @@ import { request } from '@/lib/requests';
 // };
 
 const LeftPanel: React.FC = () => {
-  const storedData = localStorage.getItem('user');
-  const data = storedData
-    ? JSON.parse(storedData)
-    : {
-        usernmae: '',
-        name: '',
-        bio: '',
-        email: '',
-        displayText: '',
-        photoImage: '',
-      };
-  const [isEditProfile, setIsEditProfile] = useState(false);
+  const [data, setData] = useState<{
+    name: string;
+    username: string;
+    bio: string;
+    email: string;
+    profileImage: string;
+    displayText: string;
+  }>({
+    name: '',
+    username: '',
+    bio: '',
+    email: '',
+    profileImage: '',
+    displayText: '',
+  });
 
+  const myUsername = localStorage.getItem('myUsername');
+
+  useEffect(() => {
+    const storedData = localStorage.getItem('curUser');
+    if (storedData) setData(JSON.parse(storedData));
+  }, []);
+
+  const [isEditProfile, setIsEditProfile] = useState(false);
   if (isEditProfile) {
     return <EditProfile close={() => setIsEditProfile(false)} data={data} />;
   } else {
@@ -37,7 +47,7 @@ const LeftPanel: React.FC = () => {
         <div className="flex justify-center ">
           <Image
             className="rounded-full border-4 h-60 w-60 border-gray-700"
-            src="/dummy/profile.png"
+            src={data?.profileImage}
             width={100}
             height={100}
             alt="Profile Picture"
@@ -50,12 +60,14 @@ const LeftPanel: React.FC = () => {
             <h6 className="text-gray-400">{data.username}</h6>
           </div>
           <p className="text-gray-300 text-sm">{data.bio}</p>
-          <button
-            onClick={() => setIsEditProfile(true)}
-            className="px-4 mt-2 py-2 text-xs bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition"
-          >
-            Edit Profile
-          </button>
+          {myUsername === data.username && (
+            <button
+              onClick={() => setIsEditProfile(true)}
+              className="px-4 mt-2 py-2 text-xs bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition"
+            >
+              Edit Profile
+            </button>
+          )}
         </div>
 
         {/* Links */}

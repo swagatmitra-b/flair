@@ -17,6 +17,11 @@ type inputProps = {
   };
 };
 
+interface Photo {
+  file: File | null;
+  url: string;
+}
+
 const EditProfile: React.FC<inputProps> = ({ close, data }) => {
   const [formData, setFormData] = useState(data);
   const router = useRouter();
@@ -36,7 +41,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
             name: formData.name,
             displayText: formData.displayText,
             bio: formData.bio,
-            profileImage: formData.profileImage,
+            profileImage: base64Image,
           },
         },
         action: 'signin',
@@ -51,17 +56,44 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
     }
   };
 
+  const [photo, setPhoto] = useState<Photo>({
+    file: null,
+    url: data.profileImage,
+  });
+  const [base64Image, setBase64Image] = useState<string | null>(null);
+
+  const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setPhoto({
+        file: e.target.files[0],
+        url: URL.createObjectURL(e.target.files[0]),
+      });
+    }
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setBase64Image(base64String);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="flex flex-col gap-4 min-w-72 w-72">
-      <div className="flex justify-center">
+      <label className="flex flex-col items-center justify-center w-full h-full  " htmlFor="photo">
         <Image
-          className="rounded-full border-4 h-60 w-60 border-gray-700"
-          src="/dummy/profile.png"
+          className="rounded-full hover:opacity-80 h-60 w-60 bg-black"
+          src={photo.url}
           width={100}
           height={100}
-          alt="Profile Picture"
-        />
-      </div>
+          alt="photo"
+        ></Image>
+        <input type="file" accept="image/*" id="photo" className="hidden" onChange={handlePhoto} />
+        {}
+        Change Photo
+      </label>
 
       <div className="flex flex-col text-center gap-2 items-center">
         <div className="flex gap-2 flex-col leading-4 w-full px-4">

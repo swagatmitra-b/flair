@@ -1,4 +1,14 @@
-const About: React.FC = () => {
+type Repo = {
+  name: string;
+  description: string;
+  updateAt: string;
+  repoHash: string;
+};
+
+type RepositoriesProps = {
+  repos: Repo[];
+};
+const About: React.FC<RepositoriesProps> = ({ repos }) => {
   const storedData = localStorage.getItem('user');
   const displayText = storedData ? JSON.parse(storedData).displayText : '';
   return (

@@ -1,15 +1,17 @@
 'use client';
 
 import { request } from '@/lib/requests';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 const Page: React.FC = () => {
+  const router = useRouter();
+  const [base64Image, setBase64Image] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     username: '',
     name: '',
     displayText: '',
     bio: '',
-    profileImage: File,
   });
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
@@ -17,10 +19,22 @@ const Page: React.FC = () => {
       [e.target.name]: e.target.value,
     });
   };
+
+  const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      setBase64Image(base64String);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log('Form Submitted:', formData);
-
     try {
       const res = await request({
         method: 'PUT',
@@ -31,7 +45,7 @@ const Page: React.FC = () => {
             name: formData.name,
             displayText: formData.displayText,
             bio: formData.bio,
-            profileImage: formData.profileImage,
+            profileImage: base64Image,
           },
         },
         action: 'signin',
@@ -39,14 +53,18 @@ const Page: React.FC = () => {
 
       const data = await res.json();
       console.log('Response:', data);
+      router.push(`/${data.data.username}`);
     } catch (err) {
-      console.log('Error in submiting form', err);
+      console.log('Error in submitting form', err);
     }
   };
 
   return (
-    <section className="w-full min-h-screen flex items-center justify-center bg-[#0d1117] text-gray-200 px-4 sm:px-6 py-32">
-      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+    <section className="w-full min-h-screen flex flex-col items-center justify-center bg-[#0d1117] text-gray-200 px-4 sm:px-6 py-32">
+      {/* Page Heading */}
+      <h1 className="text-4xl font-bold text-white mb-8">Complete Your Profile</h1>
+
+      <form className="w-full max-w-md flex flex-col gap-4" onSubmit={handleSubmit}>
         <label htmlFor="username" className="block text-sm mb-1 text-gray-300">
           Username <span className="text-red-500">*</span>
           <input
@@ -106,14 +124,19 @@ const Page: React.FC = () => {
             id="profileImage"
             name="profileImage"
             accept="image/*"
-            onChange={handleChange}
+            onChange={handleImage}
             className="w-full bg-[#161b22] border border-gray-600 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 transition"
-            placeholder="profileImage"
           />
         </label>
-        <button type="submit">Submit</button>
+        <button
+          type="submit"
+          className="mt-4 bg-blue-600 hover:bg-blue-500 text-white font-semibold px-4 py-2 rounded transition"
+        >
+          Submit
+        </button>
       </form>
     </section>
   );
 };
+
 export default Page;

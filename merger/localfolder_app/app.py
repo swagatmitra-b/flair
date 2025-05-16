@@ -29,9 +29,10 @@ callback = FlwrFederatedCallback(
 
 # Define and compile the model
 model = keras.Sequential([
-    keras.layers.Flatten(input_shape=(28, 28)),
-    keras.layers.Dense(128, activation='relu'),
-    keras.layers.Dense(10, activation='softmax')
+    keras.Input(shape=(28, 28), name="input"),  # ← builds model immediately
+    keras.layers.Flatten(),
+    keras.layers.Dense(128, activation="relu"),
+    keras.layers.Dense(10, activation="softmax"),
 ])
 model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 

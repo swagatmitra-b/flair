@@ -15,7 +15,7 @@ export const createSignInData = async (address: string,  expiryInMins: number = 
         throw new Error('No wallet address provided to generate sign in data.');    
     }
     const now: Date = new Date();
-    const uri = process.env.href!;
+    const uri = process.env.HREF || 'http://localhost:4000';
     const currentUrl = new URL(uri);
     const domain = currentUrl.host;
     // default expiry time for phantom is 10 mins
@@ -49,7 +49,7 @@ export const createTreeMessageData = async (address: string,  expiryInMins: numb
         throw new Error('No wallet address provided to generate sign in data.');    
     }
     const now: Date = new Date();
-    const uri = process.env.href!;
+    const uri = process.env.HREF || 'http://localhost:4000';
     const currentUrl = new URL(uri);
     const domain = currentUrl.host;
     // default expiry time for phantom is 10 mins

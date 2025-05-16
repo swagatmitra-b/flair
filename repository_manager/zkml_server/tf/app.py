@@ -1,6 +1,3 @@
-# universal zkml server with support for both tensorflow and pytroch models
-# Debashish Buragohain
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
@@ -13,7 +10,6 @@ import zlib
 
 # Add backends
 import numpy as np
-import torch
 import tensorflow as tf
 
 app = Flask(__name__)
@@ -42,9 +38,7 @@ def make_random_array(dims):
 
 def to_backend(array: np.ndarray, backend: str):
     """Convert NumPy array to the chosen backend tensor/array."""
-    if backend == 'torch':
-        return torch.from_numpy(array)
-    elif backend == 'tensorflow':
+    if backend == 'tensorflow':
         return tf.convert_to_tensor(array)
     else:  # numpy
         return array
@@ -77,10 +71,10 @@ def upload_file():
 
     # backend
     backend = request.form.get('backend', 'numpy').lower()
-    if backend not in ('numpy', 'torch', 'tensorflow'):
+    if backend not in ('numpy', 'tensorflow'):
         return jsonify({
             'message': 'Unsupported backend',
-            'supported': ['numpy', 'torch', 'tensorflow']
+            'supported': ['numpy', 'tensorflow']
         }), 400
 
     # --- Async processing ---

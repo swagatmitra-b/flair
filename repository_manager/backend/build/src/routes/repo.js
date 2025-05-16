@@ -11,15 +11,12 @@ const repoRouter = Router();
 repoRouter.get('/', async (req, res) => {
     // extract the authorized public key
     const pk = authorizedPk(res);
-    prisma.repository
-        .findMany({
-        where: { ownerAddress: pk },
-    })
-        .then((repos) => {
+    prisma.repository.findMany({
+        where: { ownerAddress: pk }
+    }).then(repos => {
         res.status(200).json({ data: repos });
         return;
-    })
-        .catch((err) => {
+    }).catch(err => {
         console.error('Error fetching repositories:', err);
         res.status(400).send({ error: err });
         return;
@@ -29,9 +26,7 @@ repoRouter.get('/', async (req, res) => {
 repoRouter.get('/name/:name', async (req, res) => {
     const { name } = req.params;
     const pk = authorizedPk(res);
-    const matchRepo = await prisma.repository.findFirst({
-        where: { ownerAddress: pk, name },
-    });
+    const matchRepo = await prisma.repository.findFirst({ where: { ownerAddress: pk, name } });
     if (!matchRepo) {
         res.status(404).send({ error: { message: 'Repository not found.' } });
         return;
@@ -41,9 +36,7 @@ repoRouter.get('/name/:name', async (req, res) => {
 // getting the repository by the owneraddress/repo_name as is done in gihub
 repoRouter.get('/owner/:ownerAddress/name/:name', async (req, res) => {
     const { ownerAddress, name } = req.params;
-    const matchRepo = await prisma.repository.findFirst({
-        where: { ownerAddress, name },
-    });
+    const matchRepo = await prisma.repository.findFirst({ where: { ownerAddress, name } });
     if (!matchRepo) {
         res.status(404).send({ error: { message: 'Repository not found.' } });
         return;
@@ -70,44 +63,30 @@ repoRouter.post('/create', async (req, res) => {
         const pk = authorizedPk(res);
         const { metadata, name, } = req.body;
         if (!metadata || !name) {
-            res
-                .status(400)
-                .send({ error: { message: 'Name and metadata are required fields.' } });
+            res.status(400).send({ error: { message: 'Name and metadata are required fields.' } });
             return;
         }
-        if (name.includes(' ')) {
-            res
-                .status(400)
-                .send({
-                error: { message: 'Name of a repository cannot contain spaces.' },
-            });
+        if (name.includes(" ")) {
+            res.status(400).send({ error: { message: 'Name of a repository cannot contain spaces.' } });
             return;
         }
         if (!metadata.framework) {
-            res
-                .status(400)
-                .send({
-                error: { message: 'Framework is a required field in the metadata.' },
-            });
+            res.status(400).send({ error: { message: 'Framework is a required field in the metadata.' } });
             return;
         }
         // check to ensure that the combination of the user and the repository name is unique
         const existingRepo = await prisma.repository.findFirst({
             where: {
                 ownerAddress: pk,
-                name: name,
-            },
+                name: name
+            }
         });
         if (existingRepo) {
-            res
-                .status(400)
-                .send({
-                error: { message: 'You already have a repository with this name.' },
-            });
+            res.status(400).send({ error: { message: 'You already have a repository with this name.' } });
             return;
         }
         const owner = await prisma.user.findFirst({
-            where: { wallet: pk },
+            where: { wallet: pk }
         });
         if (!owner) {
             res.status(401).send({ error: { message: 'User not found!' } });
@@ -127,11 +106,11 @@ repoRouter.post('/create', async (req, res) => {
                         framework: metadata.framework,
                         useCase: metadata.useCase || undefined,
                         description: metadata.description || undefined,
-                    },
+                    }
                 },
                 repoHash: uuidv4(),
-                ownerId: owner.id,
-            },
+                ownerId: owner.id
+            }
         });
         res.status(201).json({ data: repository });
         return;
@@ -148,55 +127,40 @@ repoRouter.patch('/hash/:repoHash/update', async (req, res) => {
         const { repoHash } = req.params;
         const { name, addContributorIds = [], removeContributorIds = [], addAdminIds = [], removeAdminIds = [], addWriteAccessIds = [], removeWriteAccessIds = [], metadata, } = req.body;
         if (!repoHash) {
-            res
-                .status(400)
-                .send({
-                error: { message: 'Repository hash not provided to update.' },
-            });
+            res.status(400).send({ error: { message: 'Repository hash not provided to update.' } });
             return;
         }
-        if (!metadata &&
-            !addContributorIds.length &&
-            !removeContributorIds.length &&
-            !addAdminIds.length &&
-            !removeAdminIds.length &&
-            !addWriteAccessIds.length &&
-            !removeWriteAccessIds.length) {
-            res
-                .status(400)
-                .send({ error: { message: 'No fields provided to update.' } });
+        if (!metadata && !addContributorIds.length && !removeContributorIds.length && !addAdminIds.length && !removeAdminIds.length && !addWriteAccessIds.length && !removeWriteAccessIds.length) {
+            res.status(400).send({ error: { message: 'No fields provided to update.' } });
             return;
         }
         // Find the repository
         const match = await prisma.repository.findUnique({ where: { repoHash } });
         if (!match) {
-            res
-                .status(404)
-                .send({ error: { message: 'Repository does not exist.' } });
+            res.status(404).send({ error: { message: 'Repository does not exist.' } });
             return;
         }
         // Check if the user is the owner or an admin
-        const isAdmin = match.ownerAddress === pk ||
-            (match.adminIds && match.adminIds.includes(pk));
+        const isAdmin = match.ownerAddress === pk || (match.adminIds && match.adminIds.includes(pk));
         if (!isAdmin) {
-            res
-                .status(401)
-                .send({
-                error: {
-                    message: 'Unauthorized. Only admins can update repository details.',
-                },
-            });
+            res.status(401).send({ error: { message: 'Unauthorized. Only admins can update repository details.' } });
             return;
         }
         // Prepare updates for contributors and admins
-        const updatedContributorIds = Array.from(new Set([...(match.contributorIds || []), ...addContributorIds].filter((id) => !removeContributorIds.includes(id))));
-        const updatedAdminIds = Array.from(new Set([...(match.adminIds || []), ...addAdminIds].filter((id) => !removeAdminIds.includes(id))));
-        const updatedWriteAccessIds = Array.from(new Set([...(match.writeAccessIds || []), ...addWriteAccessIds].filter((id) => !removeWriteAccessIds.includes(id))));
+        const updatedContributorIds = Array.from(new Set([
+            ...(match.contributorIds || []),
+            ...addContributorIds
+        ].filter(id => !removeContributorIds.includes(id))));
+        const updatedAdminIds = Array.from(new Set([
+            ...(match.adminIds || []),
+            ...addAdminIds
+        ].filter(id => !removeAdminIds.includes(id))));
+        const updatedWriteAccessIds = Array.from(new Set([
+            ...(match.writeAccessIds || []),
+            ...addWriteAccessIds
+        ].filter(id => !removeWriteAccessIds.includes(id))));
         const exisingMetadata = match.metadata || {};
-        const updatedMetdata = {
-            ...exisingMetadata,
-            ...metadata,
-        };
+        const updatedMetdata = { ...exisingMetadata, ...metadata };
         // Update the repository
         const updatedRepo = await prisma.repository.update({
             where: { id: match.id },
@@ -236,26 +200,20 @@ repoRouter.delete('/hash/:repoHash/delete', async (req, res) => {
     const pk = authorizedPk(res);
     try {
         const matchedRepo = await prisma.repository.findUnique({
-            where: { repoHash },
+            where: { repoHash }
         });
         if (!matchedRepo) {
             res.status(404).send({ error: { message: 'Repository not found.' } });
             return;
         }
         if (matchedRepo.ownerAddress !== pk && !matchedRepo.adminIds.includes(pk)) {
-            res
-                .status(401)
-                .send({
-                error: {
-                    message: 'Unauthorized. Only a creator or an admin can delete the branch.',
-                },
-            });
+            res.status(401).send({ error: { message: 'Unauthorized. Only a creator or an admin can delete the branch.' } });
             return;
         }
         // get all the branches for this repository
         const branches = await prisma.branch.findMany({
             where: { repositoryId: matchedRepo.id },
-            select: { id: true },
+            select: { id: true }
         });
         // delete all the commits for each branch and then the branch iself
         for (const branch of branches) {
@@ -286,12 +244,7 @@ repoRouter.delete('/hash/:repoHash/delete', async (req, res) => {
         // Update the repository's updatedAt field
         const deletedRepo = await prisma.repository.delete({ where: { repoHash } });
         // inform the client that the repo has been deleted successfully
-        res
-            .status(200)
-            .json({
-            message: 'The repository and its associated branches and commits deleted successfully.',
-            deleted: deletedRepo,
-        });
+        res.status(200).json({ message: 'The repository and its associated branches and commits deleted successfully.', deleted: deletedRepo });
     }
     catch (err) {
         console.error('Error deleting branch: ', err);
@@ -302,12 +255,10 @@ repoRouter.delete('/hash/:repoHash/delete', async (req, res) => {
 repoRouter.use('/hash/:repoHash/branch', async (req, res, next) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({
-        where: { repoHash },
+        where: { repoHash }
     });
     if (!matchRepo) {
-        res
-            .status(404)
-            .send({ error: { message: 'Repository does not exist.' } });
+        res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
     // set the repoId in the request object
@@ -319,12 +270,10 @@ repoRouter.use('/hash/:repoHash/branch', async (req, res, next) => {
 repoRouter.use('/hash/:repoHash/basemodel', async (req, res, next) => {
     const { repoHash } = req.params;
     const matchRepo = await prisma.repository.findFirst({
-        where: { repoHash },
+        where: { repoHash }
     });
     if (!matchRepo) {
-        res
-            .status(404)
-            .send({ error: { message: 'Repository does not exist.' } });
+        res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
     // cannot upload a new model to the same repository

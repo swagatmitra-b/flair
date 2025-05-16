@@ -1,5 +1,6 @@
 'use client';
 
+import Repositories from '@/components/dashboard/Repositories';
 import ModelStats from '@/components/ModelStats';
 import Readme from '@/components/Readme';
 import { request } from '@/lib/requests';
@@ -11,7 +12,7 @@ import { use, useEffect, useState } from 'react';
 
 const Page = (props: { params: Promise<{ repo_name: string }> }) => {
   const { repo_name } = use(props.params);
-
+  const repo_hash = '5345c1b8-49ff-4ece-8bdd-c44a8d7701ce';
   const [repoDetails, setRepoDetails] = useState<{
     name: string;
     description: string;
@@ -19,36 +20,20 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
     useCase: string;
     repoHash: string;
     framework: string;
+    contributorIds: string[];
   } | null>(null);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await request({
-          method: 'GET',
-          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/name/${repo_name}`,
-          action: 'signin',
-        });
-        const data = await response.json();
-        console.log('Repo Details:', data);
-        setRepoDetails({
-          name: data.data.name,
-          description: data.data.metadata.description,
-          creator: data.data.metadata.creator,
-          useCase: data.data.metadata.useCase,
-          framework: data.data.metadata.framework,
-          repoHash: data.data.repoHash,
-        });
-        setAboutText(data.data.metadata.description);
-        setFramework(data.data.metadata.framework);
-        setUseCases(data.data.metadata.useCase);
-        setContributors(data.data.contributorIds);
-      } catch (err) {
-        console.log('Error in Fetching Repo Details:', err);
-      }
-    };
-    fetchData();
-  }, [repoDetails]);
+  const [creatorDetails, setCreatorDetails] = useState<{
+    username: string;
+    name: string;
+    id: string;
+    profileImage: string;
+  } | null>(null);
+  const [branch, setBranch] = useState<{
+    id: string;
+    hash: string;
+    name: string;
+    description: string;
+  } | null>(null);
 
   // --- About section ---
   const [isEditingAbout, setIsEditingAbout] = useState(false);
@@ -69,7 +54,8 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
 
   // --- Contributors section ---
   const [isEditingContributors, setIsEditingContributors] = useState(false);
-  const [contributors, setContributors] = useState<string[]>([]);
+  const [contributors, setContributors] = useState<{ id: string; username: string }[]>([]);
+  const [contributorIds, setContributorIds] = useState<string[]>([]);
   const [newContributorId, setNewContributorId] = useState<string>('');
   const [addContributorIds, setAddContributorIds] = useState<string[]>([]);
   const [removeContributorIds, setRemoveContributorIds] = useState<string[]>([]);
@@ -82,6 +68,108 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
     setAddContributorIds(prev => [...prev, newContributorId]);
     setNewContributorId('');
   };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await request({
+          method: 'GET',
+          // url: `${process.env.NEXT_PUBLIC_API_URL}/repo/name/${repo_name}`,
+          url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}`,
+          action: 'signin',
+        });
+        const data = await response.json();
+        console.log('Repo Details:', data);
+        setRepoDetails({
+          name: data.data.name,
+          description: data.data.metadata.description,
+          creator: data.data.metadata.creator,
+          useCase: data.data.metadata.useCase,
+          framework: data.data.metadata.framework,
+          repoHash: data.data.repoHash,
+          contributorIds: data.data.contributorIds,
+        });
+      } catch (err) {
+        console.log('Error in Fetching Repo Details:', err);
+      }
+    };
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (repoDetails) {
+      setAboutText(repoDetails.description);
+      setFramework(repoDetails.framework);
+      setUseCases(repoDetails.useCase);
+      setContributorIds(repoDetails.contributorIds);
+
+      const fetchContributors = async (id: string) => {
+        try {
+          const response = await request({
+            method: 'GET',
+            url: `${process.env.NEXT_PUBLIC_API_URL}/user/user/${id}`,
+            action: 'signin',
+          });
+          const data = await response.json();
+          return data.data.username;
+        } catch (err) {
+          console.log('Error in fetching contributors data', err);
+        }
+      };
+      setContributors([]);
+      for (const id of repoDetails.contributorIds) {
+        fetchContributors(id)
+          .then(username => {
+            setContributors(prev => [...prev, { id, username }]);
+          })
+          .catch(err => {
+            console.log('Error in fetching contributors data', err);
+          });
+      }
+
+      const fetchCreator = async () => {
+        try {
+          const response = await request({
+            method: 'GET',
+            url: `${process.env.NEXT_PUBLIC_API_URL}/user/user/${repoDetails.creator}`,
+            action: 'signin',
+          });
+          const data = await response.json();
+          console.log('Creator Details:', data);
+          setCreatorDetails({
+            username: data.data.username,
+            name: data.data.metadata.name,
+            id: data.data.id,
+            profileImage: data.data.metadata.profileImage,
+          });
+        } catch (err) {
+          console.log('Error in Fetching Creators Data', err);
+        }
+      };
+      fetchCreator();
+
+      const fetchBranch = async () => {
+        try {
+          const response = await request({
+            method: 'GET',
+            url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repo_hash}/branch`,
+            action: 'signin',
+          });
+          const data = await response.json();
+          setBranch({
+            id: data.data.id,
+            hash: data.data.branchHash,
+            name: data.data.name,
+            description: data.data.description,
+          });
+          console.log('Branch Details', data);
+        } catch (err) {
+          console.log('Error in fetching the branch', err);
+        }
+      };
+      fetchBranch();
+    }
+  }, [repoDetails]);
 
   const handleSave = async () => {
     // NOt working
@@ -110,6 +198,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
       useCase: data.data.metadata.useCase,
       framework: data.data.metadata.framework,
       repoHash: data.data.repoHash,
+      contributorIds: data.data.contributorIds,
     });
     setIsEditingAbout(false);
     setIsEditingFramework(false);
@@ -124,6 +213,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
         <Image
           className="rounded-full h-10 w-10"
           src={'/dummy/profile.png'}
+          // src={creatorDetails?.profileImage ? creatorDetails?.profileImage : '/dummy/profile.png'}
           width={40}
           height={40}
           alt="creatorAvatar"
@@ -174,34 +264,36 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
           <hr className="border-gray-500" />
           {/* About Section */}
           {aboutText && (
-            <div className="flex flex-col gap-2">
-              <div className="flex justify-between w-full">
-                <h3 className="text-lg font-semibold text-white">About</h3>
-                <button
-                  onClick={() => setIsEditingAbout(!isEditingAbout)}
-                  className="hover:text-blue-400"
-                >
-                  {}
-                  {isEditingAbout ? <X size={16} /> : <Pencil size={16} />}
-                </button>
-              </div>
-              {isEditingAbout ? (
-                <div className="flex flex-col gap-2">
-                  <textarea
-                    style={{ scrollbarWidth: 'none' }}
-                    placeholder="Write about the model..."
-                    value={aboutText}
-                    onChange={e => setAboutText(e.target.value)}
-                    className="w-full bg-[#0d1117] text-sm text-gray-500 border border-gray-600 p-2 rounded-md focus:outline-none"
-                    rows={5}
-                  />
+            <>
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between w-full">
+                  <h3 className="text-lg font-semibold text-white">About</h3>
+                  <button
+                    onClick={() => setIsEditingAbout(!isEditingAbout)}
+                    className="hover:text-blue-400"
+                  >
+                    {}
+                    {isEditingAbout ? <X size={16} /> : <Pencil size={16} />}
+                  </button>
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500">{aboutText}</p>
-              )}
-            </div>
+                {isEditingAbout ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea
+                      style={{ scrollbarWidth: 'none' }}
+                      placeholder="Write about the model..."
+                      value={aboutText}
+                      onChange={e => setAboutText(e.target.value)}
+                      className="w-full bg-[#0d1117] text-sm text-gray-500 border border-gray-600 p-2 rounded-md focus:outline-none"
+                      rows={5}
+                    />
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">{aboutText}</p>
+                )}
+              </div>
+              <hr className="border-gray-500" />
+            </>
           )}
-          <hr className="border-gray-500" />
           {/* Model URI Section
           {modelURI && (
             <div className="flex flex-col gap-1">
@@ -314,7 +406,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
           )}{' '}
           <hr className="border-gray-500" />
           {/* Contributors Section */}
-          {contributors && (
+          {contributorIds && (
             <>
               <div className="flex flex-col gap-2">
                 <div className="flex justify-between w-full">
@@ -331,7 +423,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
                   <div className="flex flex-col gap-3">
                     {/* Existing contributors with remove option */}
                     <div className="flex flex-wrap gap-2">
-                      {contributors.map((contributorId, index) => (
+                      {contributorIds.map((contributorId, index) => (
                         <div
                           key={index}
                           className="flex items-center gap-1 bg-gray-700 px-2 py-1 rounded text-sm text-gray-300"
@@ -367,13 +459,14 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
                   </div>
                 ) : (
                   <div className="flex gap-2 flex-wrap">
-                    {contributors.map((contributorId, index) => (
-                      <span
-                        key={index}
+                    {contributors.map(({ id, username }) => (
+                      <Link
+                        key={id}
+                        href={`/${username}`}
                         className="bg-gray-700 px-2 py-1 rounded text-sm text-gray-300"
                       >
-                        {contributorId}
-                      </span>
+                        {username}
+                      </Link>
                     ))}
                   </div>
                 )}

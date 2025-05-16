@@ -1,10 +1,11 @@
 'use client';
-import { Cross, House, X } from 'lucide-react';
+import { Cross, House, Router, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { LocalStorageTokenGen } from '@/lib/auth/general';
 import { log } from 'console';
+import { useRouter } from 'next/navigation';
 
 type SidebarProps = {
   close: (isOpen: boolean) => void;
@@ -12,7 +13,7 @@ type SidebarProps = {
 
 const Sidebar: React.FC<SidebarProps> = ({ close }) => {
   const [sidebarWidth, setSidebarWidth] = useState(0);
-
+  const router = useRouter();
   useEffect(() => {
     const timer = setTimeout(() => setSidebarWidth(280), 10);
     return () => clearTimeout(timer);
@@ -26,8 +27,9 @@ const Sidebar: React.FC<SidebarProps> = ({ close }) => {
   };
 
   const logout = () => {
-    // clears the auth tokens from the local storage
     LocalStorageTokenGen.clearToken();
+    localStorage.removeItem('user');
+    router.push('/login');
     console.log('Logged out.');
   };
 

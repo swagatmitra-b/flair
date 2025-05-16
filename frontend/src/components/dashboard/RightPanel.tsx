@@ -19,6 +19,7 @@ const RightPanel: React.FC = () => {
   const [tabNo, setTabNo] = useState(1);
   const [repos, setRepos] = useState<Repo[]>([]);
 
+  // fetching the repo of the my account not the user which is searched
   useEffect(() => {
     const fetchRepos = async () => {
       try {
@@ -58,7 +59,7 @@ const RightPanel: React.FC = () => {
           </button>
         ))}
       </div>
-      {tabNo === 1 && <About />}
+      {tabNo === 1 && <About repos={repos} />}
       {tabNo === 2 && <Repositories repos={repos} />}
       {tabNo === 3 && <div>Logs</div>}
       {tabNo === 4 && <Settings />}
