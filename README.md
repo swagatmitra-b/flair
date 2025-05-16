@@ -15,14 +15,13 @@ Flair is different from other collaborative ML platforms like Hugging Face becau
 - ✅ Full Ownership – Every commit you make is recorded as an NFT, proving your intellectual work.
 - ✅ Access Control – Only authorized people can access model details, ensuring total security.
 
-🛠 How It Works
+## 🛠 How It Works
 - 1️⃣ Upload a model – Start by creating a new ML model repository.
 - 2️⃣ Invite trusted collaborators – Just like GitHub, invite contributors to train the model.
 - 3️⃣ Train Locally – Models are trained on personal devices—your data never leaves your system.
 - 4️⃣ Share Updates, Not Data – Only model updates (not the actual data) are shared and merged.
 - 5️⃣ Verify with Zero-Knowledge Proofs – Contributions are checked for authenticity without exposing any data.
 - 6️⃣ Own Your Work – Every update is stored as an NFT, ensuring proof of contribution.
-
 
 ## 🔗 Supported Framework
 - PyTorch

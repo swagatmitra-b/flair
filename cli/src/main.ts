@@ -9,6 +9,7 @@ import {
   sanitizePythonPath,
   getContentType,
 } from "../lib/utils.ts";
+import { API_URL } from "./env.ts";
 
 const program = new Command();
 const abort = async () => {
@@ -72,6 +73,11 @@ program
     "Absolute path to module containing model with respect to .flair"
   )
   .option("-m, --model [type:string]", "Name of model instance")
+  .option(
+    "-a, --data-path [type:string]",
+    "Absolute path to dataset with respect to .flair"
+  )
+  .option("-i, --data-instance [type:string]", "Name of dataset instance")
   .option("-s, --set", "", {
     default: true,
     conflicts: ["description"],
@@ -128,75 +134,50 @@ program
   })
   .action(async (options: meltOptions, _: void) => {
     await bruteFlairSearch();
-    flair.melt(options);
+    // flair.melt(options);
   })
   .command("signin")
   .action(async () => {
     await bruteFlairSearch();
-    if (!store.checkSignIn()) {
-      console.log("Already signed in");
-      return;
-    }
-    const url = "http://localhost:2000/";
-    const start =
-      Deno.build.os === "darwin"
-        ? "open"
-        : Deno.build.os === "windows"
-        ? "cmd"
-        : "xdg-open";
-
-    const args = Deno.build.os === "windows" ? ["/c", "start", url] : [url];
-    const ac = new AbortController();
-    Deno.serve({ port: 2000, signal: ac.signal }, async (req) => {
-      const url = new URL(req.url);
-      const pathname = url.pathname;
-      if (req.method === "GET" && pathname === "/") {
-        const html = await Deno.readTextFile("lib/spa/index.html");
-        return new Response(html, {
-          status: 200,
-          headers: { "Content-Type": "text/html" },
-        });
-      }
-
-      if (pathname.startsWith("/assets/")) {
-        const filePath = `lib/spa${pathname}`;
-        try {
-          const file = await Deno.readFile(filePath);
-          const contentType = getContentType(pathname);
-          return new Response(file, {
-            status: 200,
-            headers: { "Content-Type": contentType },
-          });
-        } catch (_) {
-          return new Response("Asset not found", { status: 404 });
-        }
-      }
-
-      if (req.method === "POST" && req.body) {
-        const { authToken, wallet } = await req.json();
-        if (!authToken || !wallet) {
-          console.log("Could not sign in. Please try again.");
-          ac.abort();
-        }
-        await store.walletSignIn(authToken, wallet);
-        ac.abort();
-        console.log("Successfully signed into Flair")
-        return new Response("Success");
-      }
-
-      return new Response("404 - Not Found", { status: 404 });
-    });
-
-    const a = new Deno.Command(start, { args });
-    await a.output();
+    await store.signIn();
   })
   .command("out")
   .action(async () => {
     await bruteFlairSearch();
     store.walletSignOut();
   })
-  .command("model")
-  .action(() => {})
+  .command("create-collection")
+  .action(async () => {
+    try {
+      const { token, repo_hash } = store.getCreds();
+      const res = await fetch(
+        `${API_URL}/repo/hash/${repo_hash}/create_collection`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      console.log("Created repo collection with address:", data.data);
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  })
+  .command("create-nft")
+  .arguments("<commit-hash>")
+  .action(async (_: void, commitHash: string) => {
+    try {
+      const { branch_hash } = store.getCurrentBranch();
+      const { token, repo_hash } = store.getCreds();
+      const res = await fetch(
+        `${API_URL}/repo/hash/${repo_hash}/branch/hash/${branch_hash}/commit/hash/${commitHash}/createNft`,
+        { method: "POST", headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      console.log(data);
+      // console.log('Created commit NFT with address:', data.data);
+      console.log("Commit NFT created on Solana.");
+    } catch (err) {
+      console.error("Error:", err);
+    }
+  })
   // .command("rollback")
   // .action(() => {})
   // .command("fetch")

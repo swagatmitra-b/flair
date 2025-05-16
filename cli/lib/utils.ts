@@ -1,7 +1,7 @@
 export const generateRandomHash = () => crypto.randomUUID().split("-").join("");
 
 export const hashFile = async (hash: string) => {
-  const fileData = await Deno.readFile(`.flair/weights/${hash}.pth`);
+  const fileData = await Deno.readFile(`flair/weights/${hash}.pth`);
   const hashBuffer = await crypto.subtle.digest("SHA-256", fileData);
 
   return Array.from(new Uint8Array(hashBuffer))
@@ -50,11 +50,11 @@ export const spinner = new Spinner();
 export const bruteFlairSearch = async (level: number = 0) => {
   if (level > 12) {
     console.log("Directory nesting goes brr...");
-    console.log("/.flair not found");
+    console.log("/flair not found");
     Deno.exit(0);
   }
   try {
-    const fileInfo = await Deno.stat(".flair");
+    const fileInfo = await Deno.stat("flair");
     if (fileInfo.isDirectory) return;
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {

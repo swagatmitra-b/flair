@@ -3,6 +3,7 @@ export const creds = `
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           token TEXT UNIQUE NOT NULL,
           wallet TEXT UNIQUE NOT NULL,
+          repo_hash TEXT UNIQUE,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `;
@@ -10,6 +11,7 @@ export const branches = `
       CREATE TABLE IF NOT EXISTS branches (
           branch_id INTEGER PRIMARY KEY AUTOINCREMENT,
           branch_name TEXT UNIQUE NOT NULL,
+          branch_hash TEXT UNIQUE NOT NULL,
           current BOOLEAN NOT NULL DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
