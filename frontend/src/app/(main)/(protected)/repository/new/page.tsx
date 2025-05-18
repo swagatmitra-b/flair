@@ -1,27 +1,57 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
+import { request } from '@/lib/requests';
+import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 
 const Page: React.FC = () => {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     usecase: '',
     frameworks: '',
-  })
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
-    })
-  }
-
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    console.log('Form Submitted:', formData)
-    alert('Repository Created!')
-  }
+    });
+  };
+  // working
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('Form Submitted:', formData);
+    try {
+      const response = await request({
+        method: 'POST',
+        url: `${process.env.NEXT_PUBLIC_API_URL}/repo/create`,
+        data: {
+          name: formData.name,
+          metadata: {
+            name: formData.name,
+            description: formData.description,
+            useCase: formData.usecase,
+            framework: formData.frameworks,
+          },
+        },
+        action: 'signin',
+      });
+      const data = await response.json();
+      console.log('Response:', data);
+      if (data.data) {
+        toast.success('Repository created successfully');
+        router.push(`/repository/${data.data.repoHash}`);
+      } else if (data.error) {
+        toast.error(data.error.message);
+      }
+    } catch (err) {
+      toast.error('Error creating repository');
+      console.log('repo creation error', err);
+    }
+  };
 
   return (
     <section className="min-h-screen bg-[#0d1117] text-gray-200 px-4 sm:px-6 py-32">
@@ -108,7 +138,7 @@ const Page: React.FC = () => {
         </form>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default Page
+export default Page;

@@ -1,16 +1,19 @@
-import ModelStats from '@/components/ModelStats'
-import Readme from '@/components/Readme'
-import { ChevronRight, History } from 'lucide-react'
-import Image from 'next/image'
-import Link from 'next/link'
+import ModelStats from '@/components/ModelStats';
+import Readme from '@/components/Readme';
+import Image from 'next/image';
 
-const Page = ({
-  params,
-}: {
-  params: { username: string; repo_name: string; commitHash: string }
-}) => {
-  const { username, repo_name, commitHash } = params
-  const commitNo = 3
+interface PageProps {
+  params: {
+    username: string;
+    repo_name: string;
+    commitHash: string;
+  };
+}
+
+const Page = ({ params }: PageProps) => {
+  const { username, repo_name, commitHash } = params;
+  console.log(commitHash);
+  const commitNo = 3;
   return (
     <section className="min-h-screen bg-[#0d1117] w-full pt-20 px-40">
       <div className="flex items-center gap-4 border-b border-gray-500 pb-3 px-10">
@@ -82,7 +85,7 @@ const Page = ({
         </div>
       </div>
     </section>
-  )
-}
+  );
+};
 
-export default Page
+export default Page;

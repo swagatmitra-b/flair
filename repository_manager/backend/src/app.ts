@@ -6,10 +6,16 @@ import morgan from 'morgan';
 import cors from 'cors';
 import { signInContext } from './middleware/auth/index.js';
 import {
-  authHandler
+  authHandler,
   // ByPassAuth
 } from './middleware/auth/index.js';
-import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
+import {
+  authRouter,
+  repoRouter,
+  treeRouter,
+  backendWalletRouter,
+  userRouter,
+} from './routes/index.js';
 import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 
 const PORT = parseInt(process.env.PORT!) || 4000;
@@ -76,21 +82,23 @@ app.use('/', (req, res) => {
 });
 
 app.use('/auth', authRouter);
-
 app.use('/user', authHandler(signInContext), userRouter);
 
 // authorized routes
-app.use('/repo',
+app.use(
+  '/repo',
   // uncomment this when you want to bypass authentication
   // ByPassAuth(signInContext),
   authHandler(signInContext),
-  repoRouter);
+  repoRouter,
+);
 
 // backend wallet is restricted to be accessed only from localhost
-app.use('/systemWallet',
+app.use(
+  '/systemWallet',
   authHandler(signInContext),
   // restrictToLocalHost,       uncomment to restrict this route only to the local host
-  backendWalletRouter
+  backendWalletRouter,
 );
 
 // for the tree route we need to attach the middlewares on individual routes

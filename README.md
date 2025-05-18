@@ -24,7 +24,7 @@ Flair is different from other collaborative ML platforms like Hugging Face becau
 - 6️⃣ Own Your Work – Every update is stored as an NFT, ensuring proof of contribution.
 
 ## 🔗 Supported Framework
-- PyTorch
+- TensorFlow 
 
 ## 🚀 Get Started
 - Create a new repository

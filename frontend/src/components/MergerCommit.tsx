@@ -1,32 +1,32 @@
-'use client'
-import type { TypeCommit, TypeMergerCommitGroup } from '@/lib/types'
-import Image from 'next/image'
-import { useEffect, useState } from 'react'
-import Commit from './Commit'
-import { formatDate, formatTime, getMergedRejectedAndPendingCount } from '@/lib'
-import { ChevronRight, Unlink2 } from 'lucide-react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+'use client';
+import type { TypeMergerCommitGroup } from '@/lib/types';
+import Image from 'next/image';
+import { useEffect, useState } from 'react';
+import Commit from './Commit';
+import { formatDate, formatTime, getMergedRejectedAndPendingCount } from '@/lib';
+import { Unlink2 } from 'lucide-react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 type MergerCommitProps = {
-  mergerCommit: TypeMergerCommitGroup['mergerCommit']
-  commits: TypeMergerCommitGroup['commits']
-  mergerCommitNo: number
-}
+  mergerCommit: TypeMergerCommitGroup['mergerCommit'];
+  commits: TypeMergerCommitGroup['commits'];
+  mergerCommitNo: number;
+};
 
 const MergerCommit: React.FC<MergerCommitProps> = ({ mergerCommit, commits, mergerCommitNo }) => {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const { mergedCount, rejectedCount, pendingCount } = getMergedRejectedAndPendingCount(commits)
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { mergedCount, rejectedCount, pendingCount } = getMergedRejectedAndPendingCount(commits);
 
-  const pathname = usePathname()
-  const [username, setUsername] = useState('')
-  const [repoName, setRepoName] = useState('')
+  const pathname = usePathname();
+  const [username, setUsername] = useState('');
+  const [repoName, setRepoName] = useState('');
   useEffect(() => {
-    const parts = pathname.split('/')
-    setUsername(parts[1])
-    setRepoName(parts[2])
-    console.log('Username:', username, 'Repo Name:', repoName)
-  }, [pathname])
+    const parts = pathname.split('/');
+    setUsername(parts[1]);
+    setRepoName(parts[2]);
+    console.log('Username:', username, 'Repo Name:', repoName);
+  }, [pathname]);
 
   return (
     <div onClick={() => setIsExpanded(!isExpanded)} className="w-full h-full px-4 flex flex-col">
@@ -77,7 +77,7 @@ const MergerCommit: React.FC<MergerCommitProps> = ({ mergerCommit, commits, merg
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default MergerCommit
+export default MergerCommit;

@@ -1,9 +1,9 @@
-import HomeNavbar from './HomeNavbar'
-import ProfileNavbar from './ProfileNavbar'
+import HomeNavbar from './HomeNavbar';
+// import ProfileNavbar from './ProfileNavbar';
 
 const FinalNavbar: React.FC = () => {
   // return <ProfileNavbar />
-  return <HomeNavbar />
-}
+  return <HomeNavbar />;
+};
 
-export default FinalNavbar
+export default FinalNavbar;

@@ -4,10 +4,10 @@ import express from 'express';
 import morgan from 'morgan';
 import cors from 'cors';
 import { signInContext } from './middleware/auth/index.js';
-import { authHandler
+import { authHandler,
 // ByPassAuth
  } from './middleware/auth/index.js';
-import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter } from './routes/index.js';
+import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter, } from './routes/index.js';
 const PORT = parseInt(process.env.PORT) || 4000;
 const app = express();
 // Middleware
