@@ -1,4 +1,4 @@
-# 🚀 Flair – Privacy-Preserving ML Collaboration
+# 🚀 Flair – A Git-like cli for privacy preserving ML training.
 Train machine learning models together without ever sharing your private data.
 
 When you train an AI, it usually needs access to data. But what if your data is private—like hospital patient records, financial transactions, or personal AI assistants? With Flair, your data stays on your device.
