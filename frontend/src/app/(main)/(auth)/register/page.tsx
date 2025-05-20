@@ -39,7 +39,7 @@ const Page: React.FC = () => {
       const res = await request({
         method: 'PUT',
         url: `${process.env.NEXT_PUBLIC_API_URL}/user/update`,
-        data: {
+        data: JSON.stringify({
           username: formData.username,
           metadata: {
             name: formData.name,
@@ -47,7 +47,7 @@ const Page: React.FC = () => {
             bio: formData.bio,
             profileImage: base64Image,
           },
-        },
+        }),
         action: 'signin',
       });
 
