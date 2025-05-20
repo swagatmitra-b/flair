@@ -40,7 +40,7 @@ export const siwsRequest = async (contents: requestParams) => {
       'Content-Type': 'application/json',
       Authorization: `Bearer siws${token}`,
     },
-    body: data ? JSON.stringify(data) : undefined,
+    body: data ? data : undefined,
     method: method ? method : data ? 'POST' : 'GET',
   })
     .then(r => r.json())
@@ -69,7 +69,7 @@ export const genRequest = async (contents: requestParams): Promise<Response> => 
           'Content-Type': 'application/json',
           Authorization: `Bearer universal${localStorageToken}`,
         },
-        body: data ? JSON.stringify(data) : undefined,
+        body: data ? data : undefined,
         method: method ? method : data ? 'POST' : 'GET',
       });
     } else {
@@ -110,7 +110,7 @@ export const verifyToken = (memoryToken: string, action: string): boolean => {
 export interface requestParams {
   method?: string;
   url: string;
-  data?: string;
+  data?: string;   // is a JSON.stringify of the data
   action?: string; // action is necessary for all requests now
 }
 

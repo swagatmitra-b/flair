@@ -30,7 +30,7 @@ const RightPanel: React.FC = () => {
         });
         const data = await response.json();
         setRepos(
-          data.data.map(repo => ({
+          data.data.map((repo: any) => ({
             name: repo.name,
             description: repo.metadata.description,
             updatedAt: repo.updatedAt,

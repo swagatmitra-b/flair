@@ -243,7 +243,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
     const response = await request({
       method: 'PATCH',
       url: `${process.env.NEXT_PUBLIC_API_URL}/repo/hash/${repoDetails?.repoHash}/update`,
-      data: {
+      data: JSON.stringify({
         metadata: {
           name: repoDetails?.name,
           description: aboutText,
@@ -253,7 +253,7 @@ const Page = (props: { params: Promise<{ repo_name: string }> }) => {
         },
         addContributorIds: addContributorIds,
         removeContributorIds: removeContributorIds,
-      },
+      }),
       action: 'signin',
     });
     const data = await response.json();

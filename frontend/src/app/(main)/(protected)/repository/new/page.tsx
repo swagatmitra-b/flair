@@ -28,7 +28,7 @@ const Page: React.FC = () => {
       const response = await request({
         method: 'POST',
         url: `${process.env.NEXT_PUBLIC_API_URL}/repo/create`,
-        data: {
+        data: JSON.stringify({
           name: formData.name,
           metadata: {
             name: formData.name,
@@ -36,7 +36,7 @@ const Page: React.FC = () => {
             useCase: formData.usecase,
             framework: formData.frameworks,
           },
-        },
+        }),
         action: 'signin',
       });
       const data = await response.json();

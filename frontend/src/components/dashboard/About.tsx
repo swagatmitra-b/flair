@@ -27,7 +27,7 @@ const About: React.FC<RepositoriesProps> = ({ repos }) => {
       const res = await request({
         method: 'PUT',
         url: `${process.env.NEXT_PUBLIC_API_URL}/user/update`,
-        data: {
+        data: JSON.stringify({
           username: username,
           metadata: {
             name: name,
@@ -35,7 +35,7 @@ const About: React.FC<RepositoriesProps> = ({ repos }) => {
             bio: bio,
             profileImage: profileImage,
           },
-        },
+        }),
         action: 'signin',
       });
 

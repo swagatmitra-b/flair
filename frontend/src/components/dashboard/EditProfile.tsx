@@ -3,6 +3,7 @@
 import { request } from '@/lib/requests';
 import Image from 'next/image';
 import { useState } from 'react';
+import { toast } from 'react-toastify';
 
 type inputProps = {
   close: (isOpen: boolean) => void;
@@ -33,7 +34,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
       const res = await request({
         method: 'PUT',
         url: `${process.env.NEXT_PUBLIC_API_URL}/user/update`,
-        data: {
+        data: JSON.stringify({
           username: formData.username,
           metadata: {
             name: formData.name,
@@ -41,7 +42,7 @@ const EditProfile: React.FC<inputProps> = ({ close, data }) => {
             bio: formData.bio,
             profileImage: base64Image,
           },
-        },
+        }),
         action: 'signin',
       });
 

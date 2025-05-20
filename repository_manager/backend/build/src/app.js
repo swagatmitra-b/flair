@@ -26,8 +26,21 @@ app.use(express.urlencoded({
 }));
 // trust the proxy
 app.set('trust proxy', true);
+app.use('/auth', authRouter);
+app.use('/user', authHandler(signInContext), userRouter);
+// authorized routes
+app.use('/repo', 
+// uncomment this when you want to bypass authentication
+// ByPassAuth(signInContext),
+authHandler(signInContext), repoRouter);
+// backend wallet is restricted to be accessed only from localhost
+app.use('/systemWallet', authHandler(signInContext), 
+// restrictToLocalHost,       uncomment to restrict this route only to the local host
+backendWalletRouter);
+// for the tree route we need to attach the middlewares on individual routes
+app.use('/tree', treeRouter);
 // landing page
-app.use('/', (req, res) => {
+app.get('/', (req, res) => {
     res.status(200).json({
         "service": "FlairHub API",
         "status": "ok",
@@ -67,19 +80,6 @@ app.use('/', (req, res) => {
         ]
     });
 });
-app.use('/auth', authRouter);
-app.use('/user', authHandler(signInContext), userRouter);
-// authorized routes
-app.use('/repo', 
-// uncomment this when you want to bypass authentication
-// ByPassAuth(signInContext),
-authHandler(signInContext), repoRouter);
-// backend wallet is restricted to be accessed only from localhost
-app.use('/systemWallet', authHandler(signInContext), 
-// restrictToLocalHost,       uncomment to restrict this route only to the local host
-backendWalletRouter);
-// for the tree route we need to attach the middlewares on individual routes
-app.use('/tree', treeRouter);
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });
