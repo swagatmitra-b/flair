@@ -34,7 +34,9 @@ const LeftPanel: React.FC = () => {
   const myUsername = localStorage.getItem('myUsername');
 
   useEffect(() => {
+    setTimeout(() => {}, 1000);
     const storedData = localStorage.getItem('curUser');
+    console.log('storedData', storedData);
     if (storedData) setData(JSON.parse(storedData));
   }, []);
 
