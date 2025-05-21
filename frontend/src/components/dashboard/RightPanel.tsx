@@ -19,6 +19,17 @@ const RightPanel: React.FC = () => {
   const [tabNo, setTabNo] = useState(1);
   const [repos, setRepos] = useState<Repo[]>([]);
 
+
+  interface repoMetadata {
+    description: string;
+  }
+  interface repository {
+    name: string;
+    metadata: repoMetadata;
+    updatedAt: string;
+    repoHash: string;
+  }
+
   // fetching the repo of the my account not the user which is searched
   useEffect(() => {
     const fetchRepos = async () => {
@@ -30,7 +41,7 @@ const RightPanel: React.FC = () => {
         });
         const data = await response.json();
         setRepos(
-          data.data.map((repo: any) => ({
+          data.data.map((repo: repository) => ({
             name: repo.name,
             description: repo.metadata.description,
             updatedAt: repo.updatedAt,
