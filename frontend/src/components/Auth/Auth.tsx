@@ -141,6 +141,18 @@ export default function Auth() {
               <div className="flex flex-col items-center gap-4">
                 <WalletMultiButton />
                 <p className="text-lg">No wallet connected. Click the button above to connect.</p>
+                <p>
+                  {"Don't have a Solana Wallet. Create one "}
+                  <a
+                    className="text-blue-500"
+                    href="https://chromewebstore.google.com/detail/phantom/bfnaelmomeimhlpmgjnjophhpkkoljpa"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    here
+                  </a>
+                  .
+                </p>
               </div>
             )}
           </div>
