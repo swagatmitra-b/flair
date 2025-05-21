@@ -9,7 +9,7 @@ import { createAuthToken } from './general';
 import { SolanaActionMessage } from './types';
 import { LocalStorageTokenGen } from './general';
 
-const apiUrl = import.meta.env.VITE_API_URL;
+const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
 // creating the memory stored token for the tree operation now
 export class MemoryStoredTokenTree {
