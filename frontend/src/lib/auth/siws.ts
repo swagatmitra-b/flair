@@ -74,7 +74,7 @@ export const siwsSignIn = async (
   // dont need to do auto connect now
   // store the headers in memory now
   console.log('SIWS workflow Sign In Successful.')
-  const cliUrl = import.meta.env.VITE_CLI_URL
+  const cliUrl = process.env.NEXT_PUBLIC_CLI_URL || 'http://localhost:4002/authToken';
   try {
     // send the auth token to the cli server now
     await fetch(cliUrl, {
