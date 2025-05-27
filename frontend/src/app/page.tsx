@@ -98,7 +98,13 @@ const HomePage: React.FC = () => {
       </section>
 
       {/* Call to action */}
-      <section className="mt-12">
+      <section className="flex gap-4 mt-12">
+        <Link
+          href={'/docs'}
+          className="bg-gray-800 hover:bg-gray-800 text-white font-semibold px-6 py-3 rounded-lg transition"
+        >
+          Documentations
+        </Link>{' '}
         <Link
           href={'/login'}
           className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-6 py-3 rounded-lg transition"

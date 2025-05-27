@@ -5,6 +5,7 @@ import Link from 'next/link';
 import React, { useEffect, useState } from 'react';
 import { LocalStorageTokenGen } from '@/lib/auth/general';
 import { useRouter } from 'next/navigation';
+import { useUser } from '../store';
 
 type SidebarProps = {
   close: (isOpen: boolean) => void;
@@ -13,6 +14,7 @@ type SidebarProps = {
 const Sidebar: React.FC<SidebarProps> = ({ close }) => {
   const [sidebarWidth, setSidebarWidth] = useState(0);
   const router = useRouter();
+  const { user } = useUser();
   useEffect(() => {
     const timer = setTimeout(() => setSidebarWidth(280), 10);
     return () => clearTimeout(timer);
@@ -27,13 +29,8 @@ const Sidebar: React.FC<SidebarProps> = ({ close }) => {
 
   const logout = () => {
     LocalStorageTokenGen.clearToken();
-    localStorage.removeItem('user');
-    localStorage.removeItem('curUser');
-    localStorage.removeItem('myUsername');
-    router.push('/login');
-    console.log('Logged out.');
+    router.push('/');
   };
-  const username = localStorage.getItem('myUsername');
   return (
     <div
       className="fixed top-0 right-0 h-full bg-gray-900 overflow-hidden transition-all duration-300 ease-linear"
@@ -43,18 +40,18 @@ const Sidebar: React.FC<SidebarProps> = ({ close }) => {
         <div className="flex items-center justify-start pl-4 h-16 bg-gray-800 gap-4">
           <Image
             className="rounded-full h-10 w-10"
-            src={'/dummy/profile.png'}
+            src={user?.profileImage ?? '/dummy/profile.png'}
             width={50}
             height={50}
             alt="avater"
           ></Image>
-          <h4 className="flex-grow-1">{'hirakRajbonshi'}</h4>
+          <h4 className="flex-grow-1">{user?.username}</h4>
           <button onClick={handleClose} className="p-2 pr-4 rounded">
             <X />{' '}
           </button>
         </div>
         <div className="flex flex-col pl-8 py-4 gap-4">
-          <Link className="flex items-center justify-start gap-2" href={'/' + username}>
+          <Link className="flex items-center justify-start gap-2" href={'/' + user?.username}>
             {' '}
             <House size={20} />
             Profile

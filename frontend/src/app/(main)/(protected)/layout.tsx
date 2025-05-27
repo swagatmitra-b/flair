@@ -1,10 +1,11 @@
 'use client';
 
 import FinalNavbar from '@/components/Navbar/FinalNavbar';
+import { useUser } from '@/components/store';
 import { LocalStorageTokenGen } from '@/lib/auth/general';
 import { request } from '@/lib/requests';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 
 const Layout = ({
   children,
@@ -12,7 +13,8 @@ const Layout = ({
   children: React.ReactNode;
 }>) => {
   const router = useRouter();
-  const [username, setUsername] = useState<string | null>(null);
+  // const [username, setUsername] = useState<string | null>(null);
+  const { user, setUser } = useUser();
   useEffect(() => {
     // if not logged in, redirect to login
     if (LocalStorageTokenGen.getToken() === null) {
@@ -30,17 +32,22 @@ const Layout = ({
         });
 
         const data = await response.json();
-        setUsername(data.data.username);
-        console.log('Profile data:', data);
-
-        localStorage.setItem(
-          'user',
-          JSON.stringify({
-            username: data.data.username,
-            ...data.data.metadata,
-          }),
-        );
-        localStorage.setItem('myUsername', data.data.username);
+        // setUsername(data.data.username);
+        // console.log('Profile data:', data);
+        const _user = {
+          username: data.data.username,
+          profileImage: data.data.metadata.profileImage,
+        };
+        // console.log('User:', _user);
+        setUser(_user);
+        // localStorage.setItem(
+        //   'user',
+        //   JSON.stringify({
+        //     username: data.data.username,
+        //     ...data.data.metadata,
+        //   }),
+        // );
+        // localStorage.setItem('myUsername', data.data.username);
       } catch (err) {
         console.error('Request failed:', err);
       }
@@ -49,7 +56,7 @@ const Layout = ({
     fetchProfile();
   }, []);
 
-  if (username === null) {
+  if (user === null) {
     return <div>Loading...</div>;
   }
   return (

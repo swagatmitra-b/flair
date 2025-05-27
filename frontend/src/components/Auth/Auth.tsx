@@ -90,7 +90,6 @@ export default function Auth() {
     // clears the auth tokens from the local storage
     LocalStorageTokenGen.clearToken();
     setConnectedDetails(undefined); // also clear the connected details state
-    console.log('Logged out.');
   };
 
   useEffect(() => {

@@ -2,6 +2,7 @@
 import Image from 'next/image';
 import EditProfile from './EditProfile';
 import { useEffect, useState } from 'react';
+import { useOtherUser, useUser } from '../store';
 
 // const data = {
 //   fullName: 'John Doe',
@@ -15,6 +16,9 @@ import { useEffect, useState } from 'react';
 // };
 
 const LeftPanel: React.FC = () => {
+  const { user } = useUser();
+  const { otherUser } = useOtherUser();
+
   const [data, setData] = useState<{
     name: string;
     username: string;
@@ -31,13 +35,8 @@ const LeftPanel: React.FC = () => {
     displayText: '',
   });
 
-  const myUsername = localStorage.getItem('myUsername');
-
   useEffect(() => {
-    setTimeout(() => {}, 1000);
-    const storedData = localStorage.getItem('curUser');
-    console.log('storedData', storedData);
-    if (storedData) setData(JSON.parse(storedData));
+    if (otherUser != null) setData(otherUser);
   }, []);
 
   const [isEditProfile, setIsEditProfile] = useState(false);
@@ -62,7 +61,7 @@ const LeftPanel: React.FC = () => {
             <h6 className="text-gray-400">{data.username}</h6>
           </div>
           <p className="text-gray-300 text-sm">{data.bio}</p>
-          {myUsername === data.username && (
+          {user?.username === data.username && (
             <button
               onClick={() => setIsEditProfile(true)}
               className="px-4 mt-2 py-2 text-xs bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-500 transition"

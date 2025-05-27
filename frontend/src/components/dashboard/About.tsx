@@ -1,6 +1,7 @@
 'use client';
 import { request } from '@/lib/requests';
 import { useEffect, useState } from 'react';
+import { useOtherUser, useUser } from '../store';
 
 type Repo = {
   name: string;
@@ -13,16 +14,18 @@ type RepositoriesProps = {
   repos: Repo[];
 };
 const About: React.FC<RepositoriesProps> = ({ repos }) => {
+  const [displayText, setDisplayText] = useState('');
   const [editing, setEditing] = useState(false);
   const [editedText, setEditedText] = useState('');
-  const storedData = localStorage.getItem('user');
 
-  const displayText = storedData ? JSON.parse(storedData).displayText : '';
+  const { user } = useUser();
+  const { otherUser } = useOtherUser();
+
   const handleSave = async () => {
-    const username = storedData ? JSON.parse(storedData).username : '';
-    const name = storedData ? JSON.parse(storedData).name : '';
-    const bio = storedData ? JSON.parse(storedData).bio : '';
-    const profileImage = storedData ? JSON.parse(storedData).profileImage : '';
+    const username = otherUser?.username ?? '';
+    const name = otherUser?.name ?? '';
+    const bio = otherUser ?? '';
+    const profileImage = otherUser?.profileImage ?? '';
     try {
       const res = await request({
         method: 'PUT',
@@ -48,6 +51,7 @@ const About: React.FC<RepositoriesProps> = ({ repos }) => {
     }
   };
   useEffect(() => {
+    setDisplayText(otherUser?.displayText || '');
     setEditedText(displayText);
   }, [displayText]);
 
@@ -56,9 +60,11 @@ const About: React.FC<RepositoriesProps> = ({ repos }) => {
       <div className="bg-[#161b22] p-4">
         <div className="flex justify-between items-center">
           <h3 className="text-lg font-semibold">About me</h3>
-          <button className="text-sm text-gray-400" onClick={() => setEditing(true)}>
-            ✏️
-          </button>
+          {user?.username === otherUser?.username && (
+            <button className="text-sm text-gray-400" onClick={() => setEditing(true)}>
+              ✏️
+            </button>
+          )}
         </div>
         {editing ? (
           <>
