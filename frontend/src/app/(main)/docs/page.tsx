@@ -1,5 +1,6 @@
 'use client';
 import { Check, Copy } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 
 // components/Page.tsx
@@ -10,7 +11,13 @@ const Page: React.FC = () => {
         <h1 className="text-4xl font-bold" id="flair-cli-docs">
           Flair CLI Documentations
         </h1>
-
+        <h2 className="text-lg ml-4">
+          Download the Flair CLI{' '}
+          <Link href="/downloads/flaircli" className="text-blue-500">
+            here
+          </Link>
+          .
+        </h2>
         <Section
           title="Version Check"
           id="version-check"
