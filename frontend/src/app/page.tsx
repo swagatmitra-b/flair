@@ -100,6 +100,12 @@ const HomePage: React.FC = () => {
       {/* Call to action */}
       <section className="flex gap-4 mt-12">
         <Link
+          href={'/downloads/flaircli'}
+          className="bg-gray-800 hover:bg-gray-800 text-white font-semibold px-6 py-3 rounded-lg transition"
+        >
+          Download Flair CLI
+        </Link>{' '}
+        <Link
           href={'/docs'}
           className="bg-gray-800 hover:bg-gray-800 text-white font-semibold px-6 py-3 rounded-lg transition"
         >
