@@ -9,6 +9,7 @@ import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { prisma } from '../lib/prisma/index.js';
 import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
 import { clearDirBeforeUpload } from '../middleware/upload/clearTemp.js';
+import { constructIPFSUrl } from '../lib/ipfs/ipfs.js';
 const modelRouter = Router();
 // sends a model to the backend for uploading to the frontend
 modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, async (req, res) => {
@@ -125,12 +126,6 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
         return;
     }
 });
-// maybe during production we are going to have multiple gateway URLs then we'll choose the best one out of that
-export function constructIPFSUrl(cid) {
-    const gatewayUrl = process.env.GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
-    const url = `${gatewayUrl}/${cid}`;
-    return url;
-}
 // get the fetchUrl for the model from IPFS
 modelRouter.get('/fetch_url', async (req, res) => {
     const { repoId } = req;

@@ -1,7 +1,7 @@
 // metadata generator for commit and repository Nfts
 // Debashish Buragohain
 import { prisma } from "../prisma/index.js";
-import { constructIPFSUrl } from "../../routes/basemodel.js";
+import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js";
 // function to create the metadata of the commit Nft
 export const createCommitMetadata = async (commit) => {
     const metadata = {};
@@ -23,9 +23,10 @@ export const createCommitMetadata = async (commit) => {
         throw new Error("Commit's base model does not exist.");
     }
     metadata.baseModelHash = repo.baseModelHash;
-    if (commit.status == 'MERGERCOMMIT') {
-        throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
-    }
+    // the merger commit is removed in v2 but the logic will be applied for check point commits in the near future
+    // if (commit.status == 'MERGERCOMMIT') {
+    //     throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
+    // }
     metadata.status = commit.status;
     metadata.committer = commit.committerAddress;
     metadata.paramHash = commit.paramHash;

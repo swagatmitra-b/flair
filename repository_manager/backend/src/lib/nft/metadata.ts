@@ -6,7 +6,7 @@ import { commitMetrics, CommitNftMetdata } from "../types/commit";
 import { prisma } from "../prisma/index.js";
 import { JsonValue } from "@prisma/client/runtime/library";
 import { RepositoryMetadataWithAllRequiredFields, RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
-import { constructIPFSUrl } from "../../routes/basemodel.js"; 
+import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js"; 
 
 // function to create the metadata of the commit Nft
 export const createCommitMetadata = async (commit: Commit): Promise<CommitNftMetdata> => {
@@ -30,10 +30,14 @@ export const createCommitMetadata = async (commit: Commit): Promise<CommitNftMet
     if (!repo.baseModelHash) {
         throw new Error("Commit's base model does not exist.");
     }
-    metadata.baseModelHash = repo.baseModelHash;
-    if (commit.status == 'MERGERCOMMIT') {
-        throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
-    }
+    metadata.baseModelHash = repo.baseModelHash;    
+
+    // the merger commit is removed in v2 but the logic will be applied for check point commits in the near future
+    // if (commit.status == 'MERGERCOMMIT') {
+    //     throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
+    // }
+
+
     metadata.status = commit.status;
     metadata.committer = commit.committerAddress;
     metadata.paramHash = commit.paramHash;

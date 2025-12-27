@@ -9,7 +9,7 @@ import { prisma } from "../prisma/index.js";
 import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
 import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 import { pinata } from "../ipfs/pinata.js";
-import { constructIPFSUrl } from "../../routes/basemodel.js";
+import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js";
 // upload the metadata to Pinata
 export async function uploadMetadataToIPFS(metadata) {
     try {

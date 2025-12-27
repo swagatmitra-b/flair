@@ -1,7 +1,12 @@
 import multer from "multer";
+import config from "../../../config.js";
+// configuration file for the uploader
+// the client sends the base model to the uploader in the backend which stores it locally first
+// then it is uploaded to IPFS and the local file is deleted
+// Debashish Buragohain
 // the allowed file types must be consistent everywhere
-export const allowedTypes = ["onnx", "h5", "pt", "pth", 'pkl', 'py'];
-const maxSize = process.env.BASEMODEL_MAX_SIZE || 20; // in MB
+const allowedTypes = config.upload.baseModel.allowedFileTypes;
+const maxSize = config.upload.baseModel.maxSize || 20; // in MB
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         cb(null, process.env.MULTER_URL);
@@ -19,7 +24,7 @@ const fileFilter = (req, file, cb) => {
         cb(null, true);
     }
     else {
-        cb(new Error("Invalid file type! Only ONNX, Py, H5, PT, PKL and PTH files are allowed."));
+        cb(new Error(`Invalid file type! Only ${allowedTypes.join(", ").toUpperCase()} files are allowed.`));
     }
 };
 // setup the middleware to upload the base model
