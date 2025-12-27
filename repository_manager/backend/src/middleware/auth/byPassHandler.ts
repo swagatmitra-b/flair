@@ -5,7 +5,6 @@ import { prisma } from "../../lib/prisma/index.js";
 
 // bypass the authentication for testing
 // generates a temporary id _anonymous for the session
-
 // Debashish Buragohain
 
 export const ByPassAuth: Web3AuthHandlerCreator = (ctx) => async (req, res, next) => {

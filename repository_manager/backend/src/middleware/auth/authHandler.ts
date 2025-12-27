@@ -22,7 +22,6 @@ export const authHandler: Web3AuthHandlerCreator = (ctx) => (req, res, next) => 
         siwsAuth(ctx)(req, res, next);
     }
     else res.status(400).send({ error: { message: 'Invalid sign in strategy.' } });
-
 }
 
 

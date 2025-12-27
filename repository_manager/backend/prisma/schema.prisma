@@ -10,11 +10,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+// commits submitted need to to be verified by the user before it becomes merged
 enum CommitStatus {
   PENDING
   REJECTED
   MERGED
-  MERGERCOMMIT // the merger commit is the commit that is created after the pending commits have been merged
 }
 
 // user model needed to be created
