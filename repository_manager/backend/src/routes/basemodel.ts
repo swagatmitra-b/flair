@@ -12,6 +12,9 @@ import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
 import { clearDirBeforeUpload } from '../middleware/upload/clearTemp.js';
 import { constructIPFSUrl } from '../lib/ipfs/ipfs.js';
 
+// it makes no sense to have a route for the download of the 
+// model as the model is always fetched from IPFS gateway directly by the client
+
 const modelRouter = Router();
 
 // sends a model to the backend for uploading to the frontend

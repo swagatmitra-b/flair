@@ -1,0 +1,25 @@
+[project]
+name = "flair-cli"
+version = "0.1.0"
+description = "Flair CLI — record-only model repository and commit ledger for ML model evolution"
+authors = [ { name = "Flair Contributors" } ]
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+[project.scripts]
+flair = "flair_cli.main:app"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+typer = "^0.9"
+httpx = "^0.24"
+rich = "^13.0"
+pydantic = "^1.10"
+cryptography = "^41.0"
+pynacl = "^1.6"
+pyyaml = "^6.0"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
