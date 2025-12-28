@@ -1,7 +1,7 @@
 // Nft minter and fetcher for Flair
 // Debashish Buragohain
 
-import { generateSigner, KeypairSigner, percentAmount, PublicKey, publicKey, Umi } from "@metaplex-foundation/umi";
+import { generateSigner, percentAmount, PublicKey, publicKey, Umi } from "@metaplex-foundation/umi";
 // import { createNft } from "@metaplex-foundation/mpl-token-metadata";
 import { base58 } from "@metaplex-foundation/umi/serializers";
 import {
@@ -20,14 +20,14 @@ import { prisma } from "../prisma/index.js";
 import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
 import { RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
 import { createNft } from "@metaplex-foundation/mpl-token-metadata";
-import { pinata } from "../ipfs/pinata.js";
-import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js"; 
+import storageProvider from "../storage/index.js";
+import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js";
 
-// upload the metadata to Pinata
+// upload the metadata to Pinata (via provider)
 export async function uploadMetadataToIPFS(metadata: CommitNftMetdata | RepositoryNftCollectionMetadata): Promise<string | undefined> {
     try {
-        const upload = await pinata.upload.json(metadata);
-        return upload.IpfsHash;
+        const res = await storageProvider.add(metadata);
+        return res.cid;
     }
     catch (err) {
         console.error('Error uploading Metadata to IPFS:', err);
@@ -102,7 +102,7 @@ export const mintCNft = async (umi: Umi, metadata: CommitNftMetdata, collectionA
         merkleTree,
         collectionMint,
         metadata: {
-            name: metadata.message.substring(0,32),
+            name: metadata.message.substring(0, 32),
             uri: metadataUri,
             sellerFeeBasisPoints: 0,
             creators: [{

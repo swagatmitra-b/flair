@@ -4,7 +4,7 @@ import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
 import { uploader } from '../lib/multer/index.js';
-import { unpinFromIpfs, uploadToIpfs } from '../lib/ipfs/pinata.js';
+import storageProvider from '../lib/storage/index.js';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { prisma } from '../lib/prisma/index.js';
 import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
@@ -55,8 +55,9 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
             res.status(500).send({ error: { message: 'Internal Server Error.' } });
             return;
         }
-        // start the uploading of the model
-        const cid = await uploadToIpfs(modelPath);
+        // start the uploading of the model via provider
+        const uploadRes = await storageProvider.add(modelPath, { pin: true });
+        const cid = uploadRes?.cid;
         if (!cid) {
             res.status(500).send({ error: { message: `Could not upload to IPFS.` } });
             return;
@@ -102,8 +103,8 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
         // if this is the only repo with the model actually unpin the model from IPFS
         if (reposWithThisModel <= 1) {
             // give the request to unpin the model from IPFS
-            const status = await unpinFromIpfs(currentRepo.baseModelHash);
-            if (status.toLowerCase().includes('error')) {
+            const status = await storageProvider.remove(currentRepo.baseModelHash);
+            if (typeof status === 'string' && status.toLowerCase().includes('error')) {
                 console.error(`Error unpinning model from IPFS`);
                 res.status(500).send({ error: { message: 'Could not unpin model from IPFS.', status } });
                 return;
@@ -138,6 +139,7 @@ modelRouter.get('/fetch_url', async (req, res) => {
         res.status(400).send({ error: { message: 'Repository does not contain a base model.' } });
         return;
     }
+    // ipfs url is same for all gateways
     const url = constructIPFSUrl(repo.baseModelHash);
     res.status(200).json({ data: url, fileExtension: repo.baseModel.extension });
 });

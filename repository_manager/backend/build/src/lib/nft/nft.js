@@ -8,13 +8,13 @@ import { getCurrentTree, updateCurrentTree } from "./tree.js";
 import { prisma } from "../prisma/index.js";
 import { createCommitMetadata, createRepositoryMetadata } from "./metadata.js";
 import { createNft } from "@metaplex-foundation/mpl-token-metadata";
-import { pinata } from "../ipfs/pinata.js";
+import storageProvider from "../storage/index.js";
 import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js";
-// upload the metadata to Pinata
+// upload the metadata to Pinata (via provider)
 export async function uploadMetadataToIPFS(metadata) {
     try {
-        const upload = await pinata.upload.json(metadata);
-        return upload.IpfsHash;
+        const res = await storageProvider.add(metadata);
+        return res.cid;
     }
     catch (err) {
         console.error('Error uploading Metadata to IPFS:', err);

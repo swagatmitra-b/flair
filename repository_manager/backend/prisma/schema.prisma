@@ -10,8 +10,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 // commits submitted need to to be verified by the user before it becomes merged
+// in this version, commits are automatically MERGED
 enum CommitStatus {
   PENDING
   REJECTED
@@ -81,15 +81,12 @@ model Commit {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   commitHash       String       @unique // hash of the current commit
   status           CommitStatus // the status of this particuar commit
-  rejectedMessage  String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
-  message          String // commit message
+  rejectedMessage  String?      // (Optional) Fwhy the commit was rejected in case it was rejected.  
+  message          String       // commit message
   paramHash        String       @unique // hash of the parmeters for the commit
-  params           Params? // the param is stored as a separate model
+  params           Params?      // the param is stored as a separate model
   createdAt        DateTime     @default(now()) // when the commit was created  
-  statusUpdatedAt  DateTime?
-  // there will be no distinct local and merged parameters, the merged parameters would be included as a new commit
-  // for a merger commit, this will be the merged parameters
-  // for an accepted commit this will be the local parameters
+  statusUpdatedAt  DateTime?    @default(now()) // when the status was last updated
   // for the current version the metric is an optional field
   metrics          Metric? // the metrics of the model (e.g. accuracy, loss etc.)
   architecture     String // new field included
@@ -97,13 +94,11 @@ model Commit {
   branchId         String       @db.ObjectId
   // when the branch is deleted so are the commmits in the branch
   branch           Branch       @relation(fields: [branchId], references: [id])
-  // committer data included with new user model created
   committerAddress String // wallet address of the contributor  
   // when the user is deleted the commit is not deleted
   committerId      String       @db.ObjectId
   committer        User         @relation(fields: [committerId], references: [id])
-  // a commit is only soft deleted
-  isDeleted        Boolean      @default(false)
+  isDeleted        Boolean      @default(false)   // a commit is only soft deleted
   // Nft converted commit properties
   nft              Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
   nftId            String?      @unique @db.ObjectId
@@ -122,6 +117,8 @@ model Params {
   zkmlProofId String?    @unique @db.ObjectId
 }
 
+
+// the shared folder file is going to be deleted for v2
 // defining the shared folder model for storing the latest training data
 model SharedFolderFile {
   id                         String   @id @default(auto()) @map("_id") @db.ObjectId
@@ -211,6 +208,18 @@ type RepositoryMetdata {
   creator     String // wallet address that has created the Repository
   framework   String
 }
+
+
+// the ipfs object model for all the objects uploaded to ipfs
+model IpfsObject {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  cid       String   @unique // cid of the object
+  uri       String   @unique // uri of the object
+  createdAt DateTime @default(now())
+  extension String
+  size      Float
+}
+
 
 // the base model data must also include its details now
 type BaseModelData {

@@ -37,7 +37,6 @@ export const createCommitMetadata = async (commit: Commit): Promise<CommitNftMet
     //     throw new Error('Commit is a merger commit, and cannot be converted into an Nft.');
     // }
 
-
     metadata.status = commit.status;
     metadata.committer = commit.committerAddress;
     metadata.paramHash = commit.paramHash;
