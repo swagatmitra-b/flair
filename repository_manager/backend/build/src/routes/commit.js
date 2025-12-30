@@ -286,8 +286,6 @@ commitRouter.post('/create/zkml-check', async (req, res) => {
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });
-// ...existing imports...
-// ensure jwt is imported and secrets are defined (ZKP_JWT_SECRET, COMMIT_JWT_SECRET)
 // create the new commit to the branch
 // no merger commit in this version
 // all commits are accepted commits

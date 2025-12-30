@@ -17,6 +17,9 @@ const config = {
             expiryMinutes: 10,
             blockDurationMinutes: 2,
         }
+    },
+    cleanup: {
+        intervalMinutes: 10,
     }
 }
 

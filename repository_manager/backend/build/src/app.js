@@ -8,6 +8,7 @@ import { authHandler,
 // ByPassAuth
  } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter, } from './routes/index.js';
+import { startCleanupJob } from './jobs/cleanup.js';
 const PORT = parseInt(process.env.PORT) || 4000;
 const app = express();
 // Middleware
@@ -33,7 +34,7 @@ app.use('/repo',
 // uncomment this when you want to bypass authentication
 // ByPassAuth(signInContext),
 authHandler(signInContext), repoRouter);
-// backend wallet is restricted to be accessed only from localhost
+// system wallet is restricted to be accessed only from the cli of the hosted machine
 app.use('/systemWallet', authHandler(signInContext), 
 // restrictToLocalHost,       uncomment to restrict this route only to the local host
 backendWalletRouter);
@@ -80,10 +81,16 @@ app.get('/', (req, res) => {
         ]
     });
 });
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok' });
+});
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });
 });
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
+    // Start background cleanup job
+    startCleanupJob();
+    console.log('Background cleanup job started (runs every 10 minutes)');
 });
