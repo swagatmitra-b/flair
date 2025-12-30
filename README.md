@@ -1,4 +1,7 @@
 # 🚀 Flair – A Git-like cli for privacy preserving ML training.
+
+Flair explores how off-chain ML training (e.g., federated learning) can produce verifiable commits whose provenance is recorded on Solana using compressed NFTs. The goal is auditability and incentives for privacy-preserving ML collaboration.
+
 Train machine learning models together without ever sharing your private data.
 
 When you train an AI, it usually needs access to data. But what if your data is private—like hospital patient records, financial transactions, or personal AI assistants? With Flair, your data stays on your device.

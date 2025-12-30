@@ -10,6 +10,8 @@ import { prisma } from '../lib/prisma/index.js';
 import { existingModelCheck } from '../middleware/upload/existingModelCheck.js';
 import { clearDirBeforeUpload } from '../middleware/upload/clearTemp.js';
 import { constructIPFSUrl } from '../lib/ipfs/ipfs.js';
+// it makes no sense to have a route for the download of the 
+// model as the model is always fetched from IPFS gateway directly by the client
 const modelRouter = Router();
 // sends a model to the backend for uploading to the frontend
 modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, async (req, res) => {
@@ -18,7 +20,8 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
         const pk = authorizedPk(res);
         const repo = await prisma.repository.findUnique({
             where: { id: req.repoId }, include: {
-                branches: true
+                branches: true,
+                baseModel: true
             }
         });
         if (!repo) {
@@ -62,15 +65,23 @@ modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, 
             res.status(500).send({ error: { message: `Could not upload to IPFS.` } });
             return;
         }
+        // create or reuse IpfsObject record for the base model
+        const ipfsObj = await prisma.ipfsObject.upsert({
+            where: { cid },
+            update: {},
+            create: {
+                cid,
+                uri: constructIPFSUrl(cid),
+                extension: fileExtension,
+                size
+            }
+        });
         await prisma.repository.update({
             where: { id: req.repoId },
             data: {
-                baseModelHash: cid,
-                baseModel: {
-                    size,
-                    extension: fileExtension,
-                },
-                updatedAt: new Date()
+                baseModelId: ipfsObj.id,
+                updatedAt: new Date(),
+                baseModelHash: cid // base model hash is checked to know if the repo has a base model or not
             }
         });
         res.status(200).json({ data: { cid, fileExtension: fileExtension, url: constructIPFSUrl(cid) } });
@@ -87,23 +98,24 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
     try {
         // first check if the same model hash is present in more than one repos
         const currentRepo = await prisma.repository.findUnique({
-            where: { id: req.repoId }
+            where: { id: req.repoId },
+            include: { baseModel: true }
         });
         if (!currentRepo) {
             res.status(404).send({ error: { message: 'Repository does not exist.' } });
             return;
         }
-        if (!currentRepo.baseModel || !currentRepo.baseModelHash) {
+        if (!currentRepo.baseModel || !currentRepo.baseModelId) {
             res.status(400).send({ error: { message: 'No base model to delete in the repository.' } });
             return;
         }
         const reposWithThisModel = await prisma.repository.count({
-            where: { baseModelHash: currentRepo.baseModelHash }
+            where: { baseModelId: currentRepo.baseModelId }
         });
         // if this is the only repo with the model actually unpin the model from IPFS
         if (reposWithThisModel <= 1) {
             // give the request to unpin the model from IPFS
-            const status = await storageProvider.remove(currentRepo.baseModelHash);
+            const status = await storageProvider.remove(currentRepo.baseModel.cid);
             if (typeof status === 'string' && status.toLowerCase().includes('error')) {
                 console.error(`Error unpinning model from IPFS`);
                 res.status(500).send({ error: { message: 'Could not unpin model from IPFS.', status } });
@@ -114,12 +126,12 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
         await prisma.repository.update({
             where: { id: req.repoId },
             data: {
-                baseModel: null,
+                baseModelId: null,
                 updatedAt: new Date()
             }
         });
         // means the model is deleted from the repository
-        res.status(200).json({ data: currentRepo.baseModelHash });
+        res.status(200).json({ data: currentRepo.baseModel.cid });
     }
     catch (err) {
         console.error('Could not delete model: ', err);
@@ -130,17 +142,20 @@ modelRouter.delete('/delete', existingModelCheck, async (req, res) => {
 // get the fetchUrl for the model from IPFS
 modelRouter.get('/fetch_url', async (req, res) => {
     const { repoId } = req;
-    const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+    const repo = await prisma.repository.findUnique({
+        where: { id: repoId },
+        include: { baseModel: true }
+    });
     if (!repo) {
         res.status(404).send({ error: { message: 'Repository does not exist.' } });
         return;
     }
-    if (!repo.baseModel || !repo.baseModelHash) {
+    if (!repo.baseModel || !repo.baseModelId) {
         res.status(400).send({ error: { message: 'Repository does not contain a base model.' } });
         return;
     }
     // ipfs url is same for all gateways
-    const url = constructIPFSUrl(repo.baseModelHash);
+    const url = constructIPFSUrl(repo.baseModel.cid);
     res.status(200).json({ data: url, fileExtension: repo.baseModel.extension });
 });
 export { modelRouter };

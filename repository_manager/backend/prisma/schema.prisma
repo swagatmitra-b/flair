@@ -47,11 +47,11 @@ model Repository {
   ownerAddress   String
   ownerId        String             @db.ObjectId
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  // base model
-  baseModelHash  String?            @unique
-  baseModel      BaseModelData?
-  // the base model Uri will be calculated based on the existing IPFS gateway
-  // baseModelUri   String?
+  // base model stored as an IpfsObject
+  baseModelHash  String?            @unique     // the base model hash can be used to check if the base model is already present
+  baseModelId    String?            @db.ObjectId
+  baseModel      IpfsObject?        @relation("RepositoryBaseModel", fields: [baseModelId], references: [id])
+  // the base model CID can be fetched from `baseModel.cid`
   collection     Collection?        @relation(fields: [collectionId], references: [id])
   collectionId   String?            @unique @db.ObjectId
 
@@ -60,18 +60,19 @@ model Repository {
 
 // repository contains branches
 model Branch {
-  id           String             @id @default(auto()) @map("_id") @db.ObjectId
-  name         String // name of the branch
-  branchHash   String             @unique
-  description  String? // description of the branch's purpose
-  latestParams String? // base64 encoded model parameters for the latest mode parameters
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @default(now()) // timestamp of the last commit
-  commits      Commit[] // commits in that branch
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  name           String // name of the branch
+  branchHash     String             @unique
+  description    String? // description of the branch's purpose
+  latestParamsId String?            @db.ObjectId // points to IpfsObject containing latest params
+  latestParams   IpfsObject?        @relation("BranchLatestParams", fields: [latestParamsId], references: [id]) // reference to IPFS object for latest params
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @default(now()) // timestamp of the last commit
+  commits        Commit[] // commits in that branch
   // the repository to which the branch belongs
-  repositoryId String             @db.ObjectId // repository id for this branch
-  repository   Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
-  SharedFolder SharedFolderFile[] // shared folder is basically an array of shared folder files
+  repositoryId   String             @db.ObjectId // repository id for this branch
+  repository     Repository         @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  SharedFolder   SharedFolderFile[] // shared folder is basically an array of shared folder files
 }
 
 // branches contain commits
@@ -81,10 +82,10 @@ model Commit {
   id               String       @id @default(auto()) @map("_id") @db.ObjectId
   commitHash       String       @unique // hash of the current commit
   status           CommitStatus // the status of this particuar commit
-  rejectedMessage  String?      // (Optional) Fwhy the commit was rejected in case it was rejected.  
-  message          String       // commit message
+  rejectedMessage  String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
+  message          String // commit message
   paramHash        String       @unique // hash of the parmeters for the commit
-  params           Params?      // the param is stored as a separate model
+  params           Params? // the param is stored as a separate model
   createdAt        DateTime     @default(now()) // when the commit was created  
   statusUpdatedAt  DateTime?    @default(now()) // when the status was last updated
   // for the current version the metric is an optional field
@@ -98,7 +99,7 @@ model Commit {
   // when the user is deleted the commit is not deleted
   committerId      String       @db.ObjectId
   committer        User         @relation(fields: [committerId], references: [id])
-  isDeleted        Boolean      @default(false)   // a commit is only soft deleted
+  isDeleted        Boolean      @default(false) // a commit is only soft deleted
   // Nft converted commit properties
   nft              Nft?         @relation("CommitToNft", fields: [nftId], references: [id], onDelete: NoAction, onUpdate: Cascade)
   nftId            String?      @unique @db.ObjectId
@@ -107,16 +108,16 @@ model Commit {
 
 // the parameters are going to be a large file so its better to store in in its own schema
 model Params {
-  id          String     @id @default(auto()) @map("_id") @db.ObjectId
-  params      String     @unique // base64 encoded blosc compressed parameters 
+  id           String     @id @default(auto()) @map("_id") @db.ObjectId
+  ipfsObjectId String     @unique @db.ObjectId
+  ipfsObject   IpfsObject @relation("ParamsIpfs", fields: [ipfsObjectId], references: [id])
   // sharedFolderId   String            @unique @db.ObjectId
   // sharedFolderFile SharedFolderFile? @relation(fields: [sharedFolderId], references: [id]) // points to the shared folder file
-  commitId    String     @unique @db.ObjectId // needs to be unique for a one to one relationship
-  commit      Commit     @relation(fields: [commitId], references: [id])
-  ZKMLProof   ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
-  zkmlProofId String?    @unique @db.ObjectId
+  commitId     String     @unique @db.ObjectId // needs to be unique for a one to one relationship
+  commit       Commit     @relation(fields: [commitId], references: [id])
+  ZKMLProof    ZKMLProof? @relation("paramToProof", fields: [zkmlProofId], references: [id], onDelete: SetNull)
+  zkmlProofId  String?    @unique @db.ObjectId
 }
-
 
 // the shared folder file is going to be deleted for v2
 // defining the shared folder model for storing the latest training data
@@ -135,12 +136,15 @@ model SharedFolderFile {
 }
 
 model ZKMLProof {
-  id               String  @id @default(auto()) @map("_id") @db.ObjectId
-  proof            String  @unique // the proof of the model
-  settings         String  @unique // the settings of the proof
-  verification_key String  @unique // the verification key of the proof
-  param            Params? @relation("paramToProof")
-  paramId          String? @unique @db.ObjectId
+  id                    String      @id @default(auto()) @map("_id") @db.ObjectId
+  proofIpfsId           String?     @unique @db.ObjectId
+  proof                 IpfsObject? @relation("proofIPFS", fields: [proofIpfsId], references: [id])
+  settingsIpfsId        String?     @unique @db.ObjectId
+  settings              IpfsObject? @relation("settingsIPFS", fields: [settingsIpfsId], references: [id])
+  verificationKeyIpfsId String?     @unique @db.ObjectId
+  verification_key      IpfsObject? @relation("verificationKeyIPFS", fields: [verificationKeyIpfsId], references: [id])
+  param                 Params?     @relation("paramToProof")
+  paramId               String?     @unique @db.ObjectId
 }
 
 // These schemas can never be deleted
@@ -209,17 +213,45 @@ type RepositoryMetdata {
   framework   String
 }
 
-
 // the ipfs object model for all the objects uploaded to ipfs
 model IpfsObject {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   cid       String   @unique // cid of the object
-  uri       String   @unique // uri of the object
+  uri       String   @unique
   createdAt DateTime @default(now())
   extension String
   size      Float
+
+  // back-relations
+  repositories           Repository[] @relation("RepositoryBaseModel")
+  branches               Branch[]     @relation("BranchLatestParams")
+  params                 Params[]     @relation("ParamsIpfs")
+  zkmlProofsProof        ZKMLProof[]  @relation("proofIPFS")
+  zkmlProofsSettings     ZKMLProof[]  @relation("settingsIPFS")
+  zkmlProofsVerification ZKMLProof[]  @relation("verificationKeyIPFS")
 }
 
+// Commit creation session for the three-step commit flow
+model CommitCreationSession {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  jti         String    @unique
+  pk          String
+  repoId      String?   @db.ObjectId
+  branchId    String?   @db.ObjectId
+  status      String    @default("INITIATED") // INITIATED | ZKML_VERIFIED | FINALIZED | ERROR
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  lastErrorAt DateTime?
+  errorCount  Int       @default(0)
+  consumed    Boolean   @default(false)
+}
+
+// Tracks users blocked from initiating commits for 2 minutes after errors
+model InitiationBlock {
+  pk           String   @id @map("_id")
+  blockedUntil DateTime
+  createdAt    DateTime @default(now())
+}
 
 // the base model data must also include its details now
 type BaseModelData {

@@ -50,7 +50,10 @@ branchRouter.post('/create', async (req, res) => {
         const { repoId } = req;
         const matchRepo = await prisma.repository.findUnique({
             where: { id: repoId },
-            include: { branches: true }
+            include: {
+                branches: true,
+                baseModel: true
+            }
         });
         if (!matchRepo) {
             console.error('Criticial Error: Repository does not exist for branch to create.');
@@ -63,7 +66,7 @@ branchRouter.post('/create', async (req, res) => {
             return;
         }
         // if the base model is not uploaded we cannot create a branch
-        if (!matchRepo.baseModel || !matchRepo.baseModelHash) {
+        if (!matchRepo.baseModel || !matchRepo.baseModelId) {
             res.status(400).send({ error: { message: 'No base model uploaded. Cannot create a new branch.' } });
             return;
         }
@@ -95,7 +98,7 @@ branchRouter.post('/create', async (req, res) => {
                 name,
                 description,
                 // add the parameters of the current branch to this new branch if it is not the first branch in the repository
-                ...(currentBranch && currentBranch.latestParams && { latestParams: currentBranch.latestParams }),
+                ...(currentBranch && currentBranch.latestParamsId && { latestParamsId: currentBranch.latestParamsId }),
                 repositoryId: repoId,
                 branchHash: uuidv4()
             }

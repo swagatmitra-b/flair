@@ -12,6 +12,12 @@ const config = {
             maxSize: 20,      // in MB
         }
     },
+    commit: {
+        session: {
+            expiryMinutes: 10,
+            blockDurationMinutes: 2,
+        }
+    }
 }
 
 export default config as Config;
