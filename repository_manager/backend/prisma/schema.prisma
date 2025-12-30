@@ -48,7 +48,7 @@ model Repository {
   ownerId        String             @db.ObjectId
   owner          User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   // base model stored as an IpfsObject
-  baseModelHash  String?            @unique     // the base model hash can be used to check if the base model is already present
+  baseModelHash  String?            @unique // the base model hash can be used to check if the base model is already present
   baseModelId    String?            @db.ObjectId
   baseModel      IpfsObject?        @relation("RepositoryBaseModel", fields: [baseModelId], references: [id])
   // the base model CID can be fetched from `baseModel.cid`
@@ -238,7 +238,7 @@ model CommitCreationSession {
   pk          String
   repoId      String?   @db.ObjectId
   branchId    String?   @db.ObjectId
-  status      String    @default("INITIATED") // INITIATED | ZKML_VERIFIED | FINALIZED | ERROR
+  status      String    @default("INITIATED") // INITIATED | ZKML_VERIFIED | ZKML_UPLOADED | FINALIZED | ERROR
   createdAt   DateTime  @default(now())
   expiresAt   DateTime?
   lastErrorAt DateTime?
