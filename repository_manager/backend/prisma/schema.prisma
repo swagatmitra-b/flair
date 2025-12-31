@@ -244,6 +244,11 @@ model CommitCreationSession {
   lastErrorAt DateTime?
   errorCount  Int       @default(0)
   consumed    Boolean   @default(false)
+
+  // Track uploaded ZKML IPFS IDs for cleanup on failure
+  zkmlProofIpfsId    String? @db.ObjectId
+  zkmlSettingsIpfsId String? @db.ObjectId
+  zkmlVkIpfsId       String? @db.ObjectId
 }
 
 // Tracks users blocked from initiating commits for 2 minutes after errors

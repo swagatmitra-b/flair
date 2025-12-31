@@ -234,7 +234,7 @@ commitRouter.post('/create/zkml-check', async (req, res) => {
         // Verify initiate token
         let decoded;
         try {
-            decoded = jwt.verify(initiateToken, ZKP_JWT_SECRET);
+            decoded = jwt.verify(initiateToken, COMMIT_JWT_SECRET);
         }
         catch (err) {
             res.status(403).json({ error: { message: 'Invalid or expired initiate token.' } });
@@ -286,17 +286,158 @@ commitRouter.post('/create/zkml-check', async (req, res) => {
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });
-// create the new commit to the branch
-// no merger commit in this version
-// all commits are accepted commits
-commitRouter.post('/create/finalze', async (req, res) => {
+// ========================================
+// STEP 3: Upload ZKML Proofs (Pre-Commit)
+// ========================================
+// Uploads proof/settings/vk to IPFS, locks them via a receipt token for finalize.
+commitRouter.post('/create/zkml-upload', async (req, res) => {
+    try {
+        const pk = authorizedPk(res);
+        const { sessionId, initiateToken, zkmlToken, proof, settings, verification_key } = req.body;
+        if (!sessionId || !initiateToken || !zkmlToken || !proof || !settings || !verification_key) {
+            res.status(400).json({
+                error: { message: 'All fields (sessionId, initiateToken, zkmlToken, proof, settings, verification_key) are required.' }
+            });
+            return;
+        }
+        // Verify initiate token
+        let sessionJwt;
+        try {
+            sessionJwt = jwt.verify(initiateToken, COMMIT_JWT_SECRET);
+        }
+        catch {
+            res.status(403).json({ error: { message: 'Invalid or expired initiateToken.' } });
+            return;
+        }
+        if (sessionJwt.type !== 'commit_initiate' || sessionJwt.sessionId !== sessionId || sessionJwt.pk !== pk) {
+            res.status(403).json({ error: { message: 'Initiate token mismatch or unauthorized.' } });
+            return;
+        }
+        // Verify zkml token
+        let zkmlJwt;
+        try {
+            zkmlJwt = jwt.verify(zkmlToken, ZKP_JWT_SECRET);
+        }
+        catch {
+            res.status(403).json({ error: { message: 'Invalid or expired zkmlToken.' } });
+            return;
+        }
+        if (zkmlJwt.type !== 'commit_zkml' || zkmlJwt.sessionId !== sessionId || zkmlJwt.pk !== pk) {
+            await recordSessionError(sessionId, pk);
+            res.status(403).json({ error: { message: 'ZKML token mismatch or unauthorized.' } });
+            return;
+        }
+        // Verify session is valid and not consumed
+        const session = await prisma.commitCreationSession.findUnique({ where: { id: sessionId } });
+        if (!session || session.consumed || session.status !== 'ZKML_VERIFIED' || (session.expiresAt && session.expiresAt < new Date())) {
+            await recordSessionError(sessionId, pk);
+            res.status(403).json({ error: { message: 'Invalid or expired session.' } });
+            return;
+        }
+        // Upload proof, settings, and verification_key to IPFS
+        const proofUpload = await storageProvider.add(proof, { pin: true });
+        const settingsUpload = await storageProvider.add(settings, { pin: true });
+        const vkUpload = await storageProvider.add(verification_key, { pin: true });
+        // Verify uploaded CIDs match the authorized CIDs from zkmlToken
+        const allowed = zkmlJwt.allowedCids || {};
+        if (proofUpload.cid.toString() !== allowed.proofCid ||
+            settingsUpload.cid.toString() !== allowed.settingsCid ||
+            vkUpload.cid.toString() !== allowed.vkCid) {
+            await recordSessionError(sessionId, pk);
+            res.status(403).json({
+                error: { message: 'Security Mismatch: Uploaded ZKML files do not match the CIDs authorized in the token.' }
+            });
+            return;
+        }
+        // Upsert IpfsObject records for each file
+        const proofIpfs = await prisma.ipfsObject.upsert({
+            where: { cid: proofUpload.cid.toString() },
+            update: {},
+            create: {
+                cid: proofUpload.cid.toString(),
+                uri: constructIPFSUrl(proofUpload.cid),
+                extension: 'json',
+                size: proofUpload.size || 0
+            }
+        });
+        const settingsIpfs = await prisma.ipfsObject.upsert({
+            where: { cid: settingsUpload.cid.toString() },
+            update: {},
+            create: {
+                cid: settingsUpload.cid.toString(),
+                uri: constructIPFSUrl(settingsUpload.cid),
+                extension: 'json',
+                size: settingsUpload.size || 0
+            }
+        });
+        const vkIpfs = await prisma.ipfsObject.upsert({
+            where: { cid: vkUpload.cid.toString() },
+            update: {},
+            create: {
+                cid: vkUpload.cid.toString(),
+                uri: constructIPFSUrl(vkUpload.cid),
+                extension: 'json',
+                size: vkUpload.size || 0
+            }
+        });
+        // Check for duplicate ZKML proofs
+        const existingProof = await prisma.zKMLProof.findFirst({
+            where: {
+                proofIpfsId: proofIpfs.id,
+                settingsIpfsId: settingsIpfs.id,
+                verificationKeyIpfsId: vkIpfs.id
+            }
+        });
+        if (existingProof) {
+            await recordSessionError(sessionId, pk);
+            res.status(409).json({ error: { message: 'ZKML proof already exists.' } });
+            return;
+        }
+        // Update session status and store ZKML IDs for cleanup tracking
+        await prisma.commitCreationSession.update({
+            where: { id: sessionId },
+            data: {
+                status: 'ZKML_UPLOADED',
+                zkmlProofIpfsId: proofIpfs.id,
+                zkmlSettingsIpfsId: settingsIpfs.id,
+                zkmlVkIpfsId: vkIpfs.id
+            }
+        });
+        // Issue a receipt token to bind these uploads to the finalize step
+        const zkmlReceiptToken = jwt.sign({
+            type: 'commit_zkml_receipt',
+            sessionId,
+            pk,
+            repoId: sessionJwt.repoId,
+            branchId: sessionJwt.branchId,
+            proofIpfsId: proofIpfs.id,
+            settingsIpfsId: settingsIpfs.id,
+            vkIpfsId: vkIpfs.id
+        }, ZKP_JWT_SECRET, { expiresIn: `${SESSION_EXPIRY_MINUTES}m` });
+        res.status(200).json({
+            success: true,
+            message: 'ZKML files uploaded successfully. Proceed to finalize.',
+            zkmlReceiptToken,
+            proofCid: proofIpfs.cid,
+            settingsCid: settingsIpfs.cid,
+            vkCid: vkIpfs.cid
+        });
+    }
+    catch (err) {
+        console.error('Error uploading ZKML params:', err);
+        res.status(500).send({ error: { message: 'Internal Server Error' } });
+    }
+});
+// ========================================
+// STEP 4: Finalize Commit (Atomic Creation)
+// ========================================
+commitRouter.post('/create/finalize', async (req, res) => {
+    let sessionId;
     try {
         const pk = authorizedPk(res);
         const { branchId, repoId } = req;
-        const { message, paramHash, params, architecture, initiateToken, // NEW: from /create/initiate
-        zkmlToken // NEW: from /create/zkml-check (required if zkmlProof present)
-         } = req.body;
-        // --- Validate required tokens ---
+        const { message, paramHash, params, architecture, initiateToken, zkmlReceiptToken } = req.body;
+        // --- 1. Token validations ---
         if (!initiateToken) {
             res.status(401).json({ error: { message: 'Missing initiateToken. Call /create/initiate first.' } });
             return;
@@ -309,14 +450,43 @@ commitRouter.post('/create/finalze', async (req, res) => {
             res.status(403).json({ error: { message: 'Invalid or expired initiateToken.' } });
             return;
         }
-        // bind token to context
         if (sessionJwt.pk !== pk || sessionJwt.repoId !== repoId || sessionJwt.branchId !== branchId) {
             res.status(403).json({ error: { message: 'Initiate token does not match user/repo/branch.' } });
             return;
         }
-        const sessionId = sessionJwt.sessionId;
-        // --- Basic validations (unchanged) ---
-        let warnings = [];
+        sessionId = sessionJwt.sessionId;
+        if (!zkmlReceiptToken) {
+            res.status(400).json({ error: { message: 'Missing zkmlReceiptToken. Upload ZKML proofs before finalizing.' } });
+            return;
+        }
+        let receiptJwt;
+        try {
+            receiptJwt = jwt.verify(zkmlReceiptToken, ZKP_JWT_SECRET);
+        }
+        catch {
+            res.status(403).json({ error: { message: 'Invalid or expired zkmlReceiptToken.' } });
+            return;
+        }
+        if (receiptJwt.type !== 'commit_zkml_receipt' || receiptJwt.sessionId !== sessionId || receiptJwt.pk !== pk || receiptJwt.repoId !== repoId || receiptJwt.branchId !== branchId) {
+            res.status(403).json({ error: { message: 'ZKML receipt does not match current session/context.' } });
+            return;
+        }
+        // Prepare nested ZKML create object up front to satisfy strict typing
+        const zkmlRelationInput = {
+            create: {
+                proofIpfsId: receiptJwt.proofIpfsId,
+                settingsIpfsId: receiptJwt.settingsIpfsId,
+                verificationKeyIpfsId: receiptJwt.vkIpfsId
+            }
+        };
+        // Verify session state
+        const session = await prisma.commitCreationSession.findUnique({ where: { id: sessionId } });
+        if (!session || session.consumed || session.status !== 'ZKML_UPLOADED' || (session.expiresAt && session.expiresAt < new Date())) {
+            await recordSessionError(sessionId, pk);
+            res.status(403).json({ error: { message: 'Invalid or expired session.' } });
+            return;
+        }
+        // --- 2. Business validations ---
         const repo = await prisma.repository.findUnique({ where: { id: repoId }, include: { baseModel: true } });
         if (!repo?.baseModelId) {
             res.status(400).json({ error: { message: 'Base model not uploaded. Cannot create commit.' } });
@@ -326,8 +496,9 @@ commitRouter.post('/create/finalze', async (req, res) => {
             res.status(400).json({ error: { message: 'Commit message is required.' } });
             return;
         }
-        if (!branchId)
+        if (!branchId) {
             throw new Error('Critical Error: branchId not attached to response.');
+        }
         if (!paramHash || !params || !architecture) {
             res.status(400).json({ error: { message: 'paramHash, params, and architecture are required.' } });
             return;
@@ -387,73 +558,25 @@ commitRouter.post('/create/finalze', async (req, res) => {
             update: {},
             create: { cid: paramsUpload.cid, uri: constructIPFSUrl(paramsUpload.cid), extension: 'bin', size: paramsUpload.size || 0 }
         });
-        // Handle ZKML (if provided) with zkmlToken
-        let zkmlProofCreateObj = undefined;
-        if (params.zkmlProof && params.zkmlProof.proof && params.zkmlProof.settings && params.zkmlProof.verification_key) {
-            if (!zkmlToken) {
-                res.status(401).json({ error: { message: 'ZKML proof provided but no zkmlToken. Call /create/zkml-check first.' } });
-                return;
-            }
-            let zkmlJwt;
-            try {
-                zkmlJwt = jwt.verify(zkmlToken, ZKP_JWT_SECRET);
-            }
-            catch {
-                res.status(403).json({ error: { message: 'Invalid or expired zkmlToken.' } });
-                return;
-            }
-            // validate token context and type
-            if (zkmlJwt.pk !== pk || zkmlJwt.repoId !== repoId || zkmlJwt.branchId !== branchId || zkmlJwt.sessionId !== sessionId || zkmlJwt.type !== 'zkml_upload_auth') {
-                res.status(403).json({ error: { message: 'zkmlToken not valid for this user/repo/branch/session.' } });
-                return;
-            }
-            const allowed = zkmlJwt.allowedCids || {};
-            // Upload proofs
-            const proofUpload = await storageProvider.add(params.zkmlProof.proof, { pin: true });
-            const settingsUpload = await storageProvider.add(params.zkmlProof.settings, { pin: true });
-            const vkUpload = await storageProvider.add(params.zkmlProof.verification_key, { pin: true });
-            // CID check
-            if (proofUpload.cid.toString() !== allowed.proofCid ||
-                settingsUpload.cid.toString() !== allowed.settingsCid ||
-                vkUpload.cid.toString() !== allowed.vkCid) {
-                res.status(403).json({ error: { message: 'Security Mismatch: Uploaded ZKML files do not match token CIDs.' } });
-                return;
-            }
-            // Upsert IPFS objects
-            const proofIpfs = await prisma.ipfsObject.upsert({ where: { cid: proofUpload.cid.toString() }, update: {}, create: { cid: proofUpload.cid.toString(), uri: constructIPFSUrl(proofUpload.cid), extension: 'json', size: proofUpload.size || 0 } });
-            const settingsIpfs = await prisma.ipfsObject.upsert({ where: { cid: settingsUpload.cid.toString() }, update: {}, create: { cid: settingsUpload.cid.toString(), uri: constructIPFSUrl(settingsUpload.cid), extension: 'json', size: settingsUpload.size || 0 } });
-            const vkIpfs = await prisma.ipfsObject.upsert({ where: { cid: vkUpload.cid.toString() }, update: {}, create: { cid: vkUpload.cid.toString(), uri: constructIPFSUrl(vkUpload.cid), extension: 'json', size: vkUpload.size || 0 } });
-            // Uniqueness re-check
-            const sameZKMLProofs = await prisma.zKMLProof.count({
-                where: {
-                    proofIpfsId: proofIpfs.id,
-                    settingsIpfsId: settingsIpfs.id,
-                    verificationKeyIpfsId: vkIpfs.id
-                }
-            });
-            if (sameZKMLProofs) {
-                res.status(409).json({ error: { message: 'ZKML proof already exists.' } });
-                return;
-            }
-            zkmlProofCreateObj = {
-                create: {
-                    proofIpfsId: proofIpfs.id,
-                    settingsIpfsId: settingsIpfs.id,
-                    verificationKeyIpfsId: vkIpfs.id
-                }
-            };
-        }
-        else {
-            warnings.push('No ZKML proof provided for commit.');
-        }
-        // Transaction: create commit + update session/branch/repo
         const commit = await prisma.$transaction(async (tx) => {
-            // Build params.create object explicitly
-            const paramsCreate = {
+            // Prevent race: ensure no duplicate proof exists
+            if (zkmlRelationInput) {
+                const duplicateProof = await tx.zKMLProof.findFirst({
+                    where: {
+                        proofIpfsId: zkmlRelationInput.create.proofIpfsId,
+                        settingsIpfsId: zkmlRelationInput.create.settingsIpfsId,
+                        verificationKeyIpfsId: zkmlRelationInput.create.verificationKeyIpfsId
+                    }
+                });
+                if (duplicateProof) {
+                    throw new Error('ZKML Proof combination already exists in database.');
+                }
+            }
+            const paramsCreateInput = {
                 ipfsObjectId: paramsIpfs.id
             };
-            if (zkmlProofCreateObj) {
-                paramsCreate.ZKMLProof = zkmlProofCreateObj;
+            if (zkmlRelationInput) {
+                paramsCreateInput.ZKMLProof = zkmlRelationInput;
             }
             const newCommit = await tx.commit.create({
                 data: {
@@ -463,26 +586,64 @@ commitRouter.post('/create/finalze', async (req, res) => {
                     branchId,
                     commitHash,
                     status: 'MERGED',
-                    verified: !!zkmlProofCreateObj,
+                    verified: !!zkmlRelationInput,
                     architecture,
                     paramHash,
                     params: {
-                        create: paramsCreate,
+                        create: paramsCreateInput,
                     },
                     committerId: committer.id
                 },
+                include: {
+                    params: {
+                        include: { ZKMLProof: true }
+                    }
+                }
             });
             await tx.branch.update({ where: { id: branchId }, data: { updatedAt: new Date() } });
             await tx.repository.update({ where: { id: repoId }, data: { updatedAt: new Date() } });
-            // mark session consumed/finalized
             await tx.commitCreationSession.update({ where: { id: sessionId }, data: { consumed: true, status: 'FINALIZED' } });
             return newCommit;
         });
-        res.status(201).json({ data: commit, warnings });
-        return;
+        res.status(201).json({ data: commit });
     }
     catch (error) {
         console.error('Error creating commit:', error);
+        // Cleanup orphaned ZKML files using session-stored IDs
+        try {
+            const session = await prisma.commitCreationSession.findUnique({
+                where: { id: sessionId }
+            });
+            if (session?.zkmlProofIpfsId && session?.zkmlSettingsIpfsId && session?.zkmlVkIpfsId) {
+                const [proofObj, settingsObj, vkObj] = await Promise.all([
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlProofIpfsId } }),
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlSettingsIpfsId } }),
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlVkIpfsId } })
+                ]);
+                if (proofObj && settingsObj && vkObj) {
+                    console.log('Cleaning up orphaned ZKML files from IPFS...');
+                    await Promise.all([
+                        storageProvider.remove(proofObj.cid),
+                        storageProvider.remove(settingsObj.cid),
+                        storageProvider.remove(vkObj.cid)
+                    ]);
+                    // Also delete the IpfsObject DB records
+                    await Promise.all([
+                        prisma.ipfsObject.delete({ where: { id: proofObj.id } }).catch(() => { }),
+                        prisma.ipfsObject.delete({ where: { id: settingsObj.id } }).catch(() => { }),
+                        prisma.ipfsObject.delete({ where: { id: vkObj.id } }).catch(() => { })
+                    ]);
+                    console.log('Successfully removed orphaned ZKML files and DB records.');
+                }
+            }
+        }
+        catch (cleanupErr) {
+            console.error('Error cleaning up ZKML files:', cleanupErr);
+        }
+        if (error.message === 'ZKML Proof combination already exists in database.') {
+            res.status(409).json({ error: { message: error.message } });
+            return;
+        }
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 });

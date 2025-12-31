@@ -431,10 +431,15 @@ commitRouter.post('/create/zkml-upload', async (req, res) => {
             return;
         }
 
-        // Update session status to reflect upload completion
+        // Update session status and store ZKML IDs for cleanup tracking
         await prisma.commitCreationSession.update({
             where: { id: sessionId },
-            data: { status: 'ZKML_UPLOADED' }
+            data: {
+                status: 'ZKML_UPLOADED',
+                zkmlProofIpfsId: proofIpfs.id,
+                zkmlSettingsIpfsId: settingsIpfs.id,
+                zkmlVkIpfsId: vkIpfs.id
+            }
         });
 
         // Issue a receipt token to bind these uploads to the finalize step
@@ -468,6 +473,7 @@ commitRouter.post('/create/zkml-upload', async (req, res) => {
 // STEP 4: Finalize Commit (Atomic Creation)
 // ========================================
 commitRouter.post('/create/finalize', async (req, res) => {
+    let sessionId: string | undefined;
     try {
         const pk = authorizedPk(res);
         const { branchId, repoId } = req;
@@ -506,7 +512,7 @@ commitRouter.post('/create/finalize', async (req, res) => {
             return;
         }
 
-        const sessionId = sessionJwt.sessionId as string;
+        sessionId = sessionJwt.sessionId as string;
 
         if (!zkmlReceiptToken) {
             res.status(400).json({ error: { message: 'Missing zkmlReceiptToken. Upload ZKML proofs before finalizing.' } });
@@ -678,6 +684,42 @@ commitRouter.post('/create/finalize', async (req, res) => {
 
     } catch (error: any) {
         console.error('Error creating commit:', error);
+
+        // Cleanup orphaned ZKML files using session-stored IDs
+        try {
+            const session = await prisma.commitCreationSession.findUnique({
+                where: { id: sessionId }
+            });
+
+            if (session?.zkmlProofIpfsId && session?.zkmlSettingsIpfsId && session?.zkmlVkIpfsId) {
+                const [proofObj, settingsObj, vkObj] = await Promise.all([
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlProofIpfsId } }),
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlSettingsIpfsId } }),
+                    prisma.ipfsObject.findUnique({ where: { id: session.zkmlVkIpfsId } })
+                ]);
+
+                if (proofObj && settingsObj && vkObj) {
+                    console.log('Cleaning up orphaned ZKML files from IPFS...');
+                    await Promise.all([
+                        storageProvider.remove(proofObj.cid),
+                        storageProvider.remove(settingsObj.cid),
+                        storageProvider.remove(vkObj.cid)
+                    ]);
+
+                    // Also delete the IpfsObject DB records
+                    await Promise.all([
+                        prisma.ipfsObject.delete({ where: { id: proofObj.id } }).catch(() => { }),
+                        prisma.ipfsObject.delete({ where: { id: settingsObj.id } }).catch(() => { }),
+                        prisma.ipfsObject.delete({ where: { id: vkObj.id } }).catch(() => { })
+                    ]);
+
+                    console.log('Successfully removed orphaned ZKML files and DB records.');
+                }
+            }
+        } catch (cleanupErr) {
+            console.error('Error cleaning up ZKML files:', cleanupErr);
+        }
+
         if (error.message === 'ZKML Proof combination already exists in database.') {
             res.status(409).json({ error: { message: error.message } });
             return;

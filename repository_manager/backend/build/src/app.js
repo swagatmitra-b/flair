@@ -92,5 +92,4 @@ app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
     // Start background cleanup job
     startCleanupJob();
-    console.log('Background cleanup job started (runs every 10 minutes)');
 });
