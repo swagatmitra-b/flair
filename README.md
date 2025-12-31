@@ -1,50 +1,173 @@
-# 🚀 Flair – A Git-like cli for privacy preserving ML training.
+# Flair
 
-Flair explores how off-chain ML training (e.g., federated learning) can produce verifiable commits whose provenance is recorded on Solana using compressed NFTs. The goal is auditability and incentives for privacy-preserving ML collaboration.
+**Flair is a repository manager for collaborative, privacy-preserving machine learning.**  
+Think of it as **Git + GitHub for ML models**, designed to work with federated learning.
 
-Train machine learning models together without ever sharing your private data.
+Flair lets multiple contributors train a shared ML model **without sharing raw data**, while keeping a complete, verifiable history of every contribution.
 
-When you train an AI, it usually needs access to data. But what if your data is private—like hospital patient records, financial transactions, or personal AI assistants? With Flair, your data stays on your device.
+---
 
-Instead of sending your data to a server, Flair sends the model to you. It learns from your data privately and only sends back small updates (like improved settings). These updates are combined with others to improve the global AI model without ever exposing anyone’s data.
+## Why Flair?
 
-Every contribution is verifiable and stored as an NFT, proving your work and ensuring that only authorized people can access model details.
+Traditional collaboration platforms assume that:
+- data can be centralized
+- training happens in one place
+- ownership of model contributions is unclear
 
-## 🔒 Why Flair?
-Flair is different from other collaborative ML platforms like Hugging Face because it is built for privacy. No one—not even Flair—can extract data from your models.
+Flair is built for situations where:
+- data **must remain private**
+- training happens **locally**
+- multiple contributors improve the same model
+- provenance, auditability, and ownership matter
 
-- ✅ Your Data Stays Private – The model trains on your device, and only updates (not your data) are shared.
-- ✅ Verifiable Training – Others can verify that your training is legit without seeing any details.
-- ✅ Full Ownership – Every commit you make is recorded as an NFT, proving your intellectual work.
-- ✅ Access Control – Only authorized people can access model details, ensuring total security.
+Examples include research, sensitive datasets, regulated domains, and collaborative experimentation.
 
-## 🛠 How It Works
-- 1️⃣ Upload a model – Start by creating a new ML model repository.
-- 2️⃣ Invite trusted collaborators – Just like GitHub, invite contributors to train the model.
-- 3️⃣ Train Locally – Models are trained on personal devices—your data never leaves your system.
-- 4️⃣ Share Updates, Not Data – Only model updates (not the actual data) are shared and merged.
-- 5️⃣ Verify with Zero-Knowledge Proofs – Contributions are checked for authenticity without exposing any data.
-- 6️⃣ Own Your Work – Every update is stored as an NFT, ensuring proof of contribution.
+---
 
-## 🔗 Supported Framework
-- TensorFlow 
+## Core Idea (No ML Background Required)
 
-## 🚀 Get Started
-- Create a new repository
-- Push an untrained model
-- Invite collaborators
-- Contributors train the model locally
-- Push updates (not data!)
-- Verify & merge contributions
+Instead of sending data to a server:
 
-## 🔐 Zero-Knowledge Proofs – Training Verified, Data Hidden 🛡️  
+1. Each contributor **trains the model locally** on their own data  
+2. Only the **model updates** (not the data) are shared  
+3. Every update is treated as a **commit**, just like Git  
+4. Commits can be reviewed, merged, reverted, and tracked over time  
 
-A **Zero-Knowledge Proof (ZKP)** lets a contributor prove that they’ve trained a machine learning model on their private data **without actually revealing the data.**  
+Raw data **never leaves the contributor’s machine**.
 
-✅ Your updates are **verified** as legit, but no one can see your data.  
-✅ Prevents **fraud**—ensures real contributions without revealing secrets.  
-✅ **Privacy first** – Keeps all training data hidden from others.  
+---
 
-This ensures **Flair remains 100% private while still allowing global collaboration.**  
+## How Flair Works
 
-🔹 Train smarter. Collaborate securely. Own your work. Flair makes machine learning truly private. 🚀
+### 1. Repositories for ML Models
+- Create a repository for a machine learning model
+- Push an initial (untrained or pre-trained) model
+- Manage branches, permissions, and contributors
+
+### 2. Local Training
+- Contributors pull the latest model
+- Training happens **entirely on their local system**
+- Flair does not access or upload raw datasets
+
+### 3. Commits, Not Uploads
+- Each training result is a **commit**
+- Commits include:
+  - model parameter updates
+  - metadata
+  - optional metrics
+- Commits are immutable and traceable
+
+### 4. Asynchronous Aggregation
+- Flair integrates with federated learning engines (e.g. Flower)
+- Multiple contributors can train concurrently
+- Updates are merged asynchronously using defined aggregation policies
+- No locking, no “first commit wins” problem
+
+### 5. Verifiable Training (Optional)
+- Commits can include zero-knowledge proofs (zkML)
+- Proofs verify that training followed agreed rules
+- Verification happens asynchronously on the backend
+- Proofs do **not** reveal training data
+
+### 6. Ownership & Provenance
+- Commits can be minted as NFTs
+- Ownership of model contributions is cryptographically recorded
+- Provenance is transparent and auditable
+
+---
+
+## What Flair Is NOT
+
+Flair is **not**:
+- a model deployment platform
+- a clinical or diagnostic system
+- a replacement for ML frameworks
+- a data collection service
+
+Flair is **infrastructure for building models**, not for making decisions.
+
+---
+
+## Architecture Overview
+
+Local Client
+├─ Trains model on private data
+├─ Produces model update + metadata
+└─ Pushes commit via Flair CLI
+↓
+Flair Backend
+├─ Stores repo & commit metadata
+├─ Triggers async aggregation
+├─ Verifies zk proofs (optional)
+└─ Records provenance
+↓
+Federated Learning Engine (e.g. Flower)
+├─ Aggregates updates
+├─ Handles staleness & concurrency
+└─ Produces updated global model
+
+
+---
+
+## Supported Frameworks
+
+- **PyTorch**
+
+(Additional frameworks may be supported in the future.)
+
+---
+
+## Privacy Model
+
+- Raw training data **never leaves the client**
+- Only model updates are shared
+- No dataset uploads
+- No centralized data storage
+- Optional cryptographic verification of training
+
+Flair is designed so that **data cannot be extracted from the system**.
+
+---
+
+## Status
+
+⚠️ **Early-stage / research-oriented project**
+
+- APIs may change
+- Not production-ready
+- Intended for developers and researchers
+- Feedback and contributions are welcome
+
+---
+
+## Open Source Philosophy
+
+Flair is open source at the **client and protocol layer** to enable:
+- transparency
+- auditability
+- ecosystem integration
+- community contributions
+
+Some hosted services and infrastructure components may remain closed-source.
+
+---
+
+## Disclaimer
+
+Flair is intended for **research and development use only**.  
+It does not provide medical advice, clinical decision support, or diagnostic functionality.
+
+Any model built using Flair must be validated independently before real-world deployment.
+
+---
+
+## Contributing
+
+Contributions, discussions, and design feedback are welcome.
+
+Please note:
+- Flair is infrastructure software
+- correctness and clarity matter more than speed
+- breaking changes may occur in early versions
+
+---
