@@ -91,6 +91,7 @@ Flair is **infrastructure for building models**, not for making decisions.
 ## Architecture Overview
 
 Local Client
+
 ├─ Trains model on private data
 
 ├─ Produces model update + metadata
