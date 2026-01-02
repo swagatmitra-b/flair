@@ -230,3 +230,95 @@ export async function deleteBranch(req: Request, res: Response) {
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 }
+
+// Fork a branch within the same repository
+export async function forkBranch(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoId } = req;
+        const { branchHash } = req.params;
+        const { name, description }: { name: string, description?: string } = req.body;
+
+        if (!name || !name.trim()) {
+            res.status(400).send({ error: { message: 'Branch name is required for forking.' } });
+            return;
+        }
+
+        if (name.includes(" ")) {
+            res.status(400).send({ error: { message: "Name of the branch cannot contain spaces." } });
+            return;
+        }
+
+        // Find the repository and check permissions
+        const matchRepo = await prisma.repository.findUnique({
+            where: { id: repoId },
+            include: { baseModel: true }
+        });
+
+        if (!matchRepo) {
+            res.status(404).send({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Check if user has write access
+        if (matchRepo.ownerAddress !== pk && !matchRepo.writeAccessIds.includes(pk)) {
+            res.status(401).send({ error: { message: 'Unauthorized. You can only fork branches in repositories you have write access to.' } });
+            return;
+        }
+
+        // If the base model is not uploaded we cannot fork a branch
+        if (!matchRepo.baseModel || !matchRepo.baseModelId) {
+            res.status(400).send({ error: { message: 'No base model uploaded. Cannot fork a branch.' } });
+            return;
+        }
+
+        // Find the source branch to fork from
+        const sourceBranch = await prisma.branch.findFirst({ 
+            where: { branchHash, repositoryId: repoId } 
+        });
+
+        if (!sourceBranch) {
+            res.status(404).send({ error: { message: 'Source branch not found in this repository.' } });
+            return;
+        }
+
+        // Check if a branch with the same name already exists
+        const existingBranch = await prisma.branch.findFirst({
+            where: { name, repositoryId: repoId }
+        });
+
+        if (existingBranch) {
+            res.status(409).send({ error: { message: 'A branch with this name already exists in the repository.' } });
+            return;
+        }
+
+        // Create the forked branch with the same latest params as the source branch
+        const forkedBranch = await prisma.branch.create({
+            data: {
+                name,
+                description: description || `Forked from ${sourceBranch.name}`,
+                repositoryId: repoId!,
+                branchHash: uuidv4(),
+                // Copy the latest params from the source branch to start from the same point
+                ...(sourceBranch.latestParamsId ? { latestParamsId: sourceBranch.latestParamsId } : {})
+            }
+        });
+
+        // Update repository timestamp
+        await prisma.repository.update({
+            where: { id: repoId },
+            data: { updatedAt: new Date() }
+        });
+
+        res.status(201).json({ 
+            data: forkedBranch,
+            message: `Branch '${sourceBranch.name}' forked successfully as '${name}'. You can now develop independently on this branch.`
+        });
+        return;
+
+    } catch (err) {
+        console.error('Error forking branch:', err);
+        res.status(500).send({ error: { message: 'Internal Server Error' } });
+        return;
+    }
+}

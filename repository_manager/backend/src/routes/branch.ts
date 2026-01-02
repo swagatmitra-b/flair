@@ -20,6 +20,9 @@ branchRouter.patch('/hash/:branchHash/update', branchController.updateBranch);
 // Delete a branch from a repository
 branchRouter.delete('/hash/:branchHash/delete', branchController.deleteBranch);
 
+// Fork a branch within the same repository
+branchRouter.post('/hash/:branchHash/fork', branchController.forkBranch);
+
 branchRouter.use('/hash/:branchHash/commit', async (req, res, next) => {
     const { branchHash } = req.params;
     const matchBranch = await prisma.branch.findFirst({

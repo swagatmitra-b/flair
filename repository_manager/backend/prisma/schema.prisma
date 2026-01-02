@@ -1,8 +1,7 @@
 generator client {
   provider      = "prisma-client-js"
   binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
-  // uncomment this line in windows  
-  // binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+  // binaryTargets = ["native", "linux-musl-openssl-3.0.x"]     --> for only linux deployment
 }
 
 datasource db {
@@ -16,6 +15,13 @@ enum CommitStatus {
   PENDING
   REJECTED
   MERGED
+}
+
+// three possible commit policies for commit overlapping
+enum CommitPolicy {
+  SERIAL
+  FORK
+  MERGE
 }
 
 // user model needed to be created
@@ -54,6 +60,8 @@ model Repository {
   // the base model CID can be fetched from `baseModel.cid`
   collection     Collection?        @relation(fields: [collectionId], references: [id])
   collectionId   String?            @unique @db.ObjectId
+  // the commit policy routes
+  commitPolicy   CommitPolicy       @default(MERGE)
 
   @@unique([ownerAddress, name])
 }
@@ -251,7 +259,7 @@ model CommitCreationSession {
   zkmlVkIpfsId       String? @db.ObjectId
 
   // Track uploaded params IPFS ID for cleanup on failure
-  paramsIpfsId       String? @db.ObjectId
+  paramsIpfsId String? @db.ObjectId
 }
 
 // Tracks users blocked from initiating commits for 2 minutes after errors

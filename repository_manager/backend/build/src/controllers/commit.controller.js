@@ -686,7 +686,7 @@ export const finalizeCommit = async (req, res) => {
                     metrics: metricsFinal,
                     branchId,
                     commitHash,
-                    status: 'MERGED',
+                    status: 'MERGED', // the status is set to MERGED directly for simplicity for now
                     verified: !!zkmlRelationInput,
                     architecture,
                     paramHash,
