@@ -1,7 +1,6 @@
 import { prisma } from '../lib/prisma/index.js';
 import { Router } from 'express';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
-import { commitMetrics, commitParameters, RejectedCommits } from '../lib/types/commit.js';
 import {
     convertCommitToNft,
     // fetchCnft, 
@@ -16,6 +15,9 @@ import storageProvider from '../lib/storage/index.js';
 import { constructIPFSUrl } from '../lib/ipfs/ipfs.js';
 import jwt from 'jsonwebtoken';
 import config from '../../config.js';
+import path from 'path';
+import fs from 'fs';
+import { paramsUploader } from '../lib/multer/index.js';
 
 // Short-lived token used to authorize ZKML uploads and commit creation
 const ZKP_JWT_SECRET = process.env.ZKP_JWT_SECRET || 'super-secret-commit-generation';
@@ -470,27 +472,175 @@ commitRouter.post('/create/zkml-upload', async (req, res) => {
 });
 
 // ========================================
+// STEP 3.5: Upload Model Parameters (Binary File)
+// ========================================
+// Uploads the ML model parameters/weights as a binary file to IPFS
+// This route must come after ZKML upload and before finalize
+commitRouter.post('/create/params-upload', paramsUploader, async (req, res) => {
+    let paramsCid: string | null = null;
+    try {
+        const pk = authorizedPk(res);
+        const { sessionId, initiateToken, zkmlReceiptToken } = req.body;
+
+        // Validate required fields
+        if (!sessionId || !initiateToken || !zkmlReceiptToken) {
+            res.status(400).json({
+                error: { message: 'All fields (sessionId, initiateToken, zkmlReceiptToken) are required.' }
+            });
+            return;
+        }
+
+        if (!req.file) {
+            res.status(400).json({ error: { message: 'No parameters file uploaded.' } });
+            return;
+        }
+
+        // Verify initiate token
+        let sessionJwt: any;
+        try {
+            sessionJwt = jwt.verify(initiateToken, COMMIT_JWT_SECRET);
+        } catch {
+            res.status(403).json({ error: { message: 'Invalid or expired initiateToken.' } });
+            return;
+        }
+
+        if (sessionJwt.type !== 'commit_initiate' || sessionJwt.sessionId !== sessionId || sessionJwt.pk !== pk) {
+            res.status(403).json({ error: { message: 'Initiate token mismatch or unauthorized.' } });
+            return;
+        }
+
+        // Verify zkml receipt token
+        let receiptJwt: any;
+        try {
+            receiptJwt = jwt.verify(zkmlReceiptToken, ZKP_JWT_SECRET);
+        } catch {
+            res.status(403).json({ error: { message: 'Invalid or expired zkmlReceiptToken.' } });
+            return;
+        }
+
+        if (receiptJwt.type !== 'commit_zkml_receipt' || receiptJwt.sessionId !== sessionId || receiptJwt.pk !== pk) {
+            res.status(403).json({ error: { message: 'ZKML receipt mismatch or unauthorized.' } });
+            return;
+        }
+
+        // Verify session state - must be ZKML_UPLOADED
+        const session = await prisma.commitCreationSession.findUnique({ where: { id: sessionId } });
+        if (!session || session.consumed || session.status !== 'ZKML_UPLOADED' || (session.expiresAt && session.expiresAt < new Date())) {
+            await recordSessionError(sessionId, pk);
+            res.status(403).json({ error: { message: 'Invalid or expired session. Expected ZKML_UPLOADED status.' } });
+            return;
+        }
+
+        // Check if params already uploaded for this session (prevent duplicate uploads)
+        if (session.paramsIpfsId) {
+            res.status(409).json({ error: { message: 'Parameters already uploaded for this commit. Cannot upload multiple parameter sets.' } });
+            return;
+        }
+
+        const paramsPath = path.join(req.file.destination, req.file.filename);
+        if (!fs.existsSync(paramsPath)) {
+            console.error('Error: Params file does not exist for uploading to IPFS.');
+            res.status(500).json({ error: { message: 'Internal Server Error: File not found.' } });
+            return;
+        }
+
+        const fileSize = req.file.size;
+        if (!fileSize) {
+            res.status(400).json({ error: { message: 'Invalid file size.' } });
+            return;
+        }
+
+        // Upload params to IPFS
+        const paramsUploadRes = await storageProvider.add(paramsPath, { pin: true });
+        paramsCid = paramsUploadRes?.cid?.toString();
+
+        if (!paramsCid) {
+            res.status(500).json({ error: { message: 'Could not upload parameters to IPFS.' } });
+            return;
+        }
+
+        // Create or reuse IpfsObject record for the params
+        const paramsIpfs = await prisma.ipfsObject.upsert({
+            where: { cid: paramsCid },
+            update: {},
+            create: {
+                cid: paramsCid,
+                uri: constructIPFSUrl(paramsCid),
+                extension: req.fileExtension || 'bin',
+                size: fileSize
+            }
+        });
+
+        // Update session to store params IPFS ID and change status
+        await prisma.commitCreationSession.update({
+            where: { id: sessionId },
+            data: {
+                status: 'PARAMS_UPLOADED',
+                paramsIpfsId: paramsIpfs.id
+            }
+        });
+
+        // Issue params receipt token for use in finalize
+        const paramsReceiptToken = jwt.sign({
+            type: 'commit_params_receipt',
+            sessionId,
+            pk,
+            repoId: sessionJwt.repoId,
+            branchId: sessionJwt.branchId,
+            paramsIpfsId: paramsIpfs.id
+        }, ZKP_JWT_SECRET, { expiresIn: `${SESSION_EXPIRY_MINUTES}m` });
+
+        res.status(200).json({
+            success: true,
+            message: 'Parameters uploaded successfully. Proceed to finalize.',
+            paramsReceiptToken,
+            paramsCid: paramsIpfs.cid,
+            paramsIpfsId: paramsIpfs.id
+        });
+
+    } catch (err) {
+        console.error('Error uploading parameters:', err);
+
+        // Cleanup orphaned params file from IPFS if upload failed
+        if (paramsCid) {
+            try {
+                console.log('Cleaning up orphaned parameters file from IPFS...');
+                await storageProvider.remove(paramsCid);
+                console.log('Successfully removed orphaned parameters file.');
+            } catch (cleanupErr) {
+                console.error('Error cleaning up parameters file from IPFS:', cleanupErr);
+            }
+        }
+
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+});
+
+// ========================================
 // STEP 4: Finalize Commit (Atomic Creation)
 // ========================================
 commitRouter.post('/create/finalize', async (req, res) => {
     let sessionId: string | undefined;
+    let zkmlCids: { proofCid: string; settingsCid: string; vkCid: string } | null = null;
+    let paramsCid: string | null = null;
+
     try {
         const pk = authorizedPk(res);
         const { branchId, repoId } = req;
         const {
             message,
             paramHash,
-            params,
             architecture,
             initiateToken,
-            zkmlReceiptToken
+            zkmlReceiptToken,
+            paramsReceiptToken
         }: {
             message: string,
             paramHash: string,
-            params: commitParameters,
             architecture: string,
             initiateToken: string,
-            zkmlReceiptToken: string
+            zkmlReceiptToken: string,
+            paramsReceiptToken: string
         } = req.body;
 
         // --- 1. Token validations ---
@@ -514,38 +664,82 @@ commitRouter.post('/create/finalize', async (req, res) => {
 
         sessionId = sessionJwt.sessionId as string;
 
+        // --- 2. ZKML Receipt Validation ---
         if (!zkmlReceiptToken) {
             res.status(400).json({ error: { message: 'Missing zkmlReceiptToken. Upload ZKML proofs before finalizing.' } });
             return;
         }
 
-        let receiptJwt: any;
+        let zkmlReceiptJwt: any;
         try {
-            receiptJwt = jwt.verify(zkmlReceiptToken, ZKP_JWT_SECRET);
+            zkmlReceiptJwt = jwt.verify(zkmlReceiptToken, ZKP_JWT_SECRET);
         } catch {
             res.status(403).json({ error: { message: 'Invalid or expired zkmlReceiptToken.' } });
             return;
         }
 
-        if (receiptJwt.type !== 'commit_zkml_receipt' || receiptJwt.sessionId !== sessionId || receiptJwt.pk !== pk || receiptJwt.repoId !== repoId || receiptJwt.branchId !== branchId) {
+        if (zkmlReceiptJwt.type !== 'commit_zkml_receipt' || zkmlReceiptJwt.sessionId !== sessionId || zkmlReceiptJwt.pk !== pk || zkmlReceiptJwt.repoId !== repoId || zkmlReceiptJwt.branchId !== branchId) {
             res.status(403).json({ error: { message: 'ZKML receipt does not match current session/context.' } });
+            return;
+        }
+
+        // --- 3. Params Receipt Validation ---
+        if (!paramsReceiptToken) {
+            res.status(400).json({ error: { message: 'Missing paramsReceiptToken. Upload parameters before finalizing.' } });
+            return;
+        }
+
+        let paramsReceiptJwt: any;
+        try {
+            paramsReceiptJwt = jwt.verify(paramsReceiptToken, ZKP_JWT_SECRET);
+        } catch {
+            res.status(403).json({ error: { message: 'Invalid or expired paramsReceiptToken.' } });
+            return;
+        }
+
+        if (paramsReceiptJwt.type !== 'commit_params_receipt' || paramsReceiptJwt.sessionId !== sessionId || paramsReceiptJwt.pk !== pk || paramsReceiptJwt.repoId !== repoId || paramsReceiptJwt.branchId !== branchId) {
+            res.status(403).json({ error: { message: 'Params receipt does not match current session/context.' } });
             return;
         }
 
         // Prepare nested ZKML create object up front to satisfy strict typing
         const zkmlRelationInput: ZKMLProofCreateObj | undefined = {
             create: {
-                proofIpfsId: receiptJwt.proofIpfsId,
-                settingsIpfsId: receiptJwt.settingsIpfsId,
-                verificationKeyIpfsId: receiptJwt.vkIpfsId
+                proofIpfsId: zkmlReceiptJwt.proofIpfsId,
+                settingsIpfsId: zkmlReceiptJwt.settingsIpfsId,
+                verificationKeyIpfsId: zkmlReceiptJwt.vkIpfsId
             }
         };
 
-        // Verify session state
+        // Track CIDs of uploaded files for cleanup in case of error
+        try {
+            const [proofObj, settingsObj, vkObj] = await Promise.all([
+                prisma.ipfsObject.findUnique({ where: { id: zkmlReceiptJwt.proofIpfsId } }),
+                prisma.ipfsObject.findUnique({ where: { id: zkmlReceiptJwt.settingsIpfsId } }),
+                prisma.ipfsObject.findUnique({ where: { id: zkmlReceiptJwt.vkIpfsId } })
+            ]);
+
+            if (proofObj && settingsObj && vkObj) {
+                zkmlCids = {
+                    proofCid: proofObj.cid,
+                    settingsCid: settingsObj.cid,
+                    vkCid: vkObj.cid
+                };
+            }
+
+            const paramsObj = await prisma.ipfsObject.findUnique({ where: { id: paramsReceiptJwt.paramsIpfsId } });
+            if (paramsObj) {
+                paramsCid = paramsObj.cid;
+            }
+        } catch (err) {
+            console.error('Error fetching CIDs for cleanup tracking:', err);
+        }
+
+        // Verify session state - must be PARAMS_UPLOADED
         const session = await prisma.commitCreationSession.findUnique({ where: { id: sessionId } });
-        if (!session || session.consumed || session.status !== 'ZKML_UPLOADED' || (session.expiresAt && session.expiresAt < new Date())) {
+        if (!session || session.consumed || session.status !== 'PARAMS_UPLOADED' || (session.expiresAt && session.expiresAt < new Date())) {
             await recordSessionError(sessionId, pk);
-            res.status(403).json({ error: { message: 'Invalid or expired session.' } });
+            res.status(403).json({ error: { message: 'Invalid or expired session. Expected PARAMS_UPLOADED status.' } });
             return;
         }
 
@@ -562,8 +756,8 @@ commitRouter.post('/create/finalize', async (req, res) => {
         if (!branchId) {
             throw new Error('Critical Error: branchId not attached to response.');
         }
-        if (!paramHash || !params || !architecture) {
-            res.status(400).json({ error: { message: 'paramHash, params, and architecture are required.' } });
+        if (!paramHash || !architecture) {
+            res.status(400).json({ error: { message: 'paramHash and architecture are required.' } });
             return;
         }
 
@@ -582,11 +776,6 @@ commitRouter.post('/create/finalize', async (req, res) => {
         const hasWriteAccess = branch.repository.ownerAddress === pk || branch.repository.writeAccessIds.includes(pk);
         if (!hasWriteAccess) {
             res.status(403).json({ error: { message: 'Unauthorized. You do not have write access to this repository.' } });
-            return;
-        }
-
-        if (!params.params) {
-            res.status(400).json({ error: { message: 'Error: No parameters (weights) provided.' } });
             return;
         }
 
@@ -620,13 +809,15 @@ commitRouter.post('/create/finalize', async (req, res) => {
             loss: parseFloat(metricsExtracted.loss),
         };
 
-        // Upload params → IPFS
-        const paramsUpload = await storageProvider.add(Buffer.from(params.params, 'base64'), { pin: true });
-        const paramsIpfs = await prisma.ipfsObject.upsert({
-            where: { cid: paramsUpload.cid },
-            update: {},
-            create: { cid: paramsUpload.cid, uri: constructIPFSUrl(paramsUpload.cid), extension: 'bin', size: paramsUpload.size || 0 }
+        // Params are already uploaded and stored in the session, use the paramsIpfsId from receipt
+        const paramsIpfs = await prisma.ipfsObject.findUnique({
+            where: { id: paramsReceiptJwt.paramsIpfsId }
         });
+
+        if (!paramsIpfs) {
+            res.status(404).json({ error: { message: 'Parameters IPFS object not found. Please re-upload parameters.' } });
+            return;
+        }
 
         const commit = await prisma.$transaction(async (tx) => {
             // Prevent race: ensure no duplicate proof exists
@@ -718,6 +909,17 @@ commitRouter.post('/create/finalize', async (req, res) => {
             }
         } catch (cleanupErr) {
             console.error('Error cleaning up ZKML files:', cleanupErr);
+        }
+
+        // Cleanup orphaned params file from IPFS if it was uploaded but commit creation failed
+        if (paramsCid) {
+            try {
+                console.log('Cleaning up orphaned parameters file from IPFS...');
+                await storageProvider.remove(paramsCid);
+                console.log('Successfully removed orphaned parameters file.');
+            } catch (cleanupErr) {
+                console.error('Error cleaning up parameters file from IPFS:', cleanupErr);
+            }
         }
 
         if (error.message === 'ZKML Proof combination already exists in database.') {

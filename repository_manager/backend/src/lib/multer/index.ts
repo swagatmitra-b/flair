@@ -9,8 +9,10 @@ import config from "../../../config.js";
 // Debashish Buragohain
 
 // the allowed file types must be consistent everywhere
-const allowedTypes = config.upload.baseModel.allowedFileTypes;
-const maxSize = config.upload.baseModel.maxSize || 20;       // in MB
+const allowedBaseModelTypes = config.upload.baseModel.allowedFileTypes;
+const maxBaseModelSize = config.upload.baseModel.maxBaseModelSize || 20;       // in MB
+const allowedParamsTypes = config.upload.params.allowedFileTypes;
+const maxParamsSize = config.upload.params.maxSize || 50;       // in MB
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
@@ -23,19 +25,38 @@ const storage = multer.diskStorage({
 });
 
 // apply some other filters here
-const fileFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
-    const fileExt = file.originalname.split(".").pop()?.toLowerCase();
-    if (fileExt && allowedTypes.includes(fileExt)) {
-        req.fileExtension = fileExt;        // attach the file extension to the request now
+const baseModelFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    const baseModelExt = file.originalname.split(".").pop()?.toLowerCase();
+    if (baseModelExt && allowedBaseModelTypes.includes(baseModelExt)) {
+        req.fileExtension = baseModelExt;        // attach the file extension to the request now
         cb(null, true);
     } else {
-        cb(new Error(`Invalid file type! Only ${allowedTypes.join(", ").toUpperCase()} files are allowed.`));
+        cb(new Error(`Invalid base model file type! Only ${allowedBaseModelTypes.join(", ").toUpperCase()} files are allowed.`));
     }
 };
 
 // setup the middleware to upload the base model
 // the model must be sent under the base model field in the request
-export const uploader = multer({
-    storage, fileFilter,
-    limits: { fileSize: (maxSize as number) * 1024 * 1024 }
+export const baseModelUploader = multer({
+    storage, 
+    fileFilter: baseModelFilter,
+    limits: { fileSize: (maxBaseModelSize as number) * 1024 * 1024 }
 }).single('baseModel');
+
+// Params uploader configuration - similar to baseModel but for commit parameters
+const paramsFileFilter = (req: Request, file: Express.Multer.File, cb: FileFilterCallback) => {
+    const paramsExt = file.originalname.split(".").pop()?.toLowerCase();
+    if (paramsExt && allowedParamsTypes.includes(paramsExt)) {
+        req.fileExtension = paramsExt;        // attach the file extension to the request now
+        cb(null, true);
+    } else {
+        cb(new Error(`Invalid param file type! Only ${allowedParamsTypes.join(", ").toUpperCase()} files are allowed.`));
+    }
+};
+
+// Params uploader for commit creation workflow
+export const paramsUploader = multer({
+    storage, 
+    fileFilter: paramsFileFilter,
+    limits: { fileSize: (maxParamsSize as number) * 1024 * 1024 }
+}).single('params');

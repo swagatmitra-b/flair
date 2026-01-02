@@ -4,7 +4,7 @@
 import { Router } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { uploader } from '../lib/multer/index.js';
+import { baseModelUploader } from '../lib/multer/index.js';
 import storageProvider from '../lib/storage/index.js';
 import { authorizedPk } from '../middleware/auth/authHandler.js';
 import { prisma } from '../lib/prisma/index.js';
@@ -18,7 +18,7 @@ import { constructIPFSUrl } from '../lib/ipfs/ipfs.js';
 const modelRouter = Router();
 
 // sends a model to the backend for uploading to the frontend
-modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, uploader, async (req, res) => {
+modelRouter.post('/upload', existingModelCheck, clearDirBeforeUpload, baseModelUploader, async (req, res) => {
     try {
         // first do a check that the user is actually uploading to his model only
         const pk = authorizedPk(res);

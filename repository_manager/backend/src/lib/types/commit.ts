@@ -29,8 +29,7 @@ export interface CommitNftMetdata {
 }
 
 export interface commitParameters {
-    params: string,        // the parameters of the model will be sent in the latest versions now
-    zkmlProof: zkmlDeserialized
+    params: string        // the parameters of the model will be sent in the latest versions now
 }
 
 // the metrics associated with the model are defined this way
