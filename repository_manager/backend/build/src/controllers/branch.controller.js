@@ -215,6 +215,7 @@ export async function deleteBranch(req, res) {
     }
 }
 // Fork a branch within the same repository
+// can be manual or automatically forked when a merge conflict occurs
 export async function forkBranch(req, res) {
     try {
         const pk = authorizedPk(res);

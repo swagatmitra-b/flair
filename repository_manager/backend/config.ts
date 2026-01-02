@@ -51,13 +51,16 @@ const config = {
                 ".onnx",          // Open Neural Network Exchange
                 ".pkl"            // Python Pickle
             ],
-            maxSize: 50,      // in MB
+            maxSize: 50,          // in MB
         }
     },
     commit: {
         session: {
             expiryMinutes: 10,
             blockDurationMinutes: 2,
+        },
+        genesis: {
+            hash: '_GENESIS_COMMIT_'  // hash of the genesis commit
         }
     },
     cleanup: {
