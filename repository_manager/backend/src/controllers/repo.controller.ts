@@ -290,3 +290,250 @@ export async function deleteRepository(req: Request, res: Response) {
         res.status(500).send({ error: { message: 'Internal Server Error' } });
     }
 }
+
+// Add admin to repository (Owner only)
+export async function addAdmin(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoHash } = req.params;
+        const { walletAddress } = req.body;
+
+        if (!walletAddress) {
+            res.status(400).json({ error: { message: 'walletAddress is required.' } });
+            return;
+        }
+
+        const repo = await prisma.repository.findUnique({ where: { repoHash } });
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Only owner can add admins
+        if (repo.ownerAddress !== pk) {
+            res.status(403).json({ error: { message: 'Unauthorized. Only the owner can assign admins.' } });
+            return;
+        }
+
+        // Check if already an admin
+        if (repo.adminIds.includes(walletAddress)) {
+            res.status(400).json({ error: { message: 'User is already an admin.' } });
+            return;
+        }
+
+        const updatedRepo = await prisma.repository.update({
+            where: { repoHash },
+            data: {
+                adminIds: { push: walletAddress },
+                updatedAt: new Date()
+            }
+        });
+
+        res.status(200).json({ 
+            message: 'Admin added successfully.',
+            data: updatedRepo 
+        });
+
+    } catch (error) {
+        console.error('Error adding admin:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}
+
+// Remove admin from repository (Owner only)
+export async function removeAdmin(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoHash } = req.params;
+        const { walletAddress } = req.body;
+
+        if (!walletAddress) {
+            res.status(400).json({ error: { message: 'walletAddress is required.' } });
+            return;
+        }
+
+        const repo = await prisma.repository.findUnique({ where: { repoHash } });
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Only owner can remove admins
+        if (repo.ownerAddress !== pk) {
+            res.status(403).json({ error: { message: 'Unauthorized. Only the owner can remove admins.' } });
+            return;
+        }
+
+        // Cannot remove owner from admins
+        if (walletAddress === repo.ownerAddress) {
+            res.status(400).json({ error: { message: 'Cannot remove owner from admins.' } });
+            return;
+        }
+
+        if (!repo.adminIds.includes(walletAddress)) {
+            res.status(400).json({ error: { message: 'User is not an admin.' } });
+            return;
+        }
+
+        const updatedAdminIds = repo.adminIds.filter(id => id !== walletAddress);
+
+        const updatedRepo = await prisma.repository.update({
+            where: { repoHash },
+            data: {
+                adminIds: updatedAdminIds,
+                updatedAt: new Date()
+            }
+        });
+
+        res.status(200).json({ 
+            message: 'Admin removed successfully.',
+            data: updatedRepo 
+        });
+
+    } catch (error) {
+        console.error('Error removing admin:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}
+
+// Add writer to repository (Owner or Admin)
+export async function addWriter(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoHash } = req.params;
+        const { walletAddress } = req.body;
+
+        if (!walletAddress) {
+            res.status(400).json({ error: { message: 'walletAddress is required.' } });
+            return;
+        }
+
+        const repo = await prisma.repository.findUnique({ where: { repoHash } });
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Owner or admin can add writers
+        const isAuthorized = repo.ownerAddress === pk || repo.adminIds.includes(pk);
+        if (!isAuthorized) {
+            res.status(403).json({ error: { message: 'Unauthorized. Only owner or admins can add writers.' } });
+            return;
+        }
+
+        // Check if already a writer
+        if (repo.writeAccessIds.includes(walletAddress)) {
+            res.status(400).json({ error: { message: 'User already has write access.' } });
+            return;
+        }
+
+        const updatedRepo = await prisma.repository.update({
+            where: { repoHash },
+            data: {
+                writeAccessIds: { push: walletAddress },
+                updatedAt: new Date()
+            }
+        });
+
+        res.status(200).json({ 
+            message: 'Writer added successfully.',
+            data: updatedRepo 
+        });
+
+    } catch (error) {
+        console.error('Error adding writer:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}
+
+// Revoke writer access from repository (Owner or Admin)
+export async function revokeWriter(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoHash } = req.params;
+        const { walletAddress } = req.body;
+
+        if (!walletAddress) {
+            res.status(400).json({ error: { message: 'walletAddress is required.' } });
+            return;
+        }
+
+        const repo = await prisma.repository.findUnique({ where: { repoHash } });
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Owner or admin can revoke writers
+        const isAuthorized = repo.ownerAddress === pk || repo.adminIds.includes(pk);
+        if (!isAuthorized) {
+            res.status(403).json({ error: { message: 'Unauthorized. Only owner or admins can revoke write access.' } });
+            return;
+        }
+
+        // Cannot revoke owner or admin write access
+        if (walletAddress === repo.ownerAddress || repo.adminIds.includes(walletAddress)) {
+            res.status(400).json({ error: { message: 'Cannot revoke write access from owner or admins.' } });
+            return;
+        }
+
+        if (!repo.writeAccessIds.includes(walletAddress)) {
+            res.status(400).json({ error: { message: 'User does not have write access.' } });
+            return;
+        }
+
+        const updatedWriteAccessIds = repo.writeAccessIds.filter(id => id !== walletAddress);
+
+        const updatedRepo = await prisma.repository.update({
+            where: { repoHash },
+            data: {
+                writeAccessIds: updatedWriteAccessIds,
+                updatedAt: new Date()
+            }
+        });
+
+        res.status(200).json({ 
+            message: 'Write access revoked successfully.',
+            data: updatedRepo 
+        });
+
+    } catch (error) {
+        console.error('Error revoking writer:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}
+
+// Get all roles for a repository
+export async function getRepositoryRoles(req: Request, res: Response) {
+    try {
+        const { repoHash } = req.params;
+
+        const repo = await prisma.repository.findUnique({ 
+            where: { repoHash },
+            select: {
+                ownerAddress: true,
+                adminIds: true,
+                writeAccessIds: true,
+                contributorIds: true
+            }
+        });
+
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        res.status(200).json({ 
+            data: {
+                owner: repo.ownerAddress,
+                admins: repo.adminIds,
+                writers: repo.writeAccessIds,
+                contributors: repo.contributorIds
+            }
+        });
+
+    } catch (error) {
+        console.error('Error fetching repository roles:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}

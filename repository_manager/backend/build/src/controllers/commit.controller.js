@@ -14,6 +14,7 @@ const ZKP_JWT_SECRET = process.env.ZKP_JWT_SECRET || 'super-secret-commit-genera
 const COMMIT_JWT_SECRET = process.env.COMMIT_JWT_SECRET || 'another-super-secret-commit-generation';
 const SESSION_EXPIRY_MINUTES = config.commit.session.expiryMinutes || 10;
 const BLOCK_DURATION_MINUTES = config.commit.session.blockDurationMinutes || 2;
+const GENESIS_COMMIT_HASH = config.commit.genesis.hash || '_GENESIS_COMMIT_';
 // Helper: Block user for 2 minutes
 async function blockUser(pk) {
     const blockedUntil = new Date(Date.now() + BLOCK_DURATION_MINUTES * 60 * 1000);
@@ -146,6 +147,7 @@ export const initiateCommitSession = async (req, res) => {
     try {
         const pk = authorizedPk(res);
         const { repoId, branchId } = req;
+        const { parentCommitHash: parentCommitHashInput } = req.body;
         const block = await prisma.initiationBlock.findUnique({ where: { pk } });
         if (block && block.blockedUntil > new Date()) {
             const remainingSeconds = Math.ceil((block.blockedUntil.getTime() - Date.now()) / 1000);
@@ -154,23 +156,68 @@ export const initiateCommitSession = async (req, res) => {
             });
             return;
         }
-        if (repoId) {
-            const repo = await prisma.repository.findUnique({ where: { id: repoId } });
-            if (!repo) {
-                res.status(404).json({ error: { message: 'Repository not found.' } });
-                return;
-            }
-            if (repo.ownerAddress !== pk && !repo.writeAccessIds.includes(pk)) {
-                res.status(403).json({ error: { message: 'Unauthorized. You do not have write access to this repository.' } });
+        if (!repoId) {
+            res.status(400).json({ error: { message: 'Repository ID is required.' } });
+            return;
+        }
+        const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+        if (repo.ownerAddress !== pk && !repo.writeAccessIds.includes(pk)) {
+            res.status(403).json({ error: { message: 'Unauthorized. You do not have write access to this repository.' } });
+            return;
+        }
+        if (!branchId) {
+            res.status(400).json({ error: { message: 'Branch ID is required.' } });
+            return;
+        }
+        const branch = await prisma.branch.findUnique({ where: { id: branchId } });
+        if (!branch) {
+            res.status(404).json({ error: { message: 'Branch not found.' } });
+            return;
+        }
+        // Determine parent commit hash
+        const parentCommitHashTrimmed = parentCommitHashInput?.trim();
+        let parentCommitHash;
+        if (parentCommitHashTrimmed && parentCommitHashTrimmed.length > 0) {
+            parentCommitHash = parentCommitHashTrimmed;
+        }
+        else {
+            // Default to latest commit in branch, or genesis if none exist
+            const latestCommit = await prisma.commit.findFirst({
+                where: { branchId, isDeleted: false },
+                orderBy: { createdAt: 'desc' }
+            });
+            parentCommitHash = latestCommit ? latestCommit.commitHash : GENESIS_COMMIT_HASH;
+        }
+        // Ensure parent commit exists in this branch (unless genesis)
+        if (parentCommitHash !== GENESIS_COMMIT_HASH) {
+            const parentCommit = await prisma.commit.findFirst({
+                where: { commitHash: parentCommitHash, branchId }
+            });
+            if (!parentCommit) {
+                res.status(404).json({ error: { message: 'Parent commit not found in this branch.' } });
                 return;
             }
         }
-        if (branchId) {
-            const branch = await prisma.branch.findUnique({ where: { id: branchId } });
-            if (!branch) {
-                res.status(404).json({ error: { message: 'Branch not found.' } });
+        // Check for existing children of the parent in this branch
+        const existingChildren = await prisma.commit.count({
+            where: { branchId, previousCommitHash: parentCommitHash }
+        });
+        if (existingChildren > 0) {
+            // Parent already has a child - check repository commit policy
+            if (repo.commitPolicy === 'SERIAL') {
+                res.status(409).json({
+                    error: {
+                        message: 'Parent commit already has a child. Repository policy is SERIAL - cannot create conflicting commit.',
+                        code: 'SERIAL_CONFLICT'
+                    }
+                });
                 return;
             }
+            // If policy is FORK or MERGE, allow initiation (fork will be created during finalize)
         }
         const jti = uuidV4();
         const expiresAt = new Date(Date.now() + SESSION_EXPIRY_MINUTES * 60 * 1000);
@@ -190,7 +237,8 @@ export const initiateCommitSession = async (req, res) => {
             jti,
             pk,
             repoId: repoId,
-            branchId: branchId
+            branchId: branchId,
+            parentCommitHash
         }, COMMIT_JWT_SECRET, { expiresIn: `${SESSION_EXPIRY_MINUTES}m` });
         res.status(200).json({
             sessionId: session.id,
@@ -622,36 +670,8 @@ export const finalizeCommit = async (req, res) => {
             res.status(404).json({ error: { message: 'Branch does not exist.' } });
             return;
         }
-        // Determine parent commit hash
-        const parentCommitHashInput = req.body?.parentCommitHash?.trim();
-        let parentCommitHash;
-        if (parentCommitHashInput && parentCommitHashInput.length > 0) {
-            // User provided explicit parent
-            parentCommitHash = parentCommitHashInput;
-        }
-        else {
-            // Not provided: default to latest commit in branch, or genesis if none exist
-            const latestCommit = await prisma.commit.findFirst({
-                where: { branchId, isDeleted: false },
-                orderBy: { createdAt: 'desc' }
-            });
-            parentCommitHash = latestCommit ? latestCommit.commitHash : '_GENESIS_COMMIT_';
-        }
-        const hasWriteAccess = branch.repository.ownerAddress === pk || branch.repository.writeAccessIds.includes(pk);
-        if (!hasWriteAccess) {
-            res.status(403).json({ error: { message: 'Unauthorized. You do not have write access to this repository.' } });
-            return;
-        }
-        // Ensure parent commit exists in this branch (unless genesis)
-        if (parentCommitHash !== '_GENESIS_COMMIT_') {
-            const parentCommit = await prisma.commit.findFirst({
-                where: { commitHash: parentCommitHash, branchId }
-            });
-            if (!parentCommit) {
-                res.status(404).json({ error: { message: 'Parent commit not found in this branch.' } });
-                return;
-            }
-        }
+        // Parent commit hash was validated during initiation
+        const parentCommitHash = sessionJwt.parentCommitHash;
         if (await prisma.commit.count({ where: { commitHash } })) {
             res.status(400).json({ error: { message: 'Commit hash already exists.' } });
             return;
@@ -660,11 +680,11 @@ export const finalizeCommit = async (req, res) => {
             res.status(400).json({ error: { message: 'Parameter hash already exists.' } });
             return;
         }
-        // Check for existing children of the parent in this branch
+        // Check if fork is needed (only for FORK policy - SERIAL was rejected at initiate)
         const existingChildren = await prisma.commit.count({
             where: { branchId, previousCommitHash: parentCommitHash }
         });
-        const forkNeeded = existingChildren > 0;
+        const forkNeeded = existingChildren > 0 && branch.repository.commitPolicy === 'FORK';
         let targetBranchId = branchId;
         let forkedBranch = null;
         const sharedFolder = await prisma.sharedFolderFile.findFirst({
@@ -750,6 +770,15 @@ export const finalizeCommit = async (req, res) => {
             await tx.branch.update({ where: { id: targetBranchId }, data: { updatedAt: new Date() } });
             await tx.repository.update({ where: { id: repoId }, data: { updatedAt: new Date() } });
             await tx.commitCreationSession.update({ where: { id: sessionId }, data: { consumed: true, status: 'FINALIZED' } });
+            // Add committer to contributors list if not already present
+            if (!branch.repository.contributorIds.includes(pk)) {
+                await tx.repository.update({
+                    where: { id: repoId },
+                    data: {
+                        contributorIds: { push: pk }
+                    }
+                });
+            }
             return newCommit;
         });
         res.status(201).json({

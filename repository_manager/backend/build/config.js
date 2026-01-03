@@ -48,6 +48,9 @@ const config = {
         session: {
             expiryMinutes: 10,
             blockDurationMinutes: 2,
+        },
+        genesis: {
+            hash: '_GENESIS_COMMIT_' // hash of the genesis commit
         }
     },
     cleanup: {

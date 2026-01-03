@@ -30,6 +30,13 @@ repoRouter.post('/hash/:repoHash/create_collection', repoController.createCollec
 // Delete repository
 repoRouter.delete('/hash/:repoHash/delete', repoController.deleteRepository);
 
+// Role management routes
+repoRouter.post('/hash/:repoHash/roles/admin/add', repoController.addAdmin);
+repoRouter.post('/hash/:repoHash/roles/admin/remove', repoController.removeAdmin);
+repoRouter.post('/hash/:repoHash/roles/writer/add', repoController.addWriter);
+repoRouter.post('/hash/:repoHash/roles/writer/revoke', repoController.revokeWriter);
+repoRouter.get('/hash/:repoHash/roles', repoController.getRepositoryRoles);
+
 // mounting the branch router here
 repoRouter.use('/hash/:repoHash/branch', async (req, res, next) => {
     const { repoHash } = req.params;

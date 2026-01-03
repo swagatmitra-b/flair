@@ -872,6 +872,17 @@ export const finalizeCommit = async (req: Request, res: Response) => {
             await tx.branch.update({ where: { id: targetBranchId }, data: { updatedAt: new Date() } });
             await tx.repository.update({ where: { id: repoId }, data: { updatedAt: new Date() } });
             await tx.commitCreationSession.update({ where: { id: sessionId }, data: { consumed: true, status: 'FINALIZED' } });
+            
+            // Add committer to contributors list if not already present
+            if (!branch.repository.contributorIds.includes(pk)) {
+                await tx.repository.update({
+                    where: { id: repoId },
+                    data: {
+                        contributorIds: { push: pk }
+                    }
+                });
+            }
+            
             return newCommit;
         });
 
