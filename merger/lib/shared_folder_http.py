@@ -7,14 +7,12 @@ import requests
 class SharedFolderHTTPAuth:
     """
     HTTP-backed shared folder with per-request Authorization header and success-flag handling.
-
     Endpoints (must be implemented by your HTTP file‐service):
       GET    /files/<key>          → raw bytes of <key> or 404 if missing
       PUT    /files/<key>          → write raw bytes to <key>
       DELETE /files/<key>          → delete <key>
       GET    /files/list           → JSON list of existing keys
       GET    /files/<key>.success  → existence of success flag (empty body, 200 or 404)
-
     Usage:
         folder = SharedFolderHTTPAuth(
             base_url="http://host:5000",
