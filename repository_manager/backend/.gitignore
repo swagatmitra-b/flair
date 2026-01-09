@@ -132,3 +132,6 @@ dist
 
 credentials.txt
 /src/generated/prisma
+
+# build folder not to be included
+build
