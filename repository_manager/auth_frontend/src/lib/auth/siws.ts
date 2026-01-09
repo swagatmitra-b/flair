@@ -72,25 +72,44 @@ export const siwsSignIn = async (
     }
     // nothing till here means we have successfully signed in 
     // dont need to do auto connect now
-    // store the headers in memory now
     console.log('SIWS workflow Sign In Successful.');
-    const cliUrl = import.meta.env.VITE_CLI_URL;
-    try {
-        // send the auth token to the cli server now
-        await fetch(cliUrl, {
-            method: 'POST',
-            body: JSON.stringify({ authToken: `siws${btoa(JSON.stringify({ input, output, action: 'signin' }))}`, wallet: publicKey.toBase58() }),
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            }
-        });
-        console.log('sent general auth token to the cli server.');
-    }
-    catch (err) {
-        console.error(`Error sending general auth token to cli server: ${err}`);
+
+    // Encode the full SIWS auth payload (input + output)
+    const authPayload = btoa(JSON.stringify({ input, output, action: 'signin' }));
+
+    // Get redirect_uri from URL params (CLI passes this when opening browser)
+    const params = new URLSearchParams(window.location.search);
+    const redirectUri = params.get('redirect_uri');
+
+    if (redirectUri) {
+        // Redirect back to CLI's callback with token
+        const callbackUrl = new URL(redirectUri);
+        callbackUrl.searchParams.append('token', authPayload);
+        callbackUrl.searchParams.append('wallet', publicKey.toBase58());
+        window.location.href = callbackUrl.toString();
+        return false;
     }
 
+
+
+    // TEST CODE: send to local cli for testing
+    // const cliUrl = import.meta.env.VITE_CLI_URL;
+    // try {
+    //     // send the auth token to the cli server now
+    //     await fetch(cliUrl, {
+    //         method: 'POST',
+    //         body: JSON.stringify({ authToken: `siws${btoa(JSON.stringify({ input, output, action: 'signin' }))}`, wallet: publicKey.toBase58() }),
+    //         headers: {
+    //             'Accept': 'application/json',
+    //             'Content-Type': 'application/json'
+    //         }
+    //     });
+    //     console.log('sent general auth token to the cli server.');
+    // }    
+    // catch (err) {
+    //     console.error(`Error sending general auth token to cli server: ${err}`);
+    // }
+    
     // Umi support removed
     // creating the Umi object here after a successful sign in
     // const { adapter } = useAdapter();
@@ -98,6 +117,8 @@ export const siwsSignIn = async (
     // const umi = await initializeUmi(adapter);
     // setUmi(umi);
 
+
+    // Fallback: store in memory if no redirect_uri
     MemoryStoredTokenSiws.getInstance().setAuth(input, output);
     return false;
 }

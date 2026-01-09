@@ -1,0 +1,38 @@
+# Flair CLI Configuration
+# Default location: ~/.flair/config.yaml
+#
+# This file stores persistent CLI configuration. Sensitive values (API keys, secrets)
+# should ideally be managed via environment variables in production.
+#
+# Precedence for config resolution:
+# 1. Command-line flags (highest priority)
+# 2. Environment variables
+# 3. This config file
+# 4. Built-in defaults (lowest priority)
+#
+# Examples:
+#   FLAIR_API_BASE=https://api.flair.example flair repo list
+#   export FLAIR_AUTH_URL=https://auth.flair.example/login
+#   flair config set --auth-url https://auth.flair.example/login
+
+# Backend API base URL
+# Default: http://localhost:8080 (dev)
+# Set via: FLAIR_API_BASE env var or --api-base-url flag
+api_base_url: https://api.flair.example
+
+# Auth frontend URL (Sign-In With Solana)
+# Required for: flair auth login
+# Set via: FLAIR_AUTH_URL env var or --auth-url flag
+auth_url: https://auth.flair.example/login
+
+# Pinata IPFS storage credentials
+# Get from: https://www.pinata.cloud/
+# Set via: PINATA_API_KEY, PINATA_API_SECRET env vars (recommended)
+# Or set here (less secure for shared/version-controlled configs):
+pinata_api_key: null
+pinata_api_secret: null
+
+# Future: could add more options like:
+# - default_branch: main
+# - auto_encrypt: true
+# - session_timeout_hours: 24

@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, repo, branch, commit, reconstruct, storage
+from flair_cli.cli import auth, repo, branch, commit, reconstruct, storage, config
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -18,6 +18,7 @@ app.add_typer(branch.app, name="branch", help="Branching commands")
 app.add_typer(commit.app, name="commit", help="Commit management commands")
 app.add_typer(reconstruct.app, name="reconstruct", help="Reconstruction utilities")
 app.add_typer(storage.app, name="storage", help="Storage provider commands")
+app.add_typer(config.app, name="config", help="Configuration management")
 
 
 @app.callback(invoke_without_command=True)

@@ -117,25 +117,40 @@ export class MemoryStoredTokenGen {
     }).then(r => r.json());
 
     if (verified.success) {
-      console.log('General workflow Sign In succesful.');
-      // after the sign in is successful we send the sign in token to the cli server
-      const cliUrl = import.meta.env.VITE_CLI_URL;
-      try {
-      // send the auth token to the cli server now
-      await fetch(cliUrl, {
-        method: 'POST',
-        body: JSON.stringify({authToken: `universal${authToken}`, wallet: publicKey.toBase58()}),
-        mode: 'no-cors', 
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log('sent general auth token to the cli server.');
+      console.log('General workflow Sign In successful.');
+      
+      // Get redirect_uri from URL params (CLI passes this when opening browser)
+      const params = new URLSearchParams(window.location.search);
+      const redirectUri = params.get('redirect_uri');
+      
+      if (redirectUri) {
+        // Redirect back to CLI's callback with token
+        const callbackUrl = new URL(redirectUri);
+        callbackUrl.searchParams.append('token', authToken);
+        callbackUrl.searchParams.append('wallet', publicKey.toBase58());
+        window.location.href = callbackUrl.toString();
+        return authToken;
       }
-      catch(err) {
-        console.error(`Error sending general auth token to cli server: ${err}`);
-      }
+      
+
+      // TEST CODE: send to local cli for testing
+      // const cliUrl = import.meta.env.VITE_CLI_URL;
+      // try {
+      // // send the auth token to the cli server now
+      // await fetch(cliUrl, {
+      //   method: 'POST',
+      //   body: JSON.stringify({authToken: `universal${authToken}`, wallet: publicKey.toBase58()}),
+      //   mode: 'no-cors', 
+      //   headers: {
+      //     'Accept': 'application/json',
+      //     'Content-Type': 'application/json'
+      //   }
+      // });
+      // console.log('sent general auth token to the cli server.');
+      // }
+      // catch(err) {
+      //   console.error(`Error sending general auth token to cli server: ${err}`);
+      // }
       
       
       // create the Umi object here
@@ -145,6 +160,9 @@ export class MemoryStoredTokenGen {
       // setUmi(umi);
 
       // MemoryStoredTokenGen.getInstance().setToken(authToken);    
+
+
+      // Fallback: store in localStorage if no redirect_uri
       LocalStorageTokenGen.getInstance().setToken(authToken);
       return authToken;
     }
