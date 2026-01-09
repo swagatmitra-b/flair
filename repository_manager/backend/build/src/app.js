@@ -11,7 +11,7 @@ import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter, } 
 // system wallet is to be accessed only from the cli (localhost) of the hosted machine
 import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 import { startCleanupJob } from './jobs/cleanup.js';
-const PORT = parseInt(process.env.PORT) || 4000;
+const PORT = parseInt(process.env.PORT) || 2112;
 const app = express();
 // Middleware
 app.use(morgan('combined'));

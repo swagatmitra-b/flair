@@ -1,12 +1,11 @@
 generator client {
-  provider      = "prisma-client-js"
-  binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
-  // binaryTargets = ["native", "linux-musl-openssl-3.0.x"]     --> for only linux deployment
+  provider      = "prisma-client"
+  // binaryTargets = ["native", "windows", "linux-musl-openssl-3.0.x"]
+  output   = "../src/generated/prisma"
 }
 
 datasource db {
   provider = "mongodb"
-  url      = env("DATABASE_URL")
 }
 
 // commits submitted need to to be verified by the user before it becomes merged

@@ -116,6 +116,7 @@ export class PinataProvider implements StorageProvider {
     }
 }
 
+
 // upload the file given in the model path to IPFS, update in prisma and then delete the temporary file instance
 // the optimization function happens here itself it does not need to be informed to the user for this
 export async function uploadToIpfs(filePath: string): Promise<string | undefined> {
@@ -124,7 +125,7 @@ export async function uploadToIpfs(filePath: string): Promise<string | undefined
         // check here itself if the model ealready exists in ipfs
         const cid = await computeCID(inputFile);
         if (!cid) {
-            throw new Error('Failed to compte CID of uploaded file.');
+            throw new Error('Failed to compute CID of uploaded file.');
         }
         const existingRepo = await prisma.repository.findFirst({
             where: { baseModelHash: cid }
@@ -132,11 +133,9 @@ export async function uploadToIpfs(filePath: string): Promise<string | undefined
         let upload: Partial<PinResponse> = {};
         // if the model does not already exist
         if (!existingRepo) {
-            // upload newly now to IPFS
-            const blob = new Blob([inputFile]);
-            const fileName = path.basename(filePath);
-            const file = new File([blob], fileName, { type: "application/octet-stream" });
-            upload = await pinata.upload.file(file);
+            // upload newly now to IPFS using an in-memory Readable stream
+            const fileStream = stream.Readable.from(inputFile);
+            upload = await pinata.upload.file(fileStream as any);
         }
         else {
             // if the base model is the same as another repository we just return the url of the previous repository
@@ -154,6 +153,45 @@ export async function uploadToIpfs(filePath: string): Promise<string | undefined
         return undefined;
     }
 }
+
+
+// deprecated but working code: buffer to uint8 array and then into blob conversion
+// export async function uploadToIpfs(filePath: string): Promise<string | undefined> {
+//     try {
+//         const inputFile = fs.readFileSync(filePath);
+//         // check here itself if the model ealready exists in ipfs
+//         const cid = await computeCID(inputFile);
+//         if (!cid) {
+//             throw new Error('Failed to compte CID of uploaded file.');
+//         }
+//         const existingRepo = await prisma.repository.findFirst({
+//             where: { baseModelHash: cid }
+//         });
+//         let upload: Partial<PinResponse> = {};
+//         // if the model does not already exist
+//         if (!existingRepo) {
+//             // upload newly now to IPFS
+//             const blob = new Blob([new Uint8Array(inputFile)]);
+//             const fileName = path.basename(filePath);
+//             const file = new File([blob], fileName, { type: "application/octet-stream" });
+//             upload = await pinata.upload.file(file);
+//         }
+//         else {
+//             // if the base model is the same as another repository we just return the url of the previous repository
+//             // this is already happening in IPFS. But since we are using Pinata, we need to upload the entire model first to Pinata
+//             // thus local cid searching will make things much faster        
+//             upload.IpfsHash = existingRepo.baseModelHash!;
+//             // use the other parameters at a later time... not required now        
+//         }
+//         // model Uri needs to be updated in the repository
+//         fs.unlinkSync(filePath);
+//         return upload.IpfsHash!;
+//     }
+//     catch (err) {
+//         console.error('Error uploading Base Model to IPFS:', err);
+//         return undefined;
+//     }
+// }
 
 // unpins and returns the status of deletion
 export async function unpinFromIpfs(cid: string): Promise<string> {

@@ -131,3 +131,4 @@ dist
 
 
 credentials.txt
+/src/generated/prisma

@@ -1,10 +1,18 @@
 // metadata generator for commit and repository Nfts
 // Debashish Buragohain
 
+
+
+// MIGRATION: prisma v7 migration syntax
+// import { Commit, Repository, Prisma.JsonValue as JsonValue } from "../../generated/prisma/client.js";
+
+// prisma v6 migration syntax
 import { Commit, Repository } from "@prisma/client";
+import { JsonValue } from "@prisma/client/runtime/library";
+
 import { commitMetrics, CommitNftMetdata } from "../types/commit";
 import { prisma } from "../prisma/index.js";
-import { JsonValue } from "@prisma/client/runtime/library";
+// Use the exported Prisma.JsonValue type instead of the runtime path
 import { RepositoryMetadataWithAllRequiredFields, RepositoryMetdata, RepositoryNftCollectionMetadata } from "../types/repo";
 import { constructIPFSUrl } from "../../lib/ipfs/ipfs.js"; 
 

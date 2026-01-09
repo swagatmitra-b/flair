@@ -1,0 +1,7 @@
+prisma.config.ts stays in the root directory
+
+schema.prisma stays inside the prisma folder
+
+--> running prisma generate creates the generate folder and change references at 
+1. /src/lib/prisma/index.ts
+2. /src/lib/prisma/nft/metadata.ts

@@ -21,7 +21,7 @@ import {
 import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 import { startCleanupJob } from './jobs/cleanup.js';
 
-const PORT = parseInt(process.env.PORT!) || 4000;
+const PORT = parseInt(process.env.PORT!) || 2112;
 const app = express();
 
 // Middleware
