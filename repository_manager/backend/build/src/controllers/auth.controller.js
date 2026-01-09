@@ -1,9 +1,16 @@
 import { createSignInData, verifySIWSsignin } from '../lib/auth/siws/index.js';
 import { verifyGenSignInFirstTime } from "../lib/auth/general/index.js";
 export const getSignInData = async (req, res) => {
-    const { address } = req.params;
-    const signInInputData = await createSignInData(address);
-    res.json(signInInputData);
+    // Wrap in try/catch so we never drop the connection on validation errors (prevents socket hang-ups)
+    try {
+        const { address } = req.params;
+        const signInInputData = await createSignInData(address);
+        res.json(signInInputData);
+    }
+    catch (err) {
+        console.error('Error creating SIWS sign-in payload:', err);
+        res.status(400).json({ success: false, error: err?.message || 'Failed to create sign-in payload' });
+    }
 };
 export const signIn = (req, res) => {
     const { body } = req;

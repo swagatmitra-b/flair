@@ -8,6 +8,8 @@ import { authHandler,
 // ByPassAuth
  } from './middleware/auth/index.js';
 import { authRouter, repoRouter, treeRouter, backendWalletRouter, userRouter, } from './routes/index.js';
+// system wallet is to be accessed only from the cli (localhost) of the hosted machine
+import { restrictToLocalHost } from './middleware/auth/restrictToLocalHost.js';
 import { startCleanupJob } from './jobs/cleanup.js';
 const PORT = parseInt(process.env.PORT) || 4000;
 const app = express();
@@ -35,8 +37,7 @@ app.use('/repo',
 // ByPassAuth(signInContext),
 authHandler(signInContext), repoRouter);
 // system wallet is restricted to be accessed only from the cli of the hosted machine
-app.use('/systemWallet', authHandler(signInContext), 
-// restrictToLocalHost,       uncomment to restrict this route only to the local host
+app.use('/systemWallet', authHandler(signInContext), restrictToLocalHost, // restricts the system wallet to be accessed only from localhost of the hosted machine
 backendWalletRouter);
 // for the tree route we need to attach the middlewares on individual routes
 app.use('/tree', treeRouter);
@@ -87,6 +88,14 @@ app.get('/health', (req, res) => {
 // Handle 404
 app.all('*', (req, res, next) => {
     res.status(404).send({ error: '404 Not Found' });
+});
+// global error handler added for debugging
+app.use((err, req, res, _next) => {
+    console.error('Unhandled error:', err);
+    const status = err.status || err.statusCode || 500;
+    res.status(status).json({
+        error: err.message || 'Internal Server Error',
+    });
 });
 app.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);

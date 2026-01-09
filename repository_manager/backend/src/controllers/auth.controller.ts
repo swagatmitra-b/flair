@@ -4,9 +4,15 @@ import { verifyGenSignInFirstTime } from "../lib/auth/general/index.js";
 import { SolanaSignInInput, SolanaSignInOutput } from "@solana/wallet-standard-features";
 
 export const getSignInData = async (req: Request, res: Response) => {
-    const { address } = req.params;
-    const signInInputData = await createSignInData(address);
-    res.json(signInInputData);
+    // Wrap in try/catch so we never drop the connection on validation errors (prevents socket hang-ups)
+    try {
+        const { address } = req.params;
+        const signInInputData = await createSignInData(address);
+        res.json(signInInputData);
+    } catch (err: any) {
+        console.error('Error creating SIWS sign-in payload:', err);
+        res.status(400).json({ success: false, error: err?.message || 'Failed to create sign-in payload' });
+    }
 };
 
 export const signIn = (req: Request, res: Response) => {

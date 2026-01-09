@@ -57,7 +57,7 @@ app.use(
 app.use(
   '/systemWallet',
   authHandler(signInContext),
-  // restrictToLocalHost,       uncomment to restrict this route only to the local host
+  restrictToLocalHost,       // restricts the system wallet to be accessed only from localhost of the hosted machine
   backendWalletRouter,
 );
 
@@ -114,6 +114,15 @@ app.get('/health', (req, res) => {
 // Handle 404
 app.all('*', (req, res, next) => {
   res.status(404).send({ error: '404 Not Found' });
+});
+
+// global error handler added for debugging
+app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  const status = err.status || err.statusCode || 500;
+  res.status(status).json({
+    error: err.message || 'Internal Server Error',
+  });
 });
 
 app.listen(PORT, () => {

@@ -1,8 +1,8 @@
-mongod --port 2717 --dbpath "E:\RIO project\Flair\mongodb_replica_set\mongos\db1" --replSet FlairReplicaSet
+mongod --port 2717 --dbpath "E:\RIO project\Flair\official\replica_sets\mongodb_replica_set\mongos\db1" --replSet FlairReplicaSet
 
-mongod --port 2727 --dbpath "E:\RIO project\Flair\mongodb_replica_set\mongos\db2" --replSet FlairReplicaSet
+mongod --port 2727 --dbpath "E:\RIO project\Flair\official\replica_sets\mongodb_replica_set\mongos\db2" --replSet FlairReplicaSet
 
-mongod --port 2737 --dbpath "E:\RIO project\Flair\mongodb_replica_set\mongos\db3" --replSet FlairReplicaSet
+mongod --port 2737 --dbpath "E:\RIO project\Flair\official\replica_sets\mongodb_replica_set\mongos\db3" --replSet FlairReplicaSet
 
 mongosh --host localhost --port 2717
 
