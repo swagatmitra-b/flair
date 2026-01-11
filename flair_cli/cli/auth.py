@@ -5,7 +5,8 @@ Design: The CLI starts a temporary local HTTP callback server, opens the browser
 auth URL + redirect_uri parameter. The frontend signs the user in, then redirects back to
 the CLI's callback URL with the signed token. The CLI captures the token and saves it.
 
-This approach works in production without env files: each CLI instance gets its own random port.
+Session tokens are cached in ~/.flair/session.json with an expiration time (configurable,
+default 24 hours). If a valid session exists, users are not prompted to re-authenticate.
 """
 from __future__ import annotations
 import typer
@@ -18,6 +19,7 @@ import webbrowser
 import time
 import os
 import json
+from datetime import datetime, timedelta
 
 from ..core import session as session_mod
 from ..core import config as config_mod
@@ -106,56 +108,23 @@ class CallbackHandler(BaseHTTPRequestHandler):
         pass
 
 
-def _start_callback_server(timeout: int = 300) -> tuple[str | None, str | None]:
-    """
-    Start a temporary HTTP server on a random available port.
-    Wait for the callback with token and wallet.
-    Returns (token, wallet) or (None, error_message) on timeout/error.
-    """
-    # Use port 0 to get a random available port
-    server = HTTPServer(('localhost', 0), CallbackHandler)
-    port = server.server_port
-    
-    # Build the callback URL
-    callback_url = f"http://localhost:{port}/callback"
-    
-    # Start server in background thread
-    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
-    server_thread.daemon = True
-    server_thread.start()
-    
-    console.print(f"[dim]Callback server listening on {callback_url}[/dim]")
-    
-    # Wait for callback (with timeout)
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if CallbackHandler.token and CallbackHandler.wallet:
-            server.shutdown()
-            return CallbackHandler.token, CallbackHandler.wallet
-        
-        if CallbackHandler.error:
-            server.shutdown()
-            return None, CallbackHandler.error
-        
-        time.sleep(0.1)
-    
-    server.shutdown()
-    return None, "Authentication timeout (5 minutes)"
-
-
 @app.command("login")
 def login(
     auth_url: str = typer.Option(None, "--auth-url", help="Auth frontend URL (e.g., https://auth.flair.example/login)"),
-    open_browser: bool = typer.Option(True, "--browser/--no-browser", help="Automatically open browser")
+    open_browser: bool = typer.Option(True, "--browser/--no-browser", help="Automatically open browser"),
+    force: bool = typer.Option(False, "--force", help="Force re-authentication even if valid session exists")
 ):
     """Login using Sign-In With Solana via browser OAuth2 callback flow.
+    
+    If a valid session exists, you will be logged in automatically without re-authenticating.
+    Use --force to re-authenticate and create a new session.
     
     The CLI will:
     1. Start a temporary local HTTP server
     2. Open your browser to the auth page with a redirect_uri
     3. Wait for you to sign in with your wallet
     4. Capture the signed token when the frontend redirects back
-    5. Save the token locally
+    5. Save the token locally with expiration (configurable, default 24 hours)
     
     \b
     Configure auth URL via (in order of precedence):
@@ -164,8 +133,22 @@ def login(
     - flair config set --auth-url <url>
     """
     try:
+        # Check if valid session already exists
+        if not force:
+            existing_session = session_mod.load_session()
+            if existing_session:
+                console.print("✓ [bold green]You are already logged in[/bold green]")
+                console.print(f"Wallet: [bold]{existing_session.wallet_address}[/bold]")
+                console.print(f"Session expires at: {existing_session.expires_at}")
+                console.print("[dim]Use --force to re-authenticate[/dim]")
+                return
+        
         # Resolve auth URL with precedence
         resolved_auth_url = _get_auth_url(auth_url)
+        
+        # Get session timeout from config
+        cfg = config_mod.load_config()
+        session_timeout_hours = cfg.session_timeout_hours or 24
         
         # Reset callback handler state
         CallbackHandler.token = None
@@ -185,9 +168,6 @@ def login(
         console.print(f"[dim]Callback server listening on {callback_url}[/dim]")
         
         # Build auth URL with redirect_uri parameter
-        from urllib.parse import urlencode
-        auth_url_with_redirect = f"{resolved_auth_url}?redirect_uri={urlencode({'redirect_uri': callback_url}).split('=')[1]}"
-        # Simpler approach: just append as query param
         auth_url_with_redirect = f"{resolved_auth_url}{'&' if '?' in resolved_auth_url else '?'}redirect_uri={callback_url}"
         
         if open_browser:
@@ -204,11 +184,21 @@ def login(
         while time.time() - start_time < timeout:
             if CallbackHandler.token and CallbackHandler.wallet:
                 server.shutdown()
-                # Save session
-                s = session_mod.Session(token=CallbackHandler.token, wallet_address=CallbackHandler.wallet, expires_at=None)
+                
+                # Calculate expiration time
+                expires_at = datetime.utcnow() + timedelta(hours=session_timeout_hours)
+                expires_at_str = expires_at.isoformat() + "Z"
+                
+                # Save session with expiration
+                s = session_mod.Session(
+                    token=CallbackHandler.token,
+                    wallet_address=CallbackHandler.wallet,
+                    expires_at=expires_at_str
+                )
                 session_mod.save_session(s)
                 console.print("✓ [bold green]Login successful[/bold green]")
                 console.print(f"Wallet: [bold]{CallbackHandler.wallet}[/bold]")
+                console.print(f"Session expires at: [dim]{expires_at_str}[/dim]")
                 return
             
             if CallbackHandler.error:

@@ -48,6 +48,7 @@ def view():
 def set_config(
     api_base_url: str = typer.Option(None, help="Backend API base URL"),
     auth_url: str = typer.Option(None, help="Auth frontend URL (e.g., https://auth.flair.example/login)"),
+    session_timeout_hours: int = typer.Option(None, help="Session timeout in hours (default: 24)"),
     pinata_api_key: str = typer.Option(None, help="Pinata API key"),
     pinata_api_secret: str = typer.Option(None, help="Pinata API secret")
 ):
@@ -56,6 +57,9 @@ def set_config(
     In production, prefer environment variables for sensitive values:
       export PINATA_API_KEY=xxx
       export PINATA_API_SECRET=yyy
+    
+    Example:
+      flair config set --auth-url https://auth.myorg.com/login --session-timeout-hours 48
     """
     cfg = config_mod.load_config()
     changed = False
@@ -68,6 +72,11 @@ def set_config(
     if auth_url:
         cfg.auth_url = auth_url
         console.print(f"✓ Set auth_url = {auth_url}", style="green")
+        changed = True
+    
+    if session_timeout_hours is not None:
+        cfg.session_timeout_hours = session_timeout_hours
+        console.print(f"✓ Set session_timeout_hours = {session_timeout_hours}", style="green")
         changed = True
     
     if pinata_api_key:

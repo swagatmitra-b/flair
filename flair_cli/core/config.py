@@ -16,7 +16,7 @@ import os
 
 class FlairConfig(BaseModel):
     # Default to localhost:8080 for dev, but can be overridden
-    api_base_url: Optional[str] = "http://localhost:8080"
+    api_base_url: Optional[str] = "http://localhost:2112"
     # Default to localhost:3000 for dev frontend
     auth_url: Optional[str] = "http://localhost:3000"
     pinata_api_key: Optional[str] = None
