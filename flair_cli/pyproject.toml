@@ -16,8 +16,6 @@ typer = "^0.9"
 httpx = "^0.24"
 rich = "^13.0"
 pydantic = "^1.10"
-cryptography = "^41.0"
-pynacl = "^1.6"
 pyyaml = "^6.0"
 
 [build-system]

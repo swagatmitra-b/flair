@@ -9,8 +9,7 @@ Key points:
 - HTTP: httpx
 - Terminal output: rich
 - Config & validation: pydantic
-- Encryption: cryptography (AES-256-GCM)
-- Storage: IPFS via Pinata
+- Storage: Managed by backend via HTTP (no client-side encryption)
 - Auth: SIWS (Sign-In With Solana) using Phantom
 
 Quickstart examples
@@ -25,23 +24,22 @@ Authenticate (SIWS):
 
     flair auth login --address <your-address> --message "<signed-message>" --signature "<signature>"
 
-Create repo with optional base model upload:
+Create repo:
 
-    flair repo create --name my-model --description "Test" --private --base-model ./model.pt --wallet-pubkey "<pubkey>"
+    flair repo create --name my-model --description "Test" --private
 
-Create a commit (delta or checkpoint):
+Create a commit (delta or checkpoint) using an existing artifact reference:
 
-    # For private repos, pass --encrypt and --rmk-b64 to encrypt the DEK with an RMK
-    flair commit delta --repo <repo_id> --file ./delta.bin --metadata '{"framework":"pytorch","round":1}' --encrypt --rmk-b64 <base64-rmk>
+    flair commit delta --repo <repo_id> --artifact-ref <artifact_id_or_uri> --metadata '{"framework":"pytorch","round":1}'
 
-Reconstruct commit:
+Reconstruct (download) commit artifact:
 
-    flair reconstruct --repo <repo_id> --commit <hash> --rmk-b64 <base64-rmk> --out-dir ./recon
+    flair reconstruct --repo <repo_id> --commit <hash> --out-dir ./recon
 
 Config is saved at `~/.flair/config.yaml` and session at `~/.flair/session.json`.
 
 Security notes:
-- Flair never stores wallet private keys. RMK encryption for wallets relies on wallet APIs in production.
-- Use CI secrets or environment variables for Pinata credentials.
+- Flair never stores wallet private keys.
+- Artifacts are stored transparently without client-side encryption.
 
 For full help on commands, run `flair --help` or `flair <command> --help`.

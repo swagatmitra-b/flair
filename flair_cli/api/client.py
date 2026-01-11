@@ -8,15 +8,16 @@ Design notes:
 """
 from typing import Optional, Dict, Any
 import httpx
-from ..core.config import config
+from ..core.config import load_config
 from ..core.session import load_session
 
 
+_cfg = load_config()
+
+
 def _base_url() -> str:
-    # prefer env var FLAIR_API_BASE, then config
-    return (  
-        __import__("os").environ.get("FLAIR_API_BASE") or config.api_base_url or "http://localhost:8080"
-    )
+    """Resolve API base URL from env or config."""
+    return __import__("os").environ.get("FLAIR_API_BASE") or _cfg.api_base_url or "http://localhost:2112"
 
 
 def _client_with_auth() -> httpx.Client:
@@ -82,3 +83,15 @@ def register_artifact(payload: Dict[str, Any]) -> Dict[str, Any]:
         r = client.post("/artifacts", json=payload)
         r.raise_for_status()
         return r.json()
+
+
+def download_artifact(artifact_ref: Dict[str, Any]) -> bytes:
+    """Download an artifact by reference. Returns raw binary data."""
+    with _client_with_auth() as client:
+        # artifact_ref should contain provider and ref info
+        # For now, assume the backend has an endpoint like /artifacts/{artifact_id}
+        # This may need adjustment based on actual backend API
+        artifact_id = artifact_ref.get("ref") or artifact_ref.get("id")
+        r = client.get(f"/artifacts/{artifact_id}")
+        r.raise_for_status()
+        return r.content

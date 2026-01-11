@@ -6,22 +6,24 @@ Precedence for config values:
 1. Environment variables (FLAIR_*)
 2. ~/.flair/config.yaml (if exists)
 3. Built-in defaults (localhost for dev)
+
+Note: Storage adapters (Pinata) have been removed from the CLI. All artifacts
+are managed transparently through HTTP endpoints to the backend.
 """
 from pathlib import Path
 from typing import Optional
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import os
 
 
 class FlairConfig(BaseModel):
-    # Default to localhost:8080 for dev, but can be overridden
+    # Backend API base URL (default to localhost:8080 for dev)
     api_base_url: Optional[str] = "http://localhost:2112"
-    # Default to localhost:3000 for dev frontend
-    auth_url: Optional[str] = "http://localhost:3000"
-    pinata_api_key: Optional[str] = None
-    pinata_api_secret: Optional[str] = None
-
+    # Frontend auth URL (default to localhost:5173 for dev)
+    auth_url: Optional[str] = "http://localhost:5173"
+    # Session timeout in hours (default 7 days)
+    session_timeout_hours: Optional[int] = 168
 
 CONFIG_PATH = Path.home() / ".flair" / "config.yaml"
 CONFIG_DIR = CONFIG_PATH.parent

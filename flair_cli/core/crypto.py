@@ -1,19 +1,18 @@
 """
-Cryptographic utilities for Flair CLI.
+DEPRECATED: Cryptographic utilities for Flair CLI.
 
-Design decisions and security notes:
-- Artifact encryption uses AES-256-GCM via cryptography.AESGCM.
-- Each artifact gets a random 32-byte DEK (data encryption key).
-- DEK is encrypted with the Repo Master Key (RMK) using AES-GCM.
-- RMK is a 32-byte symmetric key generated per-repo.
-- RMK encryption per-wallet uses public-key sealed boxes (PyNaCl SealedBox).
-  Solana wallets are Ed25519 keys; we convert Ed25519 public keys to Curve25519
-  to support public-key encryption (compatibility provided by libsodium / PyNaCl bindings).
+This module is no longer used by the CLI. Flair is designed for complete transparency,
+and all artifacts are stored and transmitted without encryption. The backend
+repository manager handles all artifact management via HTTP endpoints.
 
-Important: The CLI never stores private keys. Decrypting an RMK for a wallet requires
-that wallet to provide a way to decrypt (for example, performed client-side by the wallet API).
-For demo/testing purposes, helper functions are provided that take an Ed25519 private key
-and decrypt the sealed box. In production the wallet should be used to do this step.
+Note: This module is kept for reference only and should not be imported by CLI commands.
+
+Legacy design notes:
+- Artifact encryption used AES-256-GCM via cryptography.AESGCM.
+- Each artifact had a random 32-byte DEK (data encryption key).
+- DEK was encrypted with the Repo Master Key (RMK) using AES-GCM.
+- RMK was a 32-byte symmetric key generated per-repo.
+- RMK encryption per-wallet used public-key sealed boxes (PyNaCl SealedBox).
 """
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import os
@@ -24,7 +23,7 @@ import base64
 
 
 def generate_dek() -> bytes:
-    """Return a 32-byte random DEK (AES-256)."""
+    """Return a 32-byte random DEK (AES-256). DEPRECATED - not used."""
     return os.urandom(32)
 
 

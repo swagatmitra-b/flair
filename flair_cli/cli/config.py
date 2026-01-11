@@ -28,17 +28,16 @@ def view():
     table.add_column("Value", style="green")
     table.add_column("Source", style="dim")
     
-    api_base = os.environ.get("FLAIR_API_BASE") or cfg.api_base_url or "http://localhost:8080"
+    api_base = os.environ.get("FLAIR_API_BASE") or cfg.api_base_url or "http://localhost:2112"
     api_source = "env" if os.environ.get("FLAIR_API_BASE") else ("config" if config_mod.CONFIG_PATH.exists() else "default")
     table.add_row("api_base_url", api_base, f"[dim]({api_source})[/dim]")
     
-    auth = os.environ.get("FLAIR_AUTH_URL") or cfg.auth_url or "http://localhost:3000"
+    auth = os.environ.get("FLAIR_AUTH_URL") or cfg.auth_url or "http://localhost:5173"
     auth_source = "env" if os.environ.get("FLAIR_AUTH_URL") else ("config" if config_mod.CONFIG_PATH.exists() else "default")
     table.add_row("auth_url", auth, f"[dim]({auth_source})[/dim]")
     
-    pinata_key = "***" if (os.environ.get("PINATA_API_KEY") or cfg.pinata_api_key) else "[dim]not set[/dim]"
-    pinata_key_source = "env" if os.environ.get("PINATA_API_KEY") else ("config" if cfg.pinata_api_key else "—")
-    table.add_row("pinata_api_key", pinata_key, f"[dim]({pinata_key_source})[/dim]" if pinata_key != "[dim]not set[/dim]" else "—")
+    session_timeout = cfg.session_timeout_hours or 168
+    table.add_row("session_timeout_hours", str(session_timeout), "config")
     
     console.print(table)
     console.print(f"\n[dim]Config file: {config_mod.CONFIG_PATH}[/dim]")
@@ -47,19 +46,19 @@ def view():
 @app.command("set")
 def set_config(
     api_base_url: str = typer.Option(None, help="Backend API base URL"),
-    auth_url: str = typer.Option(None, help="Auth frontend URL (e.g., https://auth.flair.example/login)"),
-    session_timeout_hours: int = typer.Option(None, help="Session timeout in hours (default: 24)"),
-    pinata_api_key: str = typer.Option(None, help="Pinata API key"),
-    pinata_api_secret: str = typer.Option(None, help="Pinata API secret")
+    auth_url: str = typer.Option(None, help="Auth frontend URL"),
+    session_timeout_hours: int = typer.Option(None, help="Session timeout in hours (default: 168)")
 ):
     """Set configuration values in ~/.flair/config.yaml.
     
-    In production, prefer environment variables for sensitive values:
-      export PINATA_API_KEY=xxx
-      export PINATA_API_SECRET=yyy
+    For production deployments, you can set these values in the config file
+    or via environment variables:
+    
+      export FLAIR_API_BASE=https://api.example.com
+      export FLAIR_AUTH_URL=https://auth.example.com
     
     Example:
-      flair config set --auth-url https://auth.myorg.com/login --session-timeout-hours 48
+      flair config set --auth-url https://auth.myorg.com --session-timeout-hours 48
     """
     cfg = config_mod.load_config()
     changed = False
@@ -77,16 +76,6 @@ def set_config(
     if session_timeout_hours is not None:
         cfg.session_timeout_hours = session_timeout_hours
         console.print(f"✓ Set session_timeout_hours = {session_timeout_hours}", style="green")
-        changed = True
-    
-    if pinata_api_key:
-        cfg.pinata_api_key = pinata_api_key
-        console.print("✓ Set pinata_api_key", style="green")
-        changed = True
-    
-    if pinata_api_secret:
-        cfg.pinata_api_secret = pinata_api_secret
-        console.print("✓ Set pinata_api_secret", style="green")
         changed = True
     
     if changed:

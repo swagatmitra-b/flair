@@ -6,7 +6,7 @@ auth URL + redirect_uri parameter. The frontend signs the user in, then redirect
 the CLI's callback URL with the signed token. The CLI captures the token and saves it.
 
 Session tokens are cached in ~/.flair/session.json with an expiration time (configurable,
-default 24 hours). If a valid session exists, users are not prompted to re-authenticate.
+default 7 days). If a valid session exists, users are not prompted to re-authenticate.
 """
 from __future__ import annotations
 import typer
@@ -148,7 +148,7 @@ def login(
         
         # Get session timeout from config
         cfg = config_mod.load_config()
-        session_timeout_hours = cfg.session_timeout_hours or 24
+        session_timeout_hours = cfg.session_timeout_hours
         
         # Reset callback handler state
         CallbackHandler.token = None

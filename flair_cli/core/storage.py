@@ -1,17 +1,21 @@
 """
-Storage provider abstraction and a Pinata implementation.
+DEPRECATED: Storage provider abstraction.
 
-Design notes:
-- The StorageProvider interface matches the requirements: put/get/exists.
-- Pinata is the default provider; API credentials are taken from config or environment.
-- For production use, ensure credentials are stored securely and rotate PINATA keys frequently.
+This module is no longer used by the CLI. Flair is designed for complete transparency,
+with all artifact management handled by the backend repository manager via HTTP endpoints.
+
+No client-side storage adapters (Pinata IPFS or otherwise) are used.
+
+Note: This module is kept for reference only and should not be imported by CLI commands.
+
+Legacy design notes:
+- Used StorageProvider interface with put/get/exists methods
+- Pinata IPFS was the default provider
+- API credentials were taken from config or environment
 """
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
-import httpx
-import os
-from .config import config
 
 PINATA_PIN_FILE_URL = "https://api.pinata.cloud/pinning/pinFileToIPFS"
 PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs"
@@ -19,11 +23,13 @@ PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs"
 
 @dataclass
 class StorageRef:
+    """DEPRECATED: Storage reference. Not used in current architecture."""
     provider: str
     ref: str
 
 
 class StorageProvider(Protocol):
+    """DEPRECATED: Storage provider protocol. Not used in current architecture."""
     def put(self, data: bytes, filename: str = "artifact.bin") -> StorageRef:
         ...
 
@@ -35,9 +41,10 @@ class StorageProvider(Protocol):
 
 
 class PinataStorage:
+    """DEPRECATED: Pinata IPFS storage. Not used in current architecture."""
     def __init__(self, api_key: str | None = None, api_secret: str | None = None):
-        self.api_key = api_key or os.environ.get("PINATA_API_KEY") or config.pinata_api_key
-        self.api_secret = api_secret or os.environ.get("PINATA_API_SECRET") or config.pinata_api_secret
+        self.api_key = api_key
+        self.api_secret = api_secret
         if not self.api_key or not self.api_secret:
             raise RuntimeError("Pinata credentials not configured (PINATA_API_KEY / PINATA_API_SECRET)")
 
