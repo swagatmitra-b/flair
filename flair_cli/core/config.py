@@ -17,6 +17,17 @@ from pydantic import BaseModel
 import os
 
 
+# Allowed base model file extensions
+ALLOWED_BASE_MODEL_EXTENSIONS = [
+    # The "Blueprint" (Code & Config)
+    ".py", ".json", ".yaml",
+    # Graph Definitions (Production/Edge)
+    ".onnx", ".pb", ".tflite",
+    # Full Model Containers (Architecture + Initial Weights)
+    ".h5", ".keras", ".pt", ".pth", ".pkl", ".joblib"
+]
+
+
 class FlairConfig(BaseModel):
     # Backend API base URL (default to localhost:8080 for dev)
     api_base_url: Optional[str] = "http://localhost:2112"
