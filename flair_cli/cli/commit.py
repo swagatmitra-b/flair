@@ -15,6 +15,48 @@ from ..api import client as api_client
 app = typer.Typer()
 console = Console()
 
+@app.command()
+def commit(
+    repo: str = typer.Option(None, "--repo", help="Repository ID (defaults to current repo if initialized)"),
+    artifact_ref: str = typer.Option(..., "--artifact-ref", help="Artifact reference (e.g., ID or URI)"),
+    metadata: str = typer.Option(None, "--metadata", help="JSON metadata"),
+    type: str = typer.Option("delta", "--type", help="Commit type: delta or checkpoint"),
+    zkml_proof_ref: str = typer.Option(None, "--zkml", help="Optional zkML proof reference")
+):
+    """Create a commit (git-like single command)."""
+    if type not in {"delta", "checkpoint"}:
+        console.print("[red]--type must be 'delta' or 'checkpoint'[/red]")
+        raise typer.Exit(code=1)
+    # resolve repo from current directory if not provided
+    if not repo:
+        from pathlib import Path as _P
+        import json as _json
+        repo_file = _P.cwd() / ".flair" / "repo.json"
+        if repo_file.exists():
+            try:
+                data = _json.loads(repo_file.read_text())
+                repo = data.get("id")
+            except Exception:
+                repo = None
+    if not repo:
+        console.print("[red]No repository specified and current directory is not initialized[/red]")
+        raise typer.Exit(code=1)
+
+    try:
+        payload = {
+            "repo_id": repo,
+            "commit_type": type,
+            "artifact_ref": artifact_ref,
+            "metadata": json.loads(metadata) if metadata else {},
+        }
+        if zkml_proof_ref:
+            payload["zkml_proof_ref"] = zkml_proof_ref
+        commit = api_client.create_commit(payload)
+        console.print("✓ Commit created:", style="green")
+        console.print(commit)
+    except Exception as e:
+        console.print(f"Failed to create commit: {e}", style="bold red")
+        raise typer.Exit(code=1)
 
 @app.command("delta")
 def commit_delta(
