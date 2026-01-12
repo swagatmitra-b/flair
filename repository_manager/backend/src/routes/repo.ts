@@ -18,6 +18,9 @@ repoRouter.get('/owner/:ownerAddress/name/:name', repoController.getRepositoryBy
 // Get a specific repository given the repository hash
 repoRouter.get('/hash/:repoHash', repoController.getRepositoryByHash);
 
+// Clone repository: fetch repo + branches + latest commits for cloning
+repoRouter.get('/hash/:repoHash/clone', repoController.cloneRepository);
+
 // Create an empty repository
 repoRouter.post('/create', repoController.createRepository);
 

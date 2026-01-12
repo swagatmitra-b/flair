@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, status
+from flair_cli.cli import auth, config, init, status, clone, log, show, commit
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -16,6 +16,10 @@ app.add_typer(auth.app, name="auth", help="Authentication commands (SIWS)")
 app.add_typer(config.app, name="config", help="Configuration management")
 app.add_typer(init.app, name="init", help="Initialize repository in current directory")
 app.add_typer(status.app, name="status", help="Show repo and session status")
+app.add_typer(clone.app, name="clone", help="Clone a remote repository")
+app.add_typer(log.app, name="log", help="List commits for repository")
+app.add_typer(show.app, name="show", help="Show a commit's details")
+app.add_typer(commit.app, name="commit", help="Create and manage commits")
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, json: Optional[bool] = typer.Option(False, "--json", help="Output machine-friendly JSON")):

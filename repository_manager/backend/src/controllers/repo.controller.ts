@@ -537,3 +537,105 @@ export async function getRepositoryRoles(req: Request, res: Response) {
         res.status(500).json({ error: { message: 'Internal Server Error' } });
     }
 }
+
+// Clone repository: fetch repo + branches + latest commit + params for cloning
+export async function cloneRepository(req: Request, res: Response) {
+    try {
+        const { repoHash } = req.params;
+
+        // Get repository details
+        const repo = await prisma.repository.findUnique({
+            where: { repoHash },
+            select: {
+                id: true,
+                name: true,
+                repoHash: true,
+                ownerAddress: true,
+                metadata: true,
+                createdAt: true,
+                updatedAt: true,
+                baseModelHash: true
+            }
+        });
+
+        if (!repo) {
+            res.status(404).json({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        // Get all branches for this repository
+        const branches = await prisma.branch.findMany({
+            where: { repositoryId: repo.id },
+            select: {
+                id: true,
+                name: true,
+                branchHash: true,
+                description: true,
+                createdAt: true,
+                updatedAt: true
+            }
+        });
+
+        // Get latest commit for each branch
+        const branchesWithLatest = await Promise.all(
+            branches.map(async (branch) => {
+                const latestCommit = await prisma.commit.findFirst({
+                    where: {
+                        branchId: branch.id,
+                        isDeleted: false
+                    },
+                    orderBy: { createdAt: 'desc' },
+                    select: {
+                        id: true,
+                        commitHash: true,
+                        message: true,
+                        paramHash: true,
+                        status: true,
+                        createdAt: true,
+                        committerAddress: true
+                    }
+                });
+
+                return {
+                    ...branch,
+                    latestCommit: latestCommit || null
+                };
+            })
+        );
+
+        // Get base model info if exists
+        let baseModel = null;
+        if (repo.baseModelHash) {
+            baseModel = await prisma.ipfsObject.findFirst({
+                where: { cid: repo.baseModelHash },
+                select: {
+                    cid: true,
+                    uri: true,
+                    size: true,
+                    createdAt: true
+                }
+            });
+        }
+
+        // Prepare clone data
+        const cloneData = {
+            repo: {
+                name: repo.name,
+                hash: repo.repoHash,
+                owner: repo.ownerAddress,
+                metadata: repo.metadata,
+                baseModel: baseModel,
+                createdAt: repo.createdAt,
+                updatedAt: repo.updatedAt
+            },
+            branches: branchesWithLatest,
+            branchCount: branches.length
+        };
+
+        res.status(200).json({ data: cloneData });
+
+    } catch (error) {
+        console.error('Error cloning repository:', error);
+        res.status(500).json({ error: { message: 'Internal Server Error' } });
+    }
+}
