@@ -15,7 +15,7 @@ from ..core.config import ALLOWED_BASE_MODEL_EXTENSIONS
 app = typer.Typer()
 console = Console()
 
-
+# function to get the current repository info thats stored in .flair/repo.json
 def _get_current_repo() -> dict | None:
     """Get current repository info from .flair/repo.json"""
     flair_dir = Path.cwd() / ".flair"
