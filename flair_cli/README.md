@@ -1,6 +1,6 @@
 # Flair CLI commands
 
-## Init with automatic base model detection
+## Init repository with automatic base model detection
 flair init --description "My model"
 ## Found 2 base model file(s):
 ##   1. model.pt
@@ -13,18 +13,30 @@ flair init --description "My model"
 flair init --skip-base-model
 
 ## Upload base model manually
-flair basemodel add_base model.pt
+flair basemodel add model.pt
 
 ## Replace existing base model
-flair basemodel add_base new_model.h5
+flair basemodel add new_model.h5
 ## ⚠ Base model already exists
 ## Do you want to replace it? [y/N]: y
 
 ## Force upload without prompts
-flair basemodel add_base model.keras --force
+flair basemodel add model.keras --force
 
 ## Check if base model exists
 flair basemodel check
 
 ## Delete base model
 flair basemodel delete
+
+
+
+
+# authentication routes
+flair auth login
+flair auth status
+flair auth logout
+
+
+
+

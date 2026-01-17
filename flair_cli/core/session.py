@@ -4,6 +4,8 @@ NOTE: We never store private keys.
 
 Session expiration is managed via expires_at timestamp. If the current time exceeds expires_at,
 the session is considered invalid and the user must re-authenticate.
+
+Debashish Buragohain
 """
 from pathlib import Path
 from pydantic import BaseModel
@@ -11,9 +13,7 @@ import json
 from typing import Optional
 from datetime import datetime, timedelta
 
-
 SESSION_PATH = Path.home() / ".flair" / "session.json"
-
 
 class Session(BaseModel):
     token: str

@@ -14,7 +14,7 @@ def get_base_model_url(repo_hash: str) -> Dict[str, Any]:
         r.raise_for_status()
         return r.json()
 
-
+# uses the upload model endpoint of the repository manager and returns what the API has returned
 def upload_base_model(repo_hash: str, file_path) -> Dict[str, Any]:
     """Upload base model file to repository.
     
@@ -27,7 +27,7 @@ def upload_base_model(repo_hash: str, file_path) -> Dict[str, Any]:
     """
     with _client_with_auth() as client:
         with open(file_path, "rb") as f:
-            files = {"file": (file_path.name, f, "application/octet-stream")}
+            files = {"baseModel": (file_path.name, f, "application/octet-stream")}
             r = client.post(f"/repo/hash/{repo_hash}/basemodel/upload", files=files)
             r.raise_for_status()
             return r.json().get("data", {})

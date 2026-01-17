@@ -2,6 +2,7 @@
 Initialize a Flair repository in the current directory.
 Creates a .flair folder and registers the repository with the backend.
 """
+
 from __future__ import annotations
 import typer
 from rich.console import Console
@@ -14,7 +15,6 @@ from ..core.config import ALLOWED_BASE_MODEL_EXTENSIONS
 app = typer.Typer()
 console = Console()
 
-
 def _find_base_model_files() -> list[Path]:
     """Find base model files in current directory."""
     files = []
@@ -26,9 +26,9 @@ def _find_base_model_files() -> list[Path]:
 @app.command()
 def init(
     name: str = typer.Option(None, help="Repository name (defaults to current folder name)"),
-    description: str = typer.Option(None, help="Short description"),
-    use_case: str = typer.Option(None, "--use-case", help="Use case description"),
-    framework: str = typer.Option(None, help="ML framework (PyTorch / TensorFlow / Tensorflow)"),
+    description: str = typer.Option("", help="Short description"),
+    use_case: str = typer.Option("General", "--use-case", help="Use case description"),
+    framework: str = typer.Option("PyTorch", help="ML framework (PyTorch / TensorFlow / Tensorflow)"),
     skip_base_model: bool = typer.Option(False, "--skip-base-model", help="Skip base model upload prompt")
 ):
     """Initialize a new Flair repository in the current directory."""
@@ -71,7 +71,7 @@ def init(
 
         console.print("✓ Repository initialized successfully!", style="green")
         console.print(f"  Name: {resp.get('name')}")
-        console.print(f"  ID: {resp.get('id')}")
+        console.print(f"  Hash: {resp.get('repoHash')}")
         console.print(f"  Location: {flair_dir}")
         
         # Check for base model files and prompt to upload
@@ -101,7 +101,7 @@ def init(
                     # Upload the selected base model
                     try:
                         from . import basemodel
-                        repo_hash = resp.get("repoHash") or resp.get("hash")
+                        repo_hash = resp.get("repoHash")
                         success = basemodel.upload_base_model(repo_hash, selected_file, force=True)
                         if not success:
                             console.print("[yellow]Base model upload failed, but repository is initialized[/yellow]")

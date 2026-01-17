@@ -2,6 +2,7 @@
 Base model management commands.
 Upload, check, and manage base models for repositories.
 """
+
 from __future__ import annotations
 import typer
 from rich.console import Console
@@ -97,15 +98,15 @@ def upload_base_model(repo_hash: str, file_path: Path, force: bool = False) -> b
 
 
 @app.command()
-def add_base(
+def add(
     filename: str = typer.Argument(..., help="Base model file to upload"),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompts")
 ):
     """Upload a base model file to the current repository.
     
     Example:
-      flair basemodel add_base model.pt
-      flair basemodel add_base architecture.onnx --force
+      flair basemodel add model.pt
+      flair basemodel add architecture.onnx --force
     """
     # Get current repo
     repo = _get_current_repo()
