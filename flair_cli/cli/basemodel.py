@@ -12,6 +12,7 @@ import httpx
 
 from ..api import client as api_client
 from ..core.config import ALLOWED_BASE_MODEL_EXTENSIONS
+from ..core.session import load_session
 
 app = typer.Typer()
 console = Console()
@@ -44,6 +45,37 @@ def _check_base_model_exists(repo_hash: str) -> tuple[bool, str | None]:
             # No base model exists
             return False, None
         raise
+
+
+def _check_user_authorization(repo_hash: str) -> bool:
+    """Check if current user is owner or admin of the repository.
+    
+    Returns:
+        True if user is authorized (owner or admin), False otherwise
+    """
+    try:
+        # Get current user's wallet address
+        session = load_session()
+        if not session or not session.wallet_address:
+            return False
+        
+        user_wallet = session.wallet_address
+        
+        # Get repository details
+        repo = api_client.get_repo_by_hash(repo_hash)
+        
+        # Check if user is owner
+        if repo.get("ownerAddress") == user_wallet:
+            return True
+        
+        # Check if user is admin
+        admin_ids = repo.get("adminIds", [])
+        if user_wallet in admin_ids:
+            return True
+        
+        return False
+    except Exception:
+        return False
 
 
 def upload_base_model(repo_hash: str, file_path: Path, force: bool = False) -> bool:
@@ -119,6 +151,11 @@ def add(
         console.print("[red]Could not determine repository hash[/red]")
         raise typer.Exit(code=1)
     
+    # Check authorization
+    if not _check_user_authorization(repo_hash):
+        console.print("[red]Unauthorized. Only repository owner or admins can add base models.[/red]")
+        raise typer.Exit(code=1)
+    
     # Resolve file path
     file_path = Path(filename)
     if not file_path.is_absolute():
@@ -158,6 +195,11 @@ def delete(
         raise typer.Exit(code=1)
     
     repo_hash = repo.get("hash") or repo.get("repoHash")
+    
+    # Check authorization
+    if not _check_user_authorization(repo_hash):
+        console.print("[red]Unauthorized. Only repository owner or admins can delete base models.[/red]")
+        raise typer.Exit(code=1)
     
     # Check if model exists
     exists, _ = _check_base_model_exists(repo_hash)
