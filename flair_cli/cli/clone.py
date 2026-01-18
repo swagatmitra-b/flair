@@ -16,7 +16,7 @@ console = Console()
 
 @app.command()
 def clone(
-    repo_id: str = typer.Argument(..., help="Repository hash or owner/name (e.g., 'owner-wallet/repo-name')"),
+    repo_hash: str = typer.Argument(..., help="Repository hash"),
     target_dir: str = typer.Option(None, "--target-dir", "-C", help="Target directory (defaults to repo name)")
 ):
     """Clone a remote repository to local directory.
@@ -24,19 +24,18 @@ def clone(
     Examples:
       flair clone <repo_hash>
       flair clone <repo_hash> --target-dir ./my-repo
-      flair clone owner-address/repo-name
     """
     try:
-        # Fetch clone data from backend
-        clone_data = api_client.clone_repository(repo_id)
+        # Fetch clone data from backend using repo hash
+        clone_data = api_client.clone_repository(repo_hash)
         
         repo_info = clone_data.get("repo", {})
         branches = clone_data.get("branches", [])
         
         repo_name = repo_info.get("name")
-        repo_hash = repo_info.get("hash")
+        repo_hash_returned = repo_info.get("hash")
         
-        if not repo_name or not repo_hash:
+        if not repo_name or not repo_hash_returned:
             console.print("[red]Invalid repository data from backend[/red]")
             raise typer.Exit(code=1)
         
