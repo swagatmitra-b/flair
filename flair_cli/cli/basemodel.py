@@ -78,6 +78,64 @@ def _check_user_authorization(repo_hash: str) -> bool:
         return False
 
 
+def download_base_model(repo_hash: str, target_dir: Path, verbose: bool = True) -> bool:
+    """Download base model from repository.
+    
+    Args:
+        repo_hash: Repository hash
+        target_dir: Directory to save the base model
+        verbose: Print download progress
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        # Get base model URL and extension
+        result = api_client.get_base_model_url(repo_hash)
+        url = result.get("data")
+        file_extension = result.get("fileExtension")
+        
+        if not url or not file_extension:
+            if verbose:
+                console.print("[yellow]No base model available for this repository[/yellow]")
+            return False
+        
+        # Determine filename
+        filename = f"base_model{file_extension}"
+        target_path = target_dir / filename
+        
+        if verbose:
+            console.print(f"[dim]Downloading base model ({file_extension})...[/dim]")
+        
+        # Download the file
+        import httpx
+        with httpx.stream("GET", url, timeout=120) as response:
+            response.raise_for_status()
+            with open(target_path, "wb") as f:
+                for chunk in response.iter_bytes(chunk_size=8192):
+                    f.write(chunk)
+        
+        if verbose:
+            size_mb = target_path.stat().st_size / (1024 * 1024)
+            console.print(f"✓ Base model downloaded: {filename} ({size_mb:.2f} MB)", style="green")
+        
+        return True
+        
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 400:
+            # No base model exists
+            if verbose:
+                console.print("[dim]No base model available[/dim]")
+            return False
+        if verbose:
+            console.print(f"[red]Failed to download base model: {e}[/red]")
+        return False
+    except Exception as e:
+        if verbose:
+            console.print(f"[red]Failed to download base model: {e}[/red]")
+        return False
+
+
 def upload_base_model(repo_hash: str, file_path: Path, force: bool = False) -> bool:
     """Upload a base model file to repository.
     
@@ -182,6 +240,36 @@ def check():
         console.print(f"  URL: {url}")
     else:
         console.print("[dim]No base model uploaded[/dim]")
+
+
+@app.command()
+def download(
+    target_dir: str = typer.Option(".", "--target-dir", "-C", help="Directory to save base model")
+):
+    """Download base model from current repository.
+    
+    Example:
+      flair basemodel download
+      flair basemodel download --target-dir ./models
+    """
+    repo = _get_current_repo()
+    if not repo:
+        console.print("[red]Not in a Flair repository[/red]")
+        raise typer.Exit(code=1)
+    
+    repo_hash = repo.get("hash") or repo.get("repoHash")
+    
+    # Resolve target directory
+    target_path = Path(target_dir)
+    if not target_path.is_absolute():
+        target_path = Path.cwd() / target_dir
+    
+    # Create directory if it doesn't exist
+    target_path.mkdir(parents=True, exist_ok=True)
+    
+    success = download_base_model(repo_hash, target_path, verbose=True)
+    if not success:
+        raise typer.Exit(code=1)
 
 
 @app.command()

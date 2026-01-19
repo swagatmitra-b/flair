@@ -30,7 +30,7 @@ flair init --skip-base-model
 flair basemodel add model.pt
 ```
 
-## Replace existing base model
+## Replace existing base model (admin command)
 ```bash
 flair basemodel add new_model.h5
 ## ⚠ Base model already exists
@@ -47,9 +47,17 @@ flair basemodel add model.keras --force
 flair basemodel check
 ```
 
-## Delete base model
+## Delete base model (admin command)
 ```bash
 flair basemodel delete
 ```
+
+
+## Download base model
+```bash
+flair basemodel download
+flair basemodel download --target-dir ./models
+```
+
 
 

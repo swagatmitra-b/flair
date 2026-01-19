@@ -80,6 +80,12 @@ def clone(
         flairiignore = local_dir / ".flairignore"
         flairiignore.write_text("__pycache__/\n*.pyc\n.DS_Store\n.env\nnode_modules/\n")
         
+        # Download base model if it exists
+        if repo_info.get("baseModel"):
+            console.print("\n[dim]Downloading base model...[/dim]")
+            from .basemodel import download_base_model
+            download_base_model(repo_hash, local_dir, verbose=True)
+        
         # Display clone info
         console.print(f"✓ Repository cloned successfully!", style="green")
         console.print(f"  Name: {repo_name}")
