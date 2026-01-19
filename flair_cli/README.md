@@ -61,3 +61,11 @@ flair basemodel download --target-dir ./models
 
 
 
+## cloning the repository
+saves to .flair/repo.json and .flair/branch.json and creates three files base_model.<ext>, params.<ext>, zkml_proof.json, zkml_settings.json, zkml_verification_key.json in the root directory
+```bash
+flair clone <repo_hash>
+flair clone <repo_hash> --target-dir ./repo
+flair clone <repo_hash> --branch main
+flair clone <repo_hash> --branch-hash main
+```

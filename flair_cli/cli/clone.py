@@ -37,13 +37,17 @@ def _download_file(url: str, target_path: Path):
 @app.command()
 def clone(
     repo_hash: str = typer.Argument(..., help="Repository hash"),
-    target_dir: str = typer.Option(None, "--target-dir", "-C", help="Target directory (defaults to repo name)")
+    target_dir: str = typer.Option(None, "--target-dir", "-C", help="Target directory (defaults to repo name)"),
+    branch: str = typer.Option(None, "--branch", help="Branch name to download artifacts for"),
+    branch_hash: str = typer.Option(None, "--branch-hash", help="Branch hash to download artifacts for")
 ):
     """Clone a remote repository to local directory.
     
-    Examples:
-      flair clone <repo_hash>
-      flair clone <repo_hash> --target-dir ./my-repo
+        Examples:
+            flair clone <repo_hash>
+            flair clone <repo_hash> --target-dir ./my-repo
+            flair clone <repo_hash> --branch main
+            flair clone <repo_hash> --branch-hash 123e4567
     """
     try:
         # Fetch clone data from backend using repo hash
@@ -100,7 +104,7 @@ def clone(
         flairiignore = local_dir / ".flairignore"
         flairiignore.write_text("__pycache__/\n*.pyc\n.DS_Store\n.env\nnode_modules/\n")
 
-        # Download base model if available
+        # Download base model if available (to root directory)
         base_model = repo_info.get("baseModel")
         if base_model and base_model.get("uri"):
             ext = _ensure_ext(base_model.get("extension") or "")
@@ -110,29 +114,48 @@ def clone(
             size_mb = target.stat().st_size / (1024 * 1024)
             console.print(f"✓ Base model saved to {target.name} ({size_mb:.2f} MB)", style="green")
 
-        # Download latest params and zkml proofs per branch
-        params_dir = flair_dir / "params"
-        proofs_dir = flair_dir / "zkml"
-        if branches:
-            for branch in branches:
-                latest_commit = branch.get("latestCommit") or {}
-                branch_name = _sanitize_name(branch.get("name", "branch"))
+        # Determine which branch to download artifacts for
+        selected_branch = None
+        if branch and branch_hash:
+            console.print("[red]Provide either --branch or --branch-hash, not both.[/red]")
+            raise typer.Exit(code=1)
 
-                params = (latest_commit.get("params") or {}).get("ipfsObject")
-                if params and params.get("uri"):
-                    ext = _ensure_ext(params.get("extension") or "")
-                    target = params_dir / f"{branch_name}_latest_params{ext if ext else ''}"
-                    console.print(f"[dim]Downloading params for {branch.get('name')}...[/dim]")
-                    _download_file(params["uri"], target)
+        if branch_hash:
+            selected_branch = next((b for b in branches if b.get("branchHash") == branch_hash), None)
+            if not selected_branch:
+                console.print(f"[red]Branch with hash '{branch_hash}' not found.[/red]")
+                raise typer.Exit(code=1)
+        elif branch:
+            selected_branch = next((b for b in branches if b.get("name") == branch), None)
+            if not selected_branch:
+                console.print(f"[red]Branch named '{branch}' not found.[/red]")
+                raise typer.Exit(code=1)
+        else:
+            # Use default branch if available; fallback: first branch
+            default_hash = repo_info.get("defaultBranchHash")
+            if default_hash:
+                selected_branch = next((b for b in branches if b.get("branchHash") == default_hash), None)
+            if not selected_branch and branches:
+                selected_branch = branches[0]
 
-                zkml = (latest_commit.get("params") or {}).get("ZKMLProof") or {}
-                for key, label in [("proof", "proof"), ("settings", "settings"), ("verification_key", "verification-key")]:
-                    obj = zkml.get(key)
-                    if obj and obj.get("uri"):
-                        ext = _ensure_ext(obj.get("extension") or "json")
-                        target = proofs_dir / f"{branch_name}_{label}{ext if ext else ''}"
-                        console.print(f"[dim]Downloading {label} for {branch.get('name')}...[/dim]")
-                        _download_file(obj["uri"], target)
+        # Download latest params and zkml proofs for the selected branch only (to root directory)
+        if selected_branch:
+            latest_commit = selected_branch.get("latestCommit") or {}
+            params = (latest_commit.get("params") or {}).get("ipfsObject")
+            if params and params.get("uri"):
+                ext = _ensure_ext(params.get("extension") or "")
+                target = local_dir / f"params{ext if ext else ''}"
+                console.print(f"[dim]Downloading params for {selected_branch.get('name')}...[/dim]")
+                _download_file(params["uri"], target)
+
+            zkml = (latest_commit.get("params") or {}).get("ZKMLProof") or {}
+            for key, label in [("proof", "zkml_proof"), ("settings", "zkml_settings"), ("verification_key", "zkml_verification_key")]:
+                obj = zkml.get(key)
+                if obj and obj.get("uri"):
+                    ext = _ensure_ext(obj.get("extension") or "json")
+                    target = local_dir / f"{label}{ext if ext else ''}"
+                    console.print(f"[dim]Downloading {label.replace('_', ' ')} for {selected_branch.get('name')}...[/dim]")
+                    _download_file(obj["uri"], target)
 
         # Display clone info
         console.print(f"✓ Repository cloned successfully!", style="green")
