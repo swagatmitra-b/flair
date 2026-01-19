@@ -10,6 +10,7 @@ branchRouter.get('/', branchController.getAllBranches);
 
 // Get a specific branch in a repository
 branchRouter.get('/hash/:branchHash', branchController.getBranchByHash);
+branchRouter.get('/name/:name', branchController.getBranchByName);
 
 // Create a new branch in a repository
 branchRouter.post('/create', branchController.createBranch);

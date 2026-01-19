@@ -47,6 +47,32 @@ export async function getBranchByHash(req: Request, res: Response) {
     }
 }
 
+// Get a specific branch in a repository by name
+export async function getBranchByName(req: Request, res: Response) {
+    try {
+        const { name } = req.params;
+        const { repoId } = req;
+
+        const matchBranch = await prisma.branch.findFirst({
+            where: {
+                repositoryId: repoId,
+                name
+            }
+        });
+
+        if (!matchBranch) {
+            res.status(200).json({ data: [] });
+            return;
+        }
+
+        res.status(200).json({ data: matchBranch });
+    }
+    catch (err) {
+        console.error('Error in branch retrieval by name:', err);
+        res.status(500).send({ error: { message: `${err}` } });
+    }
+}
+
 // Create a new branch in a repository
 export async function createBranch(req: Request, res: Response) {
     try {
