@@ -23,6 +23,9 @@ branchRouter.delete('/hash/:branchHash/delete', branchController.deleteBranch);
 // Fork a branch within the same repository
 branchRouter.post('/hash/:branchHash/fork', branchController.forkBranch);
 
+// Set default branch (owner/admin only)
+branchRouter.patch('/hash/:branchHash/default/set', branchController.setDefaultBranch);
+
 branchRouter.use('/hash/:branchHash/commit', async (req, res, next) => {
     const { branchHash } = req.params;
     const matchBranch = await prisma.branch.findFirst({

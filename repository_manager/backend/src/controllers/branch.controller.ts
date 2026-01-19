@@ -109,6 +109,17 @@ export async function createBranch(req: Request, res: Response) {
                 branchHash: uuidv4()
             }
         });
+
+        // If this is the first branch, set it as default for the repository
+        if (matchRepo.branches.length === 0) {
+            await prisma.repository.update({
+                where: { id: repoId },
+                data: {
+                    defaultBranchHash: newBranch.branchHash,
+                    updatedAt: new Date()
+                }
+            });
+        }
         res.status(201).json({ data: newBranch });
         return;
     }
@@ -228,6 +239,48 @@ export async function deleteBranch(req: Request, res: Response) {
     } catch (err) {
         console.error('Error deleting branch: ', err);
         res.status(500).send({ error: { message: 'Internal Server Error' } });
+    }
+}
+
+// Set default branch for repository (owner or admin only)
+export async function setDefaultBranch(req: Request, res: Response) {
+    try {
+        const pk = authorizedPk(res);
+        const { repoId } = req;
+        const { branchHash } = req.params;
+
+        const repo = await prisma.repository.findUnique({ where: { id: repoId } });
+        if (!repo) {
+            res.status(404).send({ error: { message: 'Repository not found.' } });
+            return;
+        }
+
+        const isAuthorized = repo.ownerAddress === pk || repo.adminIds.includes(pk);
+        if (!isAuthorized) {
+            res.status(403).send({ error: { message: 'Unauthorized. Only owner or admins can change default branch.' } });
+            return;
+        }
+
+        const branch = await prisma.branch.findFirst({ where: { branchHash, repositoryId: repoId } });
+        if (!branch) {
+            res.status(404).send({ error: { message: 'Branch not found in this repository.' } });
+            return;
+        }
+
+        await prisma.repository.update({
+            where: { id: repoId },
+            data: {
+                defaultBranchHash: branch.branchHash,
+                updatedAt: new Date()
+            }
+        });
+
+        res.status(200).json({ message: 'Default branch updated successfully.', defaultBranchHash: branch.branchHash });
+    }
+    catch (err) {
+        console.error('Error setting default branch:', err);
+        res.status(500).send({ error: { message: 'Internal Server Error' } });
+        return;
     }
 }
 

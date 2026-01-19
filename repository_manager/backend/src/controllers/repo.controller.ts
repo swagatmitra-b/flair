@@ -554,7 +554,8 @@ export async function cloneRepository(req: Request, res: Response) {
                 metadata: true,
                 createdAt: true,
                 updatedAt: true,
-                baseModelHash: true
+                baseModelHash: true,
+                defaultBranchHash: true
             }
         });
 
@@ -617,7 +618,8 @@ export async function cloneRepository(req: Request, res: Response) {
 
                 return {
                     ...branch,
-                    latestCommit: latestCommit || null
+                    latestCommit: latestCommit || null,
+                    isDefault: repo.defaultBranchHash ? branch.branchHash === repo.defaultBranchHash : false
                 };
             })
         );
@@ -645,6 +647,7 @@ export async function cloneRepository(req: Request, res: Response) {
                 owner: repo.ownerAddress,
                 metadata: repo.metadata,
                 baseModel: baseModel,
+                defaultBranchHash: repo.defaultBranchHash,
                 createdAt: repo.createdAt,
                 updatedAt: repo.updatedAt
             },

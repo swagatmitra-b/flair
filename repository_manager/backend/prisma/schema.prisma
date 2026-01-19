@@ -57,6 +57,8 @@ model Repository {
   baseModelHash  String?            @unique // the base model hash can be used to check if the base model is already present
   baseModelId    String?            @db.ObjectId
   baseModel      IpfsObject?        @relation("RepositoryBaseModel", fields: [baseModelId], references: [id])
+  // default branch hash for the repository
+  defaultBranchHash String?
   // the base model CID can be fetched from `baseModel.cid`
   collection     Collection?        @relation(fields: [collectionId], references: [id])
   collectionId   String?            @unique @db.ObjectId
