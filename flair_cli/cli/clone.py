@@ -7,11 +7,31 @@ from rich.console import Console
 from pathlib import Path
 import json
 import os
+import re
+import httpx
 
 from ..api import client as api_client
 
 app = typer.Typer()
 console = Console()
+
+
+def _ensure_ext(ext: str) -> str:
+    ext = ext or ""
+    return ext if ext.startswith(".") else f".{ext}" if ext else ""
+
+
+def _sanitize_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", name)
+
+
+def _download_file(url: str, target_path: Path):
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    with httpx.stream("GET", url, timeout=120) as resp:
+        resp.raise_for_status()
+        with open(target_path, "wb") as f:
+            for chunk in resp.iter_bytes(chunk_size=8192):
+                f.write(chunk)
 
 
 @app.command()
@@ -75,24 +95,52 @@ def clone(
         branches_file = flair_dir / "branches.json"
         with open(branches_file, "w") as f:
             json.dump(branches, f, indent=2)
-        
+
         # Create a .gitignore-like flair ignore file
         flairiignore = local_dir / ".flairignore"
         flairiignore.write_text("__pycache__/\n*.pyc\n.DS_Store\n.env\nnode_modules/\n")
-        
-        # Download base model if it exists
-        if repo_info.get("baseModel"):
+
+        # Download base model if available
+        base_model = repo_info.get("baseModel")
+        if base_model and base_model.get("uri"):
+            ext = _ensure_ext(base_model.get("extension") or "")
+            target = local_dir / f"base_model{ext if ext else ''}"
             console.print("\n[dim]Downloading base model...[/dim]")
-            from .basemodel import download_base_model
-            download_base_model(repo_hash, local_dir, verbose=True)
-        
+            _download_file(base_model["uri"], target)
+            size_mb = target.stat().st_size / (1024 * 1024)
+            console.print(f"✓ Base model saved to {target.name} ({size_mb:.2f} MB)", style="green")
+
+        # Download latest params and zkml proofs per branch
+        params_dir = flair_dir / "params"
+        proofs_dir = flair_dir / "zkml"
+        if branches:
+            for branch in branches:
+                latest_commit = branch.get("latestCommit") or {}
+                branch_name = _sanitize_name(branch.get("name", "branch"))
+
+                params = (latest_commit.get("params") or {}).get("ipfsObject")
+                if params and params.get("uri"):
+                    ext = _ensure_ext(params.get("extension") or "")
+                    target = params_dir / f"{branch_name}_latest_params{ext if ext else ''}"
+                    console.print(f"[dim]Downloading params for {branch.get('name')}...[/dim]")
+                    _download_file(params["uri"], target)
+
+                zkml = (latest_commit.get("params") or {}).get("ZKMLProof") or {}
+                for key, label in [("proof", "proof"), ("settings", "settings"), ("verification_key", "verification-key")]:
+                    obj = zkml.get(key)
+                    if obj and obj.get("uri"):
+                        ext = _ensure_ext(obj.get("extension") or "json")
+                        target = proofs_dir / f"{branch_name}_{label}{ext if ext else ''}"
+                        console.print(f"[dim]Downloading {label} for {branch.get('name')}...[/dim]")
+                        _download_file(obj["uri"], target)
+
         # Display clone info
         console.print(f"✓ Repository cloned successfully!", style="green")
         console.print(f"  Name: {repo_name}")
         console.print(f"  Owner: {repo_info.get('owner')}")
         console.print(f"  Location: {local_dir}")
         console.print(f"  Branches: {len(branches)}")
-        
+
         if branches:
             console.print("\n[dim]Branches:[/dim]")
             for branch in branches:
@@ -101,7 +149,7 @@ def clone(
                     console.print(f"  • {branch.get('name')} @ {latest_commit.get('commitHash', 'N/A')[:8]}")
                 else:
                     console.print(f"  • {branch.get('name')} (empty)")
-        
+
         console.print(f"\nTo get started:")
         console.print(f"  cd {local_dir}")
         console.print(f"  flair status")

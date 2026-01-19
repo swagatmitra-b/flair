@@ -592,7 +592,26 @@ export async function cloneRepository(req: Request, res: Response) {
                         paramHash: true,
                         status: true,
                         createdAt: true,
-                        committerAddress: true
+                        committerAddress: true,
+                        params: {
+                            select: {
+                                ipfsObject: {
+                                    select: {
+                                        cid: true,
+                                        uri: true,
+                                        extension: true,
+                                        size: true
+                                    }
+                                },
+                                ZKMLProof: {
+                                    select: {
+                                        proof: { select: { cid: true, uri: true, extension: true } },
+                                        settings: { select: { cid: true, uri: true, extension: true } },
+                                        verification_key: { select: { cid: true, uri: true, extension: true } },
+                                    }
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -611,6 +630,7 @@ export async function cloneRepository(req: Request, res: Response) {
                 select: {
                     cid: true,
                     uri: true,
+                    extension: true,
                     size: true,
                     createdAt: true
                 }
