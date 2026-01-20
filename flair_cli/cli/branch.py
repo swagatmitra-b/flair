@@ -104,23 +104,12 @@ def list_or_create_branch(
                 console.print(f"[red]Branch '{delete}' not found.[/red]")
                 raise typer.Exit(code=1)
             
-            import httpx
-            from ..core.session import load_session
-            session = load_session()
-            headers = {"Authorization": f"Bearer {session.token}"} if session and session.token else {}
-            
-            with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-                r = client.delete(f"/repo/hash/{repo_hash}/branch/hash/{target_branch['branchHash']}/delete")
-                r.raise_for_status()
-            
+            api_client.delete_branch(repo_hash, target_branch['branchHash'])
             console.print(f"✓ Branch '{delete}' deleted", style="green")
             
             # Refresh branches cache
-            with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-                r = client.get(f"/repo/hash/{repo_hash}/branch")
-                r.raise_for_status()
-                branches = r.json().get("data", [])
-                _update_branches_cache(branches)
+            branches = api_client.get_branches(repo_hash)
+            _update_branches_cache(branches)
             
         except Exception as e:
             console.print(f"[red]Failed to delete branch: {e}[/red]")
@@ -134,31 +123,17 @@ def list_or_create_branch(
             raise typer.Exit(code=1)
         
         try:
-            import httpx
-            from ..core.session import load_session
-            session = load_session()
-            headers = {"Authorization": f"Bearer {session.token}"} if session and session.token else {}
-            
-            payload = {
-                "name": branch_name,
-                "currentBranchHash": current_branch.get("branchHash")
-            }
-            if description:
-                payload["description"] = description
-            
-            with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-                r = client.post(f"/repo/hash/{repo_hash}/branch/create", json=payload)
-                r.raise_for_status()
-                new_branch = r.json().get("data", {})
-            
+            new_branch = api_client.create_branch(
+                repo_hash,
+                branch_name,
+                current_branch.get("branchHash"),
+                description
+            )
             console.print(f"✓ Branch '{branch_name}' created", style="green")
             
             # Refresh branches cache
-            with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-                r = client.get(f"/repo/hash/{repo_hash}/branch")
-                r.raise_for_status()
-                branches = r.json().get("data", [])
-                _update_branches_cache(branches)
+            branches = api_client.get_branches(repo_hash)
+            _update_branches_cache(branches)
             
         except Exception as e:
             console.print(f"[red]Failed to create branch: {e}[/red]")
@@ -167,15 +142,7 @@ def list_or_create_branch(
     
     # List branches (default behavior)
     try:
-        import httpx
-        from ..core.session import load_session
-        session = load_session()
-        headers = {"Authorization": f"Bearer {session.token}"} if session and session.token else {}
-        
-        with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-            r = client.get(f"/repo/hash/{repo_hash}/branch")
-            r.raise_for_status()
-            branches = r.json().get("data", [])
+        branches = api_client.get_branches(repo_hash)
         
         if not branches:
             console.print("[dim]No branches found. Create one with 'flair branch <name>'[/dim]")
@@ -214,16 +181,8 @@ def checkout(
     repo_hash = repo.get("hash") or repo.get("repoHash")
     
     try:
-        import httpx
-        from ..core.session import load_session
-        session = load_session()
-        headers = {"Authorization": f"Bearer {session.token}"} if session and session.token else {}
-        
         # Fetch branch details by name
-        with httpx.Client(base_url=api_client._base_url(), headers=headers, timeout=30) as client:
-            r = client.get(f"/repo/hash/{repo_hash}/branch/name/{branch_name}")
-            r.raise_for_status()
-            branch_data = r.json().get("data", {})
+        branch_data = api_client.get_branch_by_name(repo_hash, branch_name)
         
         if not branch_data or isinstance(branch_data, list):
             console.print(f"[red]Branch '{branch_name}' not found[/red]")
