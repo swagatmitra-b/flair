@@ -95,10 +95,45 @@ def clone(
         with open(repo_file, "w") as f:
             json.dump(repo_data, f, indent=2)
         
-        # Save branches info
+        # Determine which branch to download artifacts for
+        selected_branch = None
+        if branch and branch_hash:
+            console.print("[red]Provide either --branch or --branch-hash, not both.[/red]")
+            raise typer.Exit(code=1)
+
+        if branch_hash:
+            selected_branch = next((b for b in branches if b.get("branchHash") == branch_hash), None)
+            if not selected_branch:
+                console.print(f"[red]Branch with hash '{branch_hash}' not found.[/red]")
+                raise typer.Exit(code=1)
+        elif branch:
+            selected_branch = next((b for b in branches if b.get("name") == branch), None)
+            if not selected_branch:
+                console.print(f"[red]Branch named '{branch}' not found.[/red]")
+                raise typer.Exit(code=1)
+        else:
+            # Use default branch if available; fallback: first branch
+            default_hash = repo_info.get("defaultBranchHash")
+            if default_hash:
+                selected_branch = next((b for b in branches if b.get("branchHash") == default_hash), None)
+            if not selected_branch and branches:
+                selected_branch = branches[0]       # chooses first branch if no default set
+
+        # Save the name of the branches in the repository
         branches_file = flair_dir / "branches.json"
         with open(branches_file, "w") as f:
             json.dump(branches, f, indent=2)
+        
+        # Save current branch info
+        if selected_branch:
+            current_branch_file = flair_dir / "HEAD"
+            current_branch_data = {
+                "currentBranch": selected_branch.get("name"),
+                "branchHash": selected_branch.get("branchHash"),
+                "description": selected_branch.get("description")
+            }
+            with open(current_branch_file, "w") as f:
+                json.dump(current_branch_data, f, indent=2)
 
         # Create a .gitignore-like flair ignore file
         flairiignore = local_dir / ".flairignore"
@@ -136,7 +171,7 @@ def clone(
             if default_hash:
                 selected_branch = next((b for b in branches if b.get("branchHash") == default_hash), None)
             if not selected_branch and branches:
-                selected_branch = branches[0]
+                selected_branch = branches[0]       # chooses first branch if no default set
 
         # Download latest params and zkml proofs for the selected branch only (to root directory)
         if selected_branch:
