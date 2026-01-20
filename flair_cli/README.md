@@ -136,3 +136,12 @@ flair checkout feature --no-cache # Force fresh download from API
 ## ✓ Restored artifacts from cache
 ## ✓ Switched to branch 'feature'
 ```
+
+## Params
+### Create model params
+```bash
+flair add .                        # Auto-detect and extract from model in current dir
+flair add --model model.pt         # Specify PyTorch model
+flair add --model model.h5         # Specify TensorFlow model
+flair add --model model.onnx -o weights  # Custom output name
+```
