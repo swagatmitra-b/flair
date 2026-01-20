@@ -3,13 +3,21 @@
 Lines starting with `##` indicate command output.
 
 ## Authentication
+
 ```bash
 flair auth login
+## Opening browser for SIWS authentication...
+## ✓ Authenticated as you@example.com
 flair auth status
+## Logged in: you@example.com
 flair auth logout
+## ✓ Logged out
 ```
 
-## Init repository with automatic base model detection
+## Repository Commands
+
+### Init repository with automatic base model detection
+
 ```bash
 flair init --description "My model"
 ## Found 2 base model file(s):
@@ -20,52 +28,111 @@ flair init --description "My model"
 ## ✓ Base model uploaded successfully!
 ```
 
-## Skip base model prompt during init
+### Skip base model prompt during init
+
 ```bash
 flair init --skip-base-model
+## ✓ Repository initialized without base model upload
 ```
 
-## Upload base model manually
-```bash
-flair basemodel add model.pt
-```
+## cloning a repository
 
-## Replace existing base model (admin command)
-```bash
-flair basemodel add new_model.h5
-## ⚠ Base model already exists
-## Do you want to replace it? [y/N]: y
-```
+saves to .flair/repo.json and .flair/branch.json and creates three files
+base_model.<ext>, params.<ext>, zkml_proof.json, zkml_settings.json,
+zkml_verification_key.json in the root directory
 
-## Force upload without prompts
-```bash
-flair basemodel add model.keras --force
-```
-
-## Check if base model exists
-```bash
-flair basemodel check
-```
-
-## Delete base model (admin command)
-```bash
-flair basemodel delete
-```
-
-
-## Download base model
-```bash
-flair basemodel download
-flair basemodel download --target-dir ./models
-```
-
-
-
-## cloning the repository
-saves to .flair/repo.json and .flair/branch.json and creates three files base_model.<ext>, params.<ext>, zkml_proof.json, zkml_settings.json, zkml_verification_key.json in the root directory
 ```bash
 flair clone <repo_hash>
 flair clone <repo_hash> --target-dir ./repo
 flair clone <repo_hash> --branch main
 flair clone <repo_hash> --branch-hash main
+## Cloning repository...
+## ✓ Saved metadata to .flair/repo.json
+## ✓ Downloaded base_model, params, zkml_proof, zkml_settings, zkml_verification_key
+## Current branch: main
+```
+
+## Base model Commands
+
+### Upload base model manually
+
+```bash
+flair basemodel add model.pt
+## Uploading model.pt (42.0 MB)...
+## ✓ Base model uploaded
+```
+
+### Replace existing base model (admin command)
+
+```bash
+flair basemodel add new_model.h5
+## ⚠ Base model already exists
+## Do you want to replace it? [y/N]: y
+## Uploading new_model.h5 (55.3 MB)...
+## ✓ Base model replaced
+```
+
+### Force upload without prompts
+
+```bash
+flair basemodel add model.keras --force
+## Uploading model.keras (120.7 MB)...
+## ✓ Base model uploaded (forced)
+```
+
+### Check if base model exists
+
+```bash
+flair basemodel check
+## Base model exists: true
+## Name: base_model.pt
+## Size: 42.0 MB
+```
+
+### Delete base model (admin command)
+
+```bash
+flair basemodel delete
+## ✓ Base model deleted
+```
+
+### Download base model
+
+```bash
+flair basemodel download
+flair basemodel download --target-dir ./models
+## Downloading base model to ./models/base_model.pt
+## ✓ Download complete
+```
+
+## Branch Functions
+
+### create a new branch
+```bash
+flair branch new-feature  # Create new branch from current
+## ✓ Branch 'new-feature' created from current
+```
+
+### list all branches
+```bash
+flair branch              # List all branches
+## Branches:
+## * main
+##   new-feature
+```
+
+### delete a branch
+```bash
+flair branch -d old-branch  # Delete a branch
+## ✓ Branch 'old-branch' deleted
+```
+
+
+### switch branches
+```bash
+flair checkout main              # Uses cache if available, downloads otherwise
+flair checkout feature --no-cache # Force fresh download from API
+## Caching artifacts for 'main'...
+## ✓ Restored artifacts from cache
+## ✓ Switched to branch 'feature'
 ```
