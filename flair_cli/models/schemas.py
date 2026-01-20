@@ -1,7 +1,6 @@
 from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 
-
 class RepoCreate(BaseModel):
     name: str
     description: Optional[str]
@@ -16,7 +15,6 @@ class Repo(BaseModel):
     is_private: bool
     owner: str
     created_at: Optional[str]
-
 
 class CommitCreate(BaseModel):
     repo_id: str
@@ -34,13 +32,6 @@ class Commit(BaseModel):
     metadata: Dict[str, Any]
     author: str
     created_at: Optional[str]
-
-
-class ArtifactRef(BaseModel):
-    provider: str
-    ref: str
-    size: Optional[int]
-    mime: Optional[str]
 
 
 class AuthResponse(BaseModel):
