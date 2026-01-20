@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, clone, basemodel
+from flair_cli.cli import auth, config, init, clone, basemodel, branch
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -17,6 +17,14 @@ app.add_typer(config.app, name="config", help="Configuration management")
 app.add_typer(init.app, name="init", help="Initialize repository in current directory")
 app.add_typer(clone.app, name="clone", help="Clone a remote repository")
 app.add_typer(basemodel.app, name="basemodel", help="Manage base models")
+app.add_typer(branch.app, name="branch", help="Branch management")
+
+# Add checkout as top-level command for git-like experience
+@app.command()
+def checkout(branch_name: str = typer.Argument(..., help="Branch name to switch to")):
+    """Switch to a different branch (alias for 'branch checkout')."""
+    from flair_cli.cli.branch import checkout as branch_checkout
+    branch_checkout(branch_name)
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, json: Optional[bool] = typer.Option(False, "--json", help="Output machine-friendly JSON")):
