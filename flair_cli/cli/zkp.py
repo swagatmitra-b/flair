@@ -8,22 +8,24 @@ Supports:
 - ONNX models (.onnx)
 
 Automatically converts models to ONNX format if needed before proof creation.
+Uses EZKL directly within the CLI - no external server needed.
 """
 
 from __future__ import annotations
 import typer
 from rich.console import Console
-from rich.progress import Progress
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
 import json
-import requests
 import base64
 import zlib
 from datetime import datetime
 from typing import Optional
+import os
+import asyncio
+import numpy as np
 
 from ..core import config as config_mod
-from ..api import client as api_client
 
 app = typer.Typer()
 console = Console()
@@ -163,35 +165,222 @@ def _decode_and_decompress(encoded_str: str) -> bytes:
     return zlib.decompress(decoded)
 
 
-def _get_zkml_server_url() -> str:
-    """Get the ZKML server URL from config."""
-    cfg = config_mod.load_config()
-    # Use a ZKML server URL - default to localhost
-    return "http://localhost:2003"
+def _make_random_array(dims):
+    """Generate a NumPy array of shape dims, float32 in [0,1)."""
+    return np.random.rand(*dims).astype(np.float32)
+
+
+def _to_backend(array: np.ndarray, backend: str):
+    """Convert NumPy array to the chosen backend tensor/array."""
+    if backend == 'torch' or backend == 'pytorch':
+        try:
+            import torch
+            return torch.from_numpy(array)
+        except ImportError:
+            console.print("[yellow]Warning: torch not available, using numpy[/yellow]")
+            return array
+    elif backend == 'tensorflow':
+        try:
+            import tensorflow as tf
+            return tf.convert_to_tensor(array)
+        except ImportError:
+            console.print("[yellow]Warning: tensorflow not available, using numpy[/yellow]")
+            return array
+    else:  # numpy
+        return array
+
+
+async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: str, zkp_dir: Path) -> dict:
+    """
+    Process model and generate ZKP proof using EZKL directly.
+    
+    Returns dict with proof, verification_key, and settings.
+    """
+    try:
+        import ezkl
+    except ImportError:
+        raise ImportError(
+            "EZKL not installed. Install with: pip install ezkl\n"
+            "Note: EZKL requires Python 3.9-3.11"
+        )
+    
+    # Paths for EZKL artifacts
+    data_path = zkp_dir / "input.json"
+    cal_path = zkp_dir / "calibration.json"
+    settings_path = zkp_dir / "settings.json"
+    compiled_path = zkp_dir / "network.compiled"
+    witness_path = zkp_dir / "witness.json"
+    pk_path = zkp_dir / "test.pk"
+    vk_path = zkp_dir / "test.vk"
+    proof_path = zkp_dir / "test.pf"
+    
+    try:
+        console.print("[cyan]Step 1/10: Generating input data...[/cyan]")
+        # 1) Generate input
+        np_input = _make_random_array(input_dims)
+        tensor_input = _to_backend(np_input, backend)
+        flat_in = np_input.reshape(-1).tolist()
+        with open(data_path, 'w') as f:
+            json.dump({"input_data": [flat_in]}, f)
+        
+        console.print("[cyan]Step 2/10: Generating calibration data...[/cyan]")
+        # 2) Calibration
+        calib_batch = 20
+        cal_dims = [calib_batch] + input_dims[1:]
+        np_calib = _make_random_array(cal_dims)
+        flat_cal = np_calib.reshape(-1).tolist()
+        with open(cal_path, 'w') as f:
+            json.dump({"input_data": [flat_cal]}, f)
+        
+        console.print("[cyan]Step 3/10: Generating settings...[/cyan]")
+        # 3) gen settings
+        py_args = ezkl.PyRunArgs()
+        py_args.input_visibility = "public"
+        py_args.output_visibility = "public"
+        py_args.param_visibility = "private"
+        if not ezkl.gen_settings(str(model_path), str(settings_path), py_run_args=py_args):
+            raise RuntimeError("gen_settings failed")
+        
+        console.print("[cyan]Step 4/10: Calibrating settings...[/cyan]")
+        # 4) calibrate
+        await ezkl.calibrate_settings(str(cal_path), str(model_path), str(settings_path), "resources")
+        
+        console.print("[cyan]Step 5/10: Compiling circuit...[/cyan]")
+        # 5) compile
+        if not ezkl.compile_circuit(str(model_path), str(compiled_path), str(settings_path)):
+            raise RuntimeError("compile_circuit failed")
+        
+        console.print("[cyan]Step 6/10: Getting SRS (Structured Reference String)...[/cyan]")
+        # 6) get SRS
+        await ezkl.get_srs(str(settings_path))
+        
+        console.print("[cyan]Step 7/10: Generating witness...[/cyan]")
+        # 7) witness
+        if not await ezkl.gen_witness(str(data_path), str(compiled_path), str(witness_path)):
+            raise RuntimeError("gen_witness failed")
+        
+        console.print("[cyan]Step 8/10: Setting up proving and verification keys...[/cyan]")
+        # 8) setup keys
+        if not ezkl.setup(str(compiled_path), str(vk_path), str(pk_path)):
+            raise RuntimeError("setup failed")
+        
+        console.print("[cyan]Step 9/10: Generating proof...[/cyan]")
+        # 9) prove
+        if not ezkl.prove(str(witness_path), str(compiled_path), str(pk_path), str(proof_path), "single"):
+            raise RuntimeError("prove failed")
+        
+        console.print("[cyan]Step 10/10: Verifying proof...[/cyan]")
+        # 10) verify
+        if not ezkl.verify(str(proof_path), str(settings_path), str(vk_path)):
+            raise RuntimeError("verify failed")
+        
+        console.print("[green]✓ All EZKL steps completed successfully![/green]")
+        
+        # Read and compress outputs
+        with open(proof_path, "r") as pf:
+            proof = _compress_and_encode(pf.read().encode('utf-8'))
+        with open(vk_path, "rb") as vk:
+            vk_enc = _compress_and_encode(vk.read())
+        with open(settings_path, "r") as st:
+            settings_enc = _compress_and_encode(st.read().encode('utf-8'))
+        
+        # Cleanup intermediate files
+        console.print("[dim]Cleaning up intermediate files...[/dim]")
+        to_del = [
+            data_path, cal_path, compiled_path, witness_path, 
+            pk_path, proof_path, vk_path, settings_path
+        ]
+        for f in to_del:
+            if f.exists():
+                try:
+                    f.unlink()
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not delete {f.name}: {e}[/yellow]")
+        
+        return {
+            "proof": proof,
+            "verification_key": vk_enc,
+            "settings": settings_enc
+        }
+        
+    except Exception as e:
+        # Cleanup on error
+        console.print(f"[yellow]Cleaning up after error...[/yellow]")
+        for f in [data_path, cal_path, compiled_path, witness_path, pk_path, proof_path, vk_path, settings_path]:
+            if f.exists():
+                try:
+                    f.unlink()
+                except:
+                    pass
+        raise e
+
+
+async def _verify_proof_with_ezkl(proof_data: dict, zkp_dir: Path) -> bool:
+    """
+    Verify a ZKP proof using EZKL directly.
+    
+    Returns True if verified, False otherwise.
+    """
+    try:
+        import ezkl
+    except ImportError:
+        raise ImportError(
+            "EZKL not installed. Install with: pip install ezkl\n"
+            "Note: EZKL requires Python 3.9-3.11"
+        )
+    
+    # Paths for verification
+    pf_p = zkp_dir / "uploaded_proof.pf"
+    vk_p = zkp_dir / "uploaded_vk"
+    st_p = zkp_dir / "uploaded_settings.json"
+    
+    try:
+        console.print("[cyan]Decoding proof artifacts...[/cyan]")
+        # Decode and write artifacts
+        with open(pf_p, 'w') as f:
+            f.write(_decode_and_decompress(proof_data['proof']).decode('utf-8'))
+        with open(vk_p, 'wb') as f:
+            f.write(_decode_and_decompress(proof_data['verification_key']))
+        with open(st_p, 'w') as f:
+            f.write(_decode_and_decompress(proof_data['settings']).decode('utf-8'))
+        
+        console.print("[cyan]Running EZKL verification...[/cyan]")
+        # Verify
+        verified = ezkl.verify(str(pf_p), str(st_p), str(vk_p))
+        
+        console.print("[dim]Cleaning up verification files...[/dim]")
+        # Cleanup
+        for p in (pf_p, vk_p, st_p):
+            if p.exists():
+                try:
+                    p.unlink()
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not delete {p.name}: {e}[/yellow]")
+        
+        return verified
+        
+    except Exception as e:
+        # Cleanup on error
+        for p in (pf_p, vk_p, st_p):
+            if p.exists():
+                try:
+                    p.unlink()
+                except:
+                    pass
+        raise e
 
 
 @app.command("create")
 def create_zkp(
-    model_path: Optional[str] = typer.Option(
-        None,
-        "--model",
-        help="Path to model file (auto-detected if not provided)"
-    ),
-    input_dims: Optional[str] = typer.Option(
-        "[1, 3, 224, 224]",
-        "--input-dims",
-        help="Input dimensions as JSON string (default: [1, 3, 224, 224])"
-    ),
-    backend: Optional[str] = typer.Option(
-        None,
-        "--backend",
-        help="Backend: pytorch, tensorflow, or numpy (auto-detected from repo config)"
-    )
+    model_path: Optional[str] = typer.Option(None, "--model", "-m", help="Path to model file"),
+    input_dims: str = typer.Option("[1, 3, 224, 224]", "--input-dims", help="Input dimensions as JSON array"),
+    backend: Optional[str] = typer.Option(None, "--backend", help="Backend to use (pytorch/tensorflow/numpy)")
 ):
-    """Create a Zero-Knowledge Proof for the repository model.
+    """Create a Zero-Knowledge Proof for a model.
     
-    Automatically converts the model to ONNX format if needed, then generates
-    a ZKP proof using the ZKML server. Results are saved in .flair/.zkp/
+    Automatically detects the model file and framework from repo config,
+    converts to ONNX format if needed, then generates
+    a ZKP proof using EZKL directly. Results are saved in .flair/.zkp/
     
     Example:
         flair zkp create --input-dims "[1, 3, 224, 224]"
@@ -241,43 +430,26 @@ def create_zkp(
         except json.JSONDecodeError:
             raise typer.BadParameter(f"Invalid JSON for input-dims: {input_dims}")
         
-        # Prepare request
+        # Prepare ZKP directory
         zkp_dir = _get_zkp_dir()
-        zkml_url = _get_zkml_server_url()
         
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Uploading model to ZKML server...", total=100)
-            
+        console.print("\n[cyan]Generating Zero-Knowledge Proof using EZKL...[/cyan]")
+        console.print("[dim]This may take several minutes depending on model complexity...[/dim]\n")
+        
+        # Run EZKL proof generation
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                with open(onnx_file, 'rb') as f:
-                    files = {'file': (onnx_file.name, f, 'application/octet-stream')}
-                    data = {
-                        'dimensions': json.dumps({"input_dims": dims}),
-                        'backend': backend_to_use
-                    }
-                    
-                    response = requests.post(
-                        f"{zkml_url}/upload",
-                        files=files,
-                        data=data,
-                        timeout=600
-                    )
-                
-                progress.update(task, completed=50)
-                
-                if response.status_code != 200:
-                    raise RuntimeError(
-                        f"ZKML server error ({response.status_code}): {response.text}"
-                    )
-                
-                result = response.json()
-                progress.update(task, completed=100)
-                
-            except requests.exceptions.ConnectionError:
-                raise typer.BadParameter(
-                    f"Could not connect to ZKML server at {zkml_url}\n"
-                    f"Make sure the server is running: python zkml_server/app.py"
+                result = loop.run_until_complete(
+                    _process_model_with_ezkl(onnx_file, dims, backend_to_use, zkp_dir)
                 )
+            finally:
+                loop.close()
+        except ImportError as e:
+            raise typer.BadParameter(str(e))
+        except Exception as e:
+            raise RuntimeError(f"Error during ZKP generation: {str(e)}")
         
         # Save proof artifacts
         console.print("\n[cyan]Saving proof artifacts...[/cyan]")
@@ -316,7 +488,7 @@ def verify_zkp():
     """Verify a Zero-Knowledge Proof.
     
     Reads the proof from .flair/.zkp/proof.json and verifies it using
-    the ZKML server. Results are saved to .flair/.zkp/.verified
+    EZKL directly. Results are saved to .flair/.zkp/.verified
     
     Example:
         flair zkp verify
@@ -336,42 +508,25 @@ def verify_zkp():
             proof_data = json.load(f)
         
         console.print("[cyan]Verifying Zero-Knowledge Proof...[/cyan]")
-        console.print(f"[dim]Proof timestamp: {proof_data.get('timestamp')}[/dim]")
+        console.print(f"[dim]Proof timestamp: {proof_data.get('timestamp')}[/dim]\n")
         
-        # Prepare verification request
-        zkml_url = _get_zkml_server_url()
+        # Prepare ZKP directory
+        zkp_dir = _get_zkp_dir()
         
-        verify_payload = {
-            "proof": proof_data.get('proof'),
-            "verification_key": proof_data.get('verification_key'),
-            "settings": proof_data.get('settings')
-        }
-        
-        with Progress() as progress:
-            task = progress.add_task("[cyan]Sending to ZKML server...", total=100)
-            
+        # Run EZKL verification
+        try:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             try:
-                response = requests.post(
-                    f"{zkml_url}/verify_proof",
-                    json=verify_payload,
-                    timeout=300
+                verified = loop.run_until_complete(
+                    _verify_proof_with_ezkl(proof_data, zkp_dir)
                 )
-                
-                progress.update(task, completed=100)
-                
-            except requests.exceptions.ConnectionError:
-                raise typer.BadParameter(
-                    f"Could not connect to ZKML server at {zkml_url}\n"
-                    f"Make sure the server is running: python zkml_server/app.py"
-                )
-        
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"ZKML server error ({response.status_code}): {response.text}"
-            )
-        
-        result = response.json()
-        verified = result.get('verified', False)
+            finally:
+                loop.close()
+        except ImportError as e:
+            raise typer.BadParameter(str(e))
+        except Exception as e:
+            raise RuntimeError(f"Error during verification: {str(e)}")
         
         # Save verification result
         verification_log = {
