@@ -1,0 +1,4 @@
+1. currently the zkml file uses zlib and base64 codecs. have to modify it to keep support for both the existing json type
+request and also make the file type upload and verification portal workable.
+
+2. commit structure is ready to be worked upon

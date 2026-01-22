@@ -460,9 +460,9 @@ def create_zkp(
             "model_file": str(model_file),
             "framework": framework,
             "input_dims": dims,
-            "proof": result.get('proof'),
-            "verification_key": result.get('verification_key'),
-            "settings": result.get('settings')
+            "proof": result.get('proof'),                               # base6 encoded compressed proof
+            "verification_key": result.get('verification_key'),         # base64 encoded compressed vk
+            "settings": result.get('settings')                # base64 encoded compressed settings
         }
         
         proof_file = zkp_dir / "proof.json"
@@ -496,7 +496,7 @@ def verify_zkp():
     """
     try:
         zkp_dir = _get_zkp_dir()
-        proof_file = zkp_dir / "proof.json"
+        proof_file = zkp_dir / "proof.json"         # verifies from the bae64 encoded compressed proof files
         
         if not proof_file.exists():
             raise typer.BadParameter(
