@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, clone, basemodel, branch, add
+from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -19,6 +19,7 @@ app.add_typer(clone.app, name="clone", help="Clone a remote repository")
 app.add_typer(basemodel.app, name="basemodel", help="Manage base models")
 app.add_typer(branch.app, name="branch", help="Branch management")
 app.add_typer(add.app, name="add", help="Extract model weights and save as params")
+app.add_typer(zkp.app, name="zkp", help="Zero-Knowledge Proof operations")
 
 # Add checkout as top-level command for git-like experience
 @app.command()

@@ -22,6 +22,10 @@ CORS(app)
 # Silence EZKL logging
 logging.getLogger('ezkl').setLevel(logging.ERROR)
 
+# Configure app logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def compress_and_encode(data: bytes) -> str:
     """Compress bytes with zlib and Base64‑encode."""
@@ -52,74 +56,115 @@ def to_backend(array: np.ndarray, backend: str):
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    # --- File and dims & backend parsing ---
-    if 'file' not in request.files:
-        return jsonify({'message': 'No file part'}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'message': 'No selected file'}), 400
-
-    model_path = 'network.onnx'
-    file.save(model_path)
-
-    # dims
-    dims_str = request.form.get('dimensions')
-    if not dims_str:
-        return jsonify({'message': 'Missing "dimensions" field'}), 400
+    """Upload ONNX model and create ZKP.
+    
+    Parameters:
+    - file: ONNX model file
+    - dimensions: JSON string with input_dims
+    - backend: torch, tensorflow, or numpy
+    
+    Returns: {proof, verification_key, settings}
+    """
     try:
-        dims = json.loads(dims_str)
-        input_dims = dims['input_dims']
-    except Exception as e:
+        # --- File and dims & backend parsing ---
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'message': 'No file part'}), 400
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'message': 'No selected file'}), 400
+
+        model_path = 'network.onnx'
+        file.save(model_path)
+
+        # dims
+        dims_str = request.form.get('dimensions')
+        if not dims_str:
+            return jsonify({'success': False, 'message': 'Missing "dimensions" field'}), 400
+        try:
+            dims = json.loads(dims_str)
+            input_dims = dims['input_dims']
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': 'Invalid dimensions JSON',
+                'error': str(e)
+            }), 400
+
+        # backend
+        backend = request.form.get('backend', 'numpy').lower()
+        if backend not in ('numpy', 'torch', 'tensorflow'):
+            return jsonify({
+                'success': False,
+                'message': 'Unsupported backend',
+                'supported': ['numpy', 'torch', 'tensorflow']
+            }), 400
+
+        logger.info(f"Processing model with backend: {backend}, input_dims: {input_dims}")
+
+        # --- Async processing ---
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(
+                process_model(model_path, input_dims, backend)
+            )
+        except Exception as e:
+            logger.error(f"Error during processing: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error during processing',
+                'error': str(e)
+            }), 500
+        finally:
+            loop.close()
+
+        # --- Read & compress outputs ---
+        try:
+            with open("test.pf", "r") as pf:
+                proof = compress_and_encode(pf.read().encode('utf-8'))
+            with open("test.vk", "rb") as vk:
+                vk_enc = compress_and_encode(vk.read())
+            with open("settings.json", "r") as st:
+                settings_enc = compress_and_encode(st.read().encode('utf-8'))
+        except Exception as e:
+            logger.error(f"Error reading proof artifacts: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error reading proof artifacts',
+                'error': str(e)
+            }), 500
+
+        # cleanup
+        to_del = [
+            model_path, "input.json", "calibration.json", "network.compiled",
+            "witness.json", "test.pk", "test.pf", "test.vk", "settings.json"
+        ]
+        for f in to_del:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                except Exception as e:
+                    logger.warning(f"Could not remove {f}: {str(e)}")
+
+        logger.info("ZKP generation completed successfully")
         return jsonify({
-            'message': 'Invalid dimensions JSON',
+            "success": True,
+            "proof": proof,
+            "verification_key": vk_enc,
+            "settings": settings_enc
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Unexpected error in upload_file: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error',
             'error': str(e)
-        }), 400
-
-    # backend
-    backend = request.form.get('backend', 'numpy').lower()
-    if backend not in ('numpy', 'torch', 'tensorflow'):
-        return jsonify({
-            'message': 'Unsupported backend',
-            'supported': ['numpy', 'torch', 'tensorflow']
-        }), 400
-
-    # --- Async processing ---
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(
-            process_model(model_path, input_dims, backend)
-        )
-    except Exception as e:
-        return jsonify({'message': 'Error during processing', 'error': str(e)}), 500
-    finally:
-        loop.close()
-
-    # --- Read & compress outputs ---
-    with open("test.pf", "r") as pf:
-        proof = compress_and_encode(pf.read().encode('utf-8'))
-    with open("test.vk", "rb") as vk:
-        vk_enc = compress_and_encode(vk.read())
-    with open("settings.json", "r") as st:
-        settings_enc = compress_and_encode(st.read().encode('utf-8'))
-
-    # cleanup
-    to_del = [
-        model_path, "input.json", "calibration.json", "network.compiled",
-        "witness.json", "test.pk", "test.pf", "test.vk", "settings.json"
-    ]
-    for f in to_del:
-        if os.path.exists(f):
-            os.remove(f)
-
-    return jsonify({
-        "proof": proof,
-        "verification_key": vk_enc,
-        "settings": settings_enc
-    }), 200
+        }), 500
 
 
 async def process_model(model_path, input_dims, backend):
+    """Process model and generate ZKP proof."""
     # Paths
     data_path = "input.json"
     cal_path = "calibration.json"
@@ -154,65 +199,146 @@ async def process_model(model_path, input_dims, backend):
     if not ezkl.gen_settings(model_path, settings_path, py_run_args=py_args):
         raise RuntimeError("gen_settings failed")
 
+    logger.info("Settings generated")
+
     # 4) calibrate
     await ezkl.calibrate_settings(cal_path, model_path, settings_path, "resources")
+    logger.info("Settings calibrated")
 
     # 5) compile
     if not ezkl.compile_circuit(model_path, compiled_path, settings_path):
         raise RuntimeError("compile_circuit failed")
+    logger.info("Circuit compiled")
 
     # 6) get SRS
     await ezkl.get_srs(settings_path)
+    logger.info("SRS retrieved")
 
     # 7) witness
     if not await ezkl.gen_witness(data_path, compiled_path, witness_path):
         raise RuntimeError("gen_witness failed")
+    logger.info("Witness generated")
 
     # 8) setup keys
     if not ezkl.setup(compiled_path, vk_path, pk_path):
         raise RuntimeError("setup failed")
+    logger.info("Keys set up")
 
     # 9) prove
     if not ezkl.prove(witness_path, compiled_path, pk_path, proof_path, "single"):
         raise RuntimeError("prove failed")
+    logger.info("Proof generated")
 
-    # 10) verify (optional)
+    # 10) verify
     if not ezkl.verify(proof_path, settings_path, vk_path):
         raise RuntimeError("verify failed")
+    logger.info("Proof verified")
 
 
 @app.route('/verify_proof', methods=['POST'])
 def verify_proof():
-    data = request.get_json() or {}
-    for key in ('proof', 'verification_key', 'settings'):
-        if key not in data:
-            return jsonify({'message': f'Missing field: {key}'}), 400
-
-    # paths
-    pf_p = "uploaded_proof.pf"
-    vk_p = "uploaded_vk"
-    st_p = "uploaded_settings.json"
-
-    # decode/write
-    with open(pf_p, 'w') as f:
-        f.write(decode_and_decompress(data['proof']).decode('utf-8'))
-    with open(vk_p, 'wb') as f:
-        f.write(decode_and_decompress(data['verification_key']))
-    with open(st_p, 'w') as f:
-        f.write(decode_and_decompress(data['settings']).decode('utf-8'))
-
+    """Verify a ZKP proof.
+    
+    Parameters (JSON):
+    - proof: Compressed proof
+    - verification_key: Compressed verification key
+    - settings: Compressed settings
+    
+    Returns: {verified: bool}
+    """
     try:
-        verified = ezkl.verify(pf_p, st_p, vk_p)
-    except Exception:
-        verified = False
+        data = request.get_json() or {}
+        for key in ('proof', 'verification_key', 'settings'):
+            if key not in data:
+                return jsonify({
+                    'success': False,
+                    'message': f'Missing field: {key}',
+                    'verified': False
+                }), 400
 
-    # cleanup
-    for p in (pf_p, vk_p, st_p):
-        if os.path.exists(p):
-            os.remove(p)
+        # paths
+        pf_p = "uploaded_proof.pf"
+        vk_p = "uploaded_vk"
+        st_p = "uploaded_settings.json"
 
-    return jsonify({"verified": verified}), 200
+        # decode/write
+        try:
+            with open(pf_p, 'w') as f:
+                f.write(decode_and_decompress(data['proof']).decode('utf-8'))
+            with open(vk_p, 'wb') as f:
+                f.write(decode_and_decompress(data['verification_key']))
+            with open(st_p, 'w') as f:
+                f.write(decode_and_decompress(data['settings']).decode('utf-8'))
+        except Exception as e:
+            logger.error(f"Error decoding proof artifacts: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Error decoding proof artifacts',
+                'verified': False,
+                'error': str(e)
+            }), 400
+
+        try:
+            verified = ezkl.verify(pf_p, st_p, vk_p)
+            logger.info(f"Verification result: {verified}")
+        except Exception as e:
+            logger.error(f"Verification failed: {str(e)}")
+            verified = False
+
+        # cleanup
+        for p in (pf_p, vk_p, st_p):
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception as e:
+                    logger.warning(f"Could not remove {p}: {str(e)}")
+
+        return jsonify({
+            "success": True,
+            "verified": verified
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Unexpected error in verify_proof: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': 'Internal server error',
+            'verified': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint."""
+    return jsonify({
+        'status': 'ok',
+        'service': 'ZKML Server',
+        'version': '1.0.0'
+    }), 200
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    return jsonify({
+        'success': False,
+        'message': 'Endpoint not found',
+        'error': str(error)
+    }), 404
+
+
+@app.errorhandler(500)
+def server_error(error):
+    """Handle 500 errors."""
+    logger.error(f"Server error: {str(error)}")
+    return jsonify({
+        'success': False,
+        'message': 'Internal server error',
+        'error': str(error)
+    }), 500
 
 
 if __name__ == '__main__':
+    logger.info("Starting ZKML Server on 0.0.0.0:2003")
     app.run(debug=True, host='0.0.0.0', port=2003)
