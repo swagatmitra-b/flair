@@ -55,7 +55,7 @@ Authorization using Phantom wallet and Sign-In with Solana (SIWS).
 
 **Example Request**:
 ```bash
-GET /auth/signin/DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr
+GET /auth/signin/your-wallet-address
 ```
 
 **Success Response** (200 OK):
@@ -63,7 +63,7 @@ GET /auth/signin/DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr
 {
     "uri": "http://localhost:4000",
     "domain": "localhost:4000",
-    "address": "DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr",
+    "address": "your-wallet-address",
     "statement": "Clicking Sign or Approve only means you have proved this wallet is owned by you. This request will not trigger any blockchain transaction or cost any gas fee.",
     "version": "1",
     "nonce": "3ab5dce5-232d-4ce9-a121-3ce9df9b2e37",
@@ -86,7 +86,7 @@ GET /auth/signin/DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr
 **Request Body**:
 ```json
 {
-    "token": "DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr.5NMoEhEW1x6PHYesTtAECFTAauwZb5gg128GQiUqykTdskjR7zBJ3BRqTcg7NkbPPwLErBkJnWTJA8vUqCvxrBfJ..."
+    "token": "your-wallet-address.signed-message-token.signature"
 }
 ```
 
@@ -149,12 +149,12 @@ Authorization: <wallet-address>
         "id": "6821ca531a90a6f79d6307af",
         "name": "Flair_Repository",
         "repoHash": "5345c1b8-49ff-4ece-8bdd-c44a8d7701ce",
-        "ownerAddress": "DzpefiVYkPED7Kbit6fWRiXQ1zSmBy17AN15NVTx1tcd",
+        "ownerAddress": "your-wallet-address",
         "metadata": {
             "name": "Flair Repository",
             "description": "A repository for machine learning experiments",
             "useCase": "Training image classifiers",
-            "creator": "DzpefiVYkPED7Kbit6fWRiXQ1zSmBy17AN15NVTx1tcd",
+            "creator": "your-wallet-address",
             "framework": "Tensorflow"
         },
         "createdAt": "2025-05-12T10:15:47.591Z"
@@ -451,7 +451,7 @@ CRUD operations for commits.
                 "accuracy": 1.0,
                 "loss": 0.2326595783233643
             },
-            "committerAddress": "DzpefiVYkPED7Kbit6fWRiXQ1zSmBy17AN15NVTx1tcd",
+            "committerAddress": "your-wallet-address",
             "createdAt": "2025-05-13T07:26:22.525Z",
             "verified": true
         }
@@ -559,13 +559,13 @@ Authorization: <wallet-address>
     "data": {
         "id": "682186025f72b9e61673a468",
         "username": "RS3655",
-        "wallet": "DzpefiVYkPED7Kbit6fWRiXQ1zSmBy17AN15NVTx1tcd",
+        "wallet": "your-wallet-address",
         "metadata": {
-            "name": "Debashish Buragohain",
-            "email": "debashishburagohain000@gmail.com",
-            "displayText": "Even dead I am a Hero. Tony ;)",
+            "name": "Your Name",
+            "email": "your-email@example.com",
+            "displayText": "Your display text",
             "profileImage": "base64encodedimage",
-            "bio": "Hi I am a backend developer of Flair"
+            "bio": "Your bio text"
         },
         "nftCredit": 100,
         "lastCreditUpdated": "2025-05-12T05:24:18.515Z",
@@ -590,10 +590,10 @@ Authorization: <wallet-address>
 **Request Body**:
 ```json
 {
-    "username": "RS3655",
+    "username": "your-username",
     "metadata": {
-        "name": "Debashish Buragohain",
-        "email": "debashishburagohain000@gmail.com",
+        "name": "Your Name",
+        "email": "your-email@example.com",
         "profileImage": "base64encodedimage",
         "bio": "Updated bio text",
         "displayText": "Updated display text"
@@ -672,14 +672,14 @@ Authorization: <system-wallet-auth>
 **Request Body**:
 ```json
 {
-    "privateKey": "5nxbLsqhdFf92c2L9vwRTfPVC2MAEr3JSRkSb5zMbA7R8n53oFcmW5n6L36EPhB6wQqrNAkCDiv2uigSMA1V5rqB"
+    "privateKey": "your-wallet-private-key"
 }
 ```
 
 **Success Response** (200 OK):
 ```json
 {
-    "data": "DUwyw8WeSjJEYakMs1TqzvXNLywawkZmZ4Vay5MLG7Tr"
+    "data": "your-wallet-address"
 }
 ```
 
