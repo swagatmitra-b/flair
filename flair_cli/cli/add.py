@@ -171,6 +171,10 @@ def add(
         console.print("[red]Not in a Flair repository. Run 'flair init' first.[/red]")
         raise typer.Exit(code=1)
     
+    # Create .params directory if it doesn't exist
+    params_dir = flair_dir / ".params"
+    params_dir.mkdir(exist_ok=True)
+    
     # Determine model file
     model_path = None
     
@@ -211,11 +215,12 @@ def add(
     
     console.print(f"[dim]Detected framework: {framework}[/dim]")
     
-    # Prepare output path
+    # Prepare output path in .flair/.params directory
+    params_dir = Path.cwd() / ".flair" / ".params"
     if framework == "pytorch":
-        output_path = Path.cwd() / f"{output_name}.pt"
+        output_path = params_dir / f"{output_name}.pt"
     else:
-        output_path = Path.cwd() / f"{output_name}.npz"
+        output_path = params_dir / f"{output_name}.npz"
     
     # Extract weights based on framework
     success = False

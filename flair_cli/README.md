@@ -139,6 +139,12 @@ flair checkout feature --no-cache # Force fresh download from API
 
 ## Params
 ### Create model params
+automatically detects framework used (.pt, .pth), tensorflow (.h5, .keras),
+or ONNX (.onnx), extracts weights as follows: 
+1. PyTorch: Extracts state_dict and saves as .pt
+2. TensorFlow: Extracts weights as numpy arrays and saves as .npz
+3. ONNX: Extracts initializers and saves as .npz
+
 ```bash
 flair add .                        # Auto-detect and extract from model in current dir
 flair add --model model.pt         # Specify PyTorch model

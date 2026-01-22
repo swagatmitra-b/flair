@@ -40,21 +40,22 @@ def _get_branch_cache_dir(branch_name: str) -> Path:
 
 def _save_artifacts_to_cache(branch_name: str):
     """Save current params and zkml files to cache for a branch."""
-    repo_root = Path.cwd()
+    flair_dir = Path.cwd() / ".flair"
     branch_cache = _get_branch_cache_dir(branch_name)
     
-    # Files to cache
-    artifact_files = [
-        "params",
-        "zkml_proof",
-        "zkml_settings",
-        "zkml_verification_key"
-    ]
+    # Params from .flair/.params
+    params_dir = flair_dir / ".params"
+    if params_dir.exists():
+        for file_path in params_dir.glob("params*"):
+            if file_path.is_file():
+                dest = branch_cache / file_path.name
+                shutil.copy2(file_path, dest)
     
-    # Find and copy files with any extension
-    for artifact in artifact_files:
-        for file_path in repo_root.glob(f"{artifact}*"):
-            if file_path.is_file() and ".flair" not in str(file_path):
+    # ZKML files from .flair/.zkp
+    zkp_dir = flair_dir / ".zkp"
+    if zkp_dir.exists():
+        for file_path in zkp_dir.glob("zkml_*"):
+            if file_path.is_file():
                 dest = branch_cache / file_path.name
                 shutil.copy2(file_path, dest)
 
@@ -62,23 +63,34 @@ def _save_artifacts_to_cache(branch_name: str):
 def _restore_artifacts_from_cache(branch_name: str) -> bool:
     """Restore params and zkml files from cache for a branch. Returns True if successful."""
     branch_cache = _get_branch_cache_dir(branch_name)
-    repo_root = Path.cwd()
+    flair_dir = Path.cwd() / ".flair"
     
     # Check if cache has any artifacts
     if not list(branch_cache.glob("*")):
         return False
     
-    # Remove current artifacts from repo root
-    artifact_patterns = ["params*", "zkml_proof*", "zkml_settings*", "zkml_verification_key*"]
-    for pattern in artifact_patterns:
-        for file_path in repo_root.glob(pattern):
-            if file_path.is_file() and ".flair" not in str(file_path):
-                file_path.unlink()
+    # Ensure directories exist
+    params_dir = flair_dir / ".params"
+    zkp_dir = flair_dir / ".zkp"
+    params_dir.mkdir(exist_ok=True)
+    zkp_dir.mkdir(exist_ok=True)
+    
+    # Remove current artifacts from .flair/.params and .flair/.zkp
+    for file_path in params_dir.glob("params*"):
+        if file_path.is_file():
+            file_path.unlink()
+    
+    for file_path in zkp_dir.glob("zkml_*"):
+        if file_path.is_file():
+            file_path.unlink()
     
     # Restore cached artifacts
     for cached_file in branch_cache.glob("*"):
         if cached_file.is_file():
-            dest = repo_root / cached_file.name
+            if cached_file.name.startswith("params"):
+                dest = params_dir / cached_file.name
+            else:
+                dest = zkp_dir / cached_file.name
             shutil.copy2(cached_file, dest)
     
     return True
@@ -126,23 +138,29 @@ def _download_branch_artifacts(repo_hash: str, branch_name: str):
             console.print(f"[dim]No commits in branch '{branch_name}'[/dim]")
             return True
         
-        repo_root = Path.cwd()
+        flair_dir = Path.cwd() / ".flair"
+        params_dir = flair_dir / ".params"
+        zkp_dir = flair_dir / ".zkp"
         
-        # Download params
+        # Ensure directories exist
+        params_dir.mkdir(exist_ok=True)
+        zkp_dir.mkdir(exist_ok=True)
+        
+        # Download params to .flair/.params
         params = (latest_commit.get("params") or {}).get("ipfsObject")
         if params and params.get("uri"):
             ext = _ensure_ext(params.get("extension") or "")
-            target = repo_root / f"params{ext if ext else ''}"
+            target = params_dir / f"params{ext if ext else ''}"
             console.print(f"[dim]Downloading params for {branch_name}...[/dim]")
             _download_file(params["uri"], target)
         
-        # Download ZKML files
+        # Download ZKML files to .flair/.zkp
         zkml = (latest_commit.get("params") or {}).get("ZKMLProof") or {}
         for key, label in [("proof", "zkml_proof"), ("settings", "zkml_settings"), ("verification_key", "zkml_verification_key")]:
             obj = zkml.get(key)
             if obj and obj.get("uri"):
                 ext = _ensure_ext(obj.get("extension") or "json")
-                target = repo_root / f"{label}{ext if ext else ''}"
+                target = zkp_dir / f"{label}{ext if ext else ''}"
                 console.print(f"[dim]Downloading {label.replace('_', ' ')} for {branch_name}...[/dim]")
                 _download_file(obj["uri"], target)
         

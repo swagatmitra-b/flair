@@ -79,6 +79,12 @@ def clone(
         flair_dir = local_dir / ".flair"
         flair_dir.mkdir(exist_ok=True)
         
+        # Create .params and .zkp directories
+        params_dir = flair_dir / ".params"
+        params_dir.mkdir(exist_ok=True)
+        zkp_dir = flair_dir / ".zkp"
+        zkp_dir.mkdir(exist_ok=True)
+        
         # Save repository metadata
         repo_file = flair_dir / "repo.json"
         repo_data = {
@@ -173,13 +179,13 @@ def clone(
             if not selected_branch and branches:
                 selected_branch = branches[0]       # chooses first branch if no default set
 
-        # Download latest params and zkml proofs for the selected branch only (to root directory)
+        # Download latest params and zkml proofs for the selected branch only (to .flair directories)
         if selected_branch:
             latest_commit = selected_branch.get("latestCommit") or {}
             params = (latest_commit.get("params") or {}).get("ipfsObject")
             if params and params.get("uri"):
                 ext = _ensure_ext(params.get("extension") or "")
-                target = local_dir / f"params{ext if ext else ''}"
+                target = flair_dir / ".params" / f"params{ext if ext else ''}"
                 console.print(f"[dim]Downloading params for {selected_branch.get('name')}...[/dim]")
                 _download_file(params["uri"], target)
 
@@ -188,7 +194,7 @@ def clone(
                 obj = zkml.get(key)
                 if obj and obj.get("uri"):
                     ext = _ensure_ext(obj.get("extension") or "json")
-                    target = local_dir / f"{label}{ext if ext else ''}"
+                    target = flair_dir / ".zkp" / f"{label}{ext if ext else ''}"
                     console.print(f"[dim]Downloading {label.replace('_', ' ')} for {selected_branch.get('name')}...[/dim]")
                     _download_file(obj["uri"], target)
 
