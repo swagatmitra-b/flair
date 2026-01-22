@@ -151,3 +151,70 @@ flair add --model model.pt         # Specify PyTorch model
 flair add --model model.h5         # Specify TensorFlow model
 flair add --model model.onnx -o weights  # Custom output name
 ```
+
+## Zero-Knowledge Proofs (ZKP)
+
+### Create a ZKP for your model
+Automatically detects model framework, converts to ONNX if needed, and generates
+a zero-knowledge proof using EZKL directly in the CLI. No external server required.
+
+Supports:
+- PyTorch models (.pt, .pth)
+- TensorFlow models (.h5, .keras)
+- ONNX models (.onnx)
+
+```bash
+flair zkp create                                    # Auto-detect model with default input dims [1, 3, 224, 224]
+## Step 1/10: Generating input data...
+## Step 2/10: Generating calibration data...
+## Step 3/10: Generating settings...
+## Step 4/10: Calibrating settings...
+## Step 5/10: Compiling circuit...
+## Step 6/10: Getting SRS (Structured Reference String)...
+## Step 7/10: Generating witness...
+## Step 8/10: Setting up proving and verification keys...
+## Step 9/10: Generating proof...
+## Step 10/10: Verifying proof...
+## ✓ All EZKL steps completed successfully!
+## ✓ ZKP created successfully!
+## Saved to: .flair/.zkp/proof.json
+
+flair zkp create --input-dims "[1, 3, 256, 256]"   # Custom input dimensions
+flair zkp create --model custom.pt                  # Specify model file
+flair zkp create --backend pytorch                  # Specify backend (pytorch/tensorflow/numpy)
+flair zkp create --model model.h5 --input-dims "[1, 224, 224, 3]"  # TensorFlow model
+```
+
+### Verify a ZKP
+Verifies a previously generated proof using EZKL directly.
+
+```bash
+flair zkp verify
+## Decoding proof artifacts...
+## Running EZKL verification...
+## ✓ Proof verified successfully!
+## Verification log saved to: .flair/.zkp/.verified
+```
+
+### Check ZKP status
+Display information about created proofs and verification status.
+
+```bash
+flair zkp status
+## ZKP Status for my-model
+## Location: .flair/.zkp
+##
+## Proof Information:
+##   Model: model.pt
+##   Framework: pytorch
+##   Input Dims: [1, 3, 224, 224]
+##   Created: 2026-01-22T10:30:45.123456
+##
+## Verification Status: ✓
+##   Verified: 2026-01-22T10:35:12.789012
+```
+
+**Note:** ZKP generation requires EZKL and Python 3.9-3.11. Install with:
+```bash
+pip install ezkl
+```
