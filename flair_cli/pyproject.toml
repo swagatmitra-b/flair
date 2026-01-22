@@ -17,6 +17,12 @@ httpx = "^0.24"
 rich = "^13.0"
 pydantic = "^1.10"
 pyyaml = "^6.0"
+numpy = "^1.26"
+onnx = "^1.16"
+tf2onnx = "^1.15"
+tensorflow = "^2.15"
+torch = "^2.2"
+ezkl = ">=0.4.0"
 
 [build-system]
 requires = ["setuptools>=61.0"]

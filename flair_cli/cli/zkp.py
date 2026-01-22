@@ -190,6 +190,7 @@ def _to_backend(array: np.ndarray, backend: str):
         return array
 
 
+# main function to create the zkml proof from the onnx model
 async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: str, zkp_dir: Path) -> dict:
     """
     Process model and generate ZKP proof using EZKL directly.
