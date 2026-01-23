@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { sharedFolderRouter } from './sharedFolder.js';
-import { paramsUploader } from '../lib/multer/index.js';
+import { paramsUploader, zkmlUploader } from '../lib/multer/index.js';
 import * as commitController from '../controllers/commit.controller.js';
 
 const commitRouter = Router();
@@ -23,8 +23,8 @@ commitRouter.post('/create/initiate', commitController.initiateCommitSession);
 // STEP 2: Check ZKML proof uniqueness and issue ZKML token
 commitRouter.post('/create/zkml-check', commitController.checkZKMLProof);
 
-// STEP 3: Upload ZKML Proofs (Pre-Commit)
-commitRouter.post('/create/zkml-upload', commitController.uploadZKMLProofs);
+// STEP 3: Upload ZKML Proofs (Pre-Commit) - Binary files
+commitRouter.post('/create/zkml-upload', zkmlUploader, commitController.uploadZKMLProofs);
 
 // STEP 3.5: Upload Model Parameters (Binary File)
 commitRouter.post('/create/params-upload', paramsUploader, commitController.uploadParameters);

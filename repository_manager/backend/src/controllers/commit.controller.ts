@@ -340,11 +340,30 @@ export const checkZKMLProof = async (req: Request, res: Response) => {
 export const uploadZKMLProofs = async (req: Request, res: Response) => {
     try {
         const pk = authorizedPk(res);
-        const { sessionId, initiateToken, zkmlToken, proof, settings, verification_key } = req.body;
+        const { sessionId, initiateToken, zkmlToken } = req.body;
+        const files = req.files as { [fieldname: string]: Express.Multer.File[] };
 
-        if (!sessionId || !initiateToken || !zkmlToken || !proof || !settings || !verification_key) {
+        if (!sessionId || !initiateToken || !zkmlToken) {
             res.status(400).json({
-                error: { message: 'All fields (sessionId, initiateToken, zkmlToken, proof, settings, verification_key) are required.' }
+                error: { message: 'All fields (sessionId, initiateToken, zkmlToken) are required.' }
+            });
+            return;
+        }
+
+        if (!files || !files.proof || !files.settings || !files.verification_key) {
+            res.status(400).json({
+                error: { message: 'All three files (proof, settings, verification_key) must be uploaded.' }
+            });
+            return;
+        }
+
+        const proofFile = files.proof[0];
+        const settingsFile = files.settings[0];
+        const vkFile = files.verification_key[0];
+
+        if (!proofFile || !settingsFile || !vkFile) {
+            res.status(400).json({
+                error: { message: 'One or more ZKML files are missing.' }
             });
             return;
         }
@@ -383,9 +402,14 @@ export const uploadZKMLProofs = async (req: Request, res: Response) => {
             return;
         }
 
-        const proofUpload = await storageProvider.add(proof, { pin: true });
-        const settingsUpload = await storageProvider.add(settings, { pin: true });
-        const vkUpload = await storageProvider.add(verification_key, { pin: true });
+        // Upload binary files to IPFS
+        const proofPath = path.join(proofFile.destination, proofFile.filename);
+        const settingsPath = path.join(settingsFile.destination, settingsFile.filename);
+        const vkPath = path.join(vkFile.destination, vkFile.filename);
+
+        const proofUpload = await storageProvider.add(proofPath, { pin: true });
+        const settingsUpload = await storageProvider.add(settingsPath, { pin: true });
+        const vkUpload = await storageProvider.add(vkPath, { pin: true });
 
         const allowed = zkmlJwt.allowedCids || {};
         if (proofUpload.cid.toString() !== allowed.proofCid ||
@@ -404,8 +428,8 @@ export const uploadZKMLProofs = async (req: Request, res: Response) => {
             create: {
                 cid: proofUpload.cid.toString(),
                 uri: constructIPFSUrl(proofUpload.cid),
-                extension: 'json',
-                size: proofUpload.size || 0
+                extension: 'zlib',
+                size: proofUpload.size || proofFile.size || 0
             }
         });
 
@@ -415,8 +439,8 @@ export const uploadZKMLProofs = async (req: Request, res: Response) => {
             create: {
                 cid: settingsUpload.cid.toString(),
                 uri: constructIPFSUrl(settingsUpload.cid),
-                extension: 'json',
-                size: settingsUpload.size || 0
+                extension: 'zlib',
+                size: settingsUpload.size || settingsFile.size || 0
             }
         });
 
@@ -426,8 +450,8 @@ export const uploadZKMLProofs = async (req: Request, res: Response) => {
             create: {
                 cid: vkUpload.cid.toString(),
                 uri: constructIPFSUrl(vkUpload.cid),
-                extension: 'json',
-                size: vkUpload.size || 0
+                extension: 'zlib',
+                size: vkUpload.size || vkFile.size || 0
             }
         });
 
@@ -465,6 +489,15 @@ export const uploadZKMLProofs = async (req: Request, res: Response) => {
             settingsIpfsId: settingsIpfs.id,
             vkIpfsId: vkIpfs.id
         }, ZKP_JWT_SECRET, { expiresIn: `${SESSION_EXPIRY_MINUTES}m` });
+
+        // Cleanup uploaded files from local storage
+        try {
+            fs.unlinkSync(proofPath);
+            fs.unlinkSync(settingsPath);
+            fs.unlinkSync(vkPath);
+        } catch (cleanupErr) {
+            console.error('Error cleaning up ZKML files:', cleanupErr);
+        }
 
         res.status(200).json({
             success: true,
