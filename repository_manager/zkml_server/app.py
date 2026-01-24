@@ -1,7 +1,7 @@
 # universal zkml server with support for both tensorflow and pytroch models
 # Debashish Buragohain
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import os
 import json
@@ -10,11 +10,30 @@ import ezkl
 import asyncio
 import base64
 import zlib
+import io
+import zipfile
 
 # Add backends
 import numpy as np
 import torch
 import tensorflow as tf
+
+import config
+
+
+def _cleanup_artifacts(model_path: str):
+    """Remove temporary files created during proof generation/verification."""
+    to_del = [
+        model_path, "input.json", "calibration.json", "network.compiled",
+        "witness.json", "test.pk", "test.pf", "test.vk", "settings.json",
+        "uploaded_proof.pf", "uploaded_vk", "uploaded_settings.json"
+    ]
+    for f in to_del:
+        if f and os.path.exists(f):
+            try:
+                os.remove(f)
+            except Exception as e:
+                logger.warning(f"Could not remove {f}: {str(e)}")
 
 app = Flask(__name__)
 CORS(app)
@@ -37,6 +56,11 @@ def decode_and_decompress(encoded_str: str) -> bytes:
     """Inverse of compress_and_encode."""
     decoded = base64.b64decode(encoded_str)
     return zlib.decompress(decoded)
+
+
+def compress_raw(data: bytes) -> bytes:
+    """Compress bytes with zlib (no Base64)."""
+    return zlib.compress(data)
 
 
 def make_random_array(dims):
@@ -118,16 +142,40 @@ def upload_file():
         finally:
             loop.close()
 
-        # --- Read & compress outputs ---
+        # --- Read outputs and emit in configured format ---
         try:
-            with open("test.pf", "r") as pf:
-                proof = compress_and_encode(pf.read().encode('utf-8'))
-            with open("test.vk", "rb") as vk:
-                vk_enc = compress_and_encode(vk.read())
-            with open("settings.json", "r") as st:
-                settings_enc = compress_and_encode(st.read().encode('utf-8'))
+            if config.OUTPUT_FORMAT == "binary":
+                proof_bytes = open("test.pf", "rb").read()
+                vk_bytes = open("test.vk", "rb").read()
+                settings_bytes = open("settings.json", "rb").read()
+
+                # Build an in-memory ZIP containing zlib-compressed artifacts
+                buffer = io.BytesIO()
+                with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr("proof.zlib", compress_raw(proof_bytes))
+                    zf.writestr("verification_key.zlib", compress_raw(vk_bytes))
+                    zf.writestr("settings.zlib", compress_raw(settings_bytes))
+                buffer.seek(0)
+
+                # Cleanup before returning
+                _cleanup_artifacts(model_path)
+
+                return send_file(
+                    buffer,
+                    mimetype="application/zip",
+                    as_attachment=True,
+                    download_name="zkml_artifacts.zip"
+                )
+            else:
+                with open("test.pf", "r") as pf:
+                    proof = compress_and_encode(pf.read().encode('utf-8'))
+                with open("test.vk", "rb") as vk:
+                    vk_enc = compress_and_encode(vk.read())
+                with open("settings.json", "r") as st:
+                    settings_enc = compress_and_encode(st.read().encode('utf-8'))
         except Exception as e:
             logger.error(f"Error reading proof artifacts: {str(e)}")
+            _cleanup_artifacts(model_path)
             return jsonify({
                 'success': False,
                 'message': 'Error reading proof artifacts',
@@ -135,24 +183,17 @@ def upload_file():
             }), 500
 
         # cleanup
-        to_del = [
-            model_path, "input.json", "calibration.json", "network.compiled",
-            "witness.json", "test.pk", "test.pf", "test.vk", "settings.json"
-        ]
-        for f in to_del:
-            if os.path.exists(f):
-                try:
-                    os.remove(f)
-                except Exception as e:
-                    logger.warning(f"Could not remove {f}: {str(e)}")
+        _cleanup_artifacts(model_path)
 
         logger.info("ZKP generation completed successfully")
-        return jsonify({
-            "success": True,
-            "proof": proof,
-            "verification_key": vk_enc,
-            "settings": settings_enc
-        }), 200
+        if config.OUTPUT_FORMAT == "base64":
+            return jsonify({
+                "success": True,
+                "format": "base64",
+                "proof": proof,
+                "verification_key": vk_enc,
+                "settings": settings_enc
+            }), 200
 
     except Exception as e:
         logger.error(f"Unexpected error in upload_file: {str(e)}")
@@ -247,36 +288,65 @@ def verify_proof():
     Returns: {verified: bool}
     """
     try:
-        data = request.get_json() or {}
-        for key in ('proof', 'verification_key', 'settings'):
-            if key not in data:
-                return jsonify({
-                    'success': False,
-                    'message': f'Missing field: {key}',
-                    'verified': False
-                }), 400
-
-        # paths
+        # Support both JSON (base64) and multipart binary inputs
         pf_p = "uploaded_proof.pf"
         vk_p = "uploaded_vk"
         st_p = "uploaded_settings.json"
 
-        # decode/write
-        try:
-            with open(pf_p, 'w') as f:
-                f.write(decode_and_decompress(data['proof']).decode('utf-8'))
-            with open(vk_p, 'wb') as f:
-                f.write(decode_and_decompress(data['verification_key']))
-            with open(st_p, 'w') as f:
-                f.write(decode_and_decompress(data['settings']).decode('utf-8'))
-        except Exception as e:
-            logger.error(f"Error decoding proof artifacts: {str(e)}")
-            return jsonify({
-                'success': False,
-                'message': 'Error decoding proof artifacts',
-                'verified': False,
-                'error': str(e)
-            }), 400
+        if request.files:
+            # Binary path: expect .zlib compressed files
+            proof_file = request.files.get('proof')
+            vk_file = request.files.get('verification_key')
+            settings_file = request.files.get('settings')
+
+            if not proof_file or not vk_file or not settings_file:
+                return jsonify({
+                    'success': False,
+                    'message': 'Missing one of the required files: proof, verification_key, settings',
+                    'verified': False
+                }), 400
+
+            try:
+                with open(pf_p, 'wb') as f:
+                    f.write(zlib.decompress(proof_file.read()))
+                with open(vk_p, 'wb') as f:
+                    f.write(zlib.decompress(vk_file.read()))
+                with open(st_p, 'wb') as f:
+                    f.write(zlib.decompress(settings_file.read()))
+            except Exception as e:
+                logger.error(f"Error processing binary proof artifacts: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Error processing binary proof artifacts',
+                    'verified': False,
+                    'error': str(e)
+                }), 400
+        else:
+            # Base64 JSON path (legacy/default)
+            data = request.get_json() or {}
+            for key in ('proof', 'verification_key', 'settings'):
+                if key not in data:
+                    return jsonify({
+                        'success': False,
+                        'message': f'Missing field: {key}',
+                        'verified': False
+                    }), 400
+
+            try:
+                with open(pf_p, 'w') as f:
+                    f.write(decode_and_decompress(data['proof']).decode('utf-8'))
+                with open(vk_p, 'wb') as f:
+                    f.write(decode_and_decompress(data['verification_key']))
+                with open(st_p, 'w') as f:
+                    f.write(decode_and_decompress(data['settings']).decode('utf-8'))
+            except Exception as e:
+                logger.error(f"Error decoding proof artifacts: {str(e)}")
+                return jsonify({
+                    'success': False,
+                    'message': 'Error decoding proof artifacts',
+                    'verified': False,
+                    'error': str(e)
+                }), 400
 
         try:
             verified = ezkl.verify(pf_p, st_p, vk_p)
