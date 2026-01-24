@@ -188,7 +188,7 @@ def _to_backend(array: np.ndarray, backend: str):
 
 
 # main function to create the zkml proof from the onnx model
-async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: str, zkp_dir: Path) -> dict:
+async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: str, zkp_dir: Path) -> None:
     """
     Process model and generate ZKP proof using EZKL directly.
     
@@ -299,11 +299,7 @@ async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: 
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not delete {f.name}: {e}[/yellow]")
         
-        return {
-            "proof_file": str(proof_zlib.name),
-            "verification_key_file": str(vk_zlib.name),
-            "settings_file": str(settings_zlib.name)
-        }
+        return None
         
     except Exception as e:
         # Cleanup on error
@@ -332,9 +328,9 @@ async def _verify_proof_with_ezkl(proof_files: dict, zkp_dir: Path) -> bool:
         )
     
     # Paths for verification
-    pf_p = zkp_dir / "uploaded_proof.pf"
-    vk_p = zkp_dir / "uploaded_vk"
-    st_p = zkp_dir / "uploaded_settings.json"
+    pf_p = zkp_dir / "decoded_proof.pf"
+    vk_p = zkp_dir / "decoded_vk"
+    st_p = zkp_dir / "decoded_settings.json"
 
     proof_zlib = zkp_dir / proof_files.get("proof_file", "proof.zlib")
     vk_zlib = zkp_dir / proof_files.get("verification_key_file", "verification_key.zlib")
@@ -451,7 +447,7 @@ def create_zkp(
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                result = loop.run_until_complete(
+                loop.run_until_complete(
                     _process_model_with_ezkl(onnx_file, dims, backend_to_use, zkp_dir)
                 )
             finally:
@@ -469,10 +465,7 @@ def create_zkp(
             "model_file": str(model_file),
             "framework": framework,
             "input_dims": dims,
-            "format": "zlib",
-            "proof_file": result.get('proof_file'),
-            "verification_key_file": result.get('verification_key_file'),
-            "settings_file": result.get('settings_file')
+            "format": "zlib"
         }
         
         proof_file = zkp_dir / "proof.json"
