@@ -17,7 +17,6 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
 import json
-import base64
 import zlib
 from datetime import datetime
 from typing import Optional
@@ -153,16 +152,14 @@ def _tensorflow_to_onnx(model_path: Path) -> None:
         raise RuntimeError(f"TensorFlow to ONNX conversion failed: {str(e)}")
 
 
-def _compress_and_encode(data: bytes) -> str:
-    """Compress bytes with zlib and Base64-encode."""
-    compressed = zlib.compress(data)
-    return base64.b64encode(compressed).decode('utf-8')
+def _compress_to_zlib_file(data: bytes, out_path: Path) -> None:
+    """Compress bytes with zlib and write to a file."""
+    out_path.write_bytes(zlib.compress(data))
 
 
-def _decode_and_decompress(encoded_str: str) -> bytes:
-    """Inverse of compress_and_encode."""
-    decoded = base64.b64decode(encoded_str)
-    return zlib.decompress(decoded)
+def _decompress_zlib_file(path: Path) -> bytes:
+    """Read zlib-compressed file and return decompressed bytes."""
+    return zlib.decompress(path.read_bytes())
 
 
 def _make_random_array(dims):
@@ -195,7 +192,7 @@ async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: 
     """
     Process model and generate ZKP proof using EZKL directly.
     
-    Returns dict with proof, verification_key, and settings.
+    Returns dict with paths to zlib-compressed proof artifacts.
     """
     try:
         import ezkl
@@ -277,18 +274,22 @@ async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: 
         
         console.print("[green]✓ All EZKL steps completed successfully![/green]")
         
-        # Read and compress outputs
+        # Read and compress outputs to zlib binary files
+        proof_zlib = zkp_dir / "proof.zlib"
+        vk_zlib = zkp_dir / "verification_key.zlib"
+        settings_zlib = zkp_dir / "settings.zlib"
+
         with open(proof_path, "r") as pf:
-            proof = _compress_and_encode(pf.read().encode('utf-8'))
+            _compress_to_zlib_file(pf.read().encode('utf-8'), proof_zlib)
         with open(vk_path, "rb") as vk:
-            vk_enc = _compress_and_encode(vk.read())
+            _compress_to_zlib_file(vk.read(), vk_zlib)
         with open(settings_path, "r") as st:
-            settings_enc = _compress_and_encode(st.read().encode('utf-8'))
+            _compress_to_zlib_file(st.read().encode('utf-8'), settings_zlib)
         
         # Cleanup intermediate files
         console.print("[dim]Cleaning up intermediate files...[/dim]")
         to_del = [
-            data_path, cal_path, compiled_path, witness_path, 
+            data_path, cal_path, compiled_path, witness_path,
             pk_path, proof_path, vk_path, settings_path
         ]
         for f in to_del:
@@ -299,9 +300,9 @@ async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: 
                     console.print(f"[yellow]Warning: Could not delete {f.name}: {e}[/yellow]")
         
         return {
-            "proof": proof,
-            "verification_key": vk_enc,
-            "settings": settings_enc
+            "proof_file": str(proof_zlib.name),
+            "verification_key_file": str(vk_zlib.name),
+            "settings_file": str(settings_zlib.name)
         }
         
     except Exception as e:
@@ -316,9 +317,9 @@ async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: 
         raise e
 
 
-async def _verify_proof_with_ezkl(proof_data: dict, zkp_dir: Path) -> bool:
+async def _verify_proof_with_ezkl(proof_files: dict, zkp_dir: Path) -> bool:
     """
-    Verify a ZKP proof using EZKL directly.
+    Verify a ZKP proof using EZKL directly from zlib-compressed files.
     
     Returns True if verified, False otherwise.
     """
@@ -334,16 +335,24 @@ async def _verify_proof_with_ezkl(proof_data: dict, zkp_dir: Path) -> bool:
     pf_p = zkp_dir / "uploaded_proof.pf"
     vk_p = zkp_dir / "uploaded_vk"
     st_p = zkp_dir / "uploaded_settings.json"
+
+    proof_zlib = zkp_dir / proof_files.get("proof_file", "proof.zlib")
+    vk_zlib = zkp_dir / proof_files.get("verification_key_file", "verification_key.zlib")
+    settings_zlib = zkp_dir / proof_files.get("settings_file", "settings.zlib")
     
     try:
-        console.print("[cyan]Decoding proof artifacts...[/cyan]")
-        # Decode and write artifacts
+        console.print("[cyan]Decoding proof artifacts from zlib files...[/cyan]")
+
+        if not proof_zlib.exists() or not vk_zlib.exists() or not settings_zlib.exists():
+            missing = [p.name for p in (proof_zlib, vk_zlib, settings_zlib) if not p.exists()]
+            raise FileNotFoundError(f"Missing proof artifacts: {', '.join(missing)}")
+
         with open(pf_p, 'w') as f:
-            f.write(_decode_and_decompress(proof_data['proof']).decode('utf-8'))
+            f.write(_decompress_zlib_file(proof_zlib).decode('utf-8'))
         with open(vk_p, 'wb') as f:
-            f.write(_decode_and_decompress(proof_data['verification_key']))
+            f.write(_decompress_zlib_file(vk_zlib))
         with open(st_p, 'w') as f:
-            f.write(_decode_and_decompress(proof_data['settings']).decode('utf-8'))
+            f.write(_decompress_zlib_file(settings_zlib).decode('utf-8'))
         
         console.print("[cyan]Running EZKL verification...[/cyan]")
         # Verify
@@ -460,9 +469,10 @@ def create_zkp(
             "model_file": str(model_file),
             "framework": framework,
             "input_dims": dims,
-            "proof": result.get('proof'),                               # base6 encoded compressed proof
-            "verification_key": result.get('verification_key'),         # base64 encoded compressed vk
-            "settings": result.get('settings')                # base64 encoded compressed settings
+            "format": "zlib",
+            "proof_file": result.get('proof_file'),
+            "verification_key_file": result.get('verification_key_file'),
+            "settings_file": result.get('settings_file')
         }
         
         proof_file = zkp_dir / "proof.json"
@@ -496,7 +506,7 @@ def verify_zkp():
     """
     try:
         zkp_dir = _get_zkp_dir()
-        proof_file = zkp_dir / "proof.json"         # verifies from the bae64 encoded compressed proof files
+        proof_file = zkp_dir / "proof.json"
         
         if not proof_file.exists():
             raise typer.BadParameter(
