@@ -130,13 +130,15 @@ def clone(
         with open(branches_file, "w") as f:
             json.dump(branches, f, indent=2)
         
-        # Save current branch info
+        # Save current branch info with latest commit hash
         if selected_branch:
             current_branch_file = flair_dir / "HEAD"
+            latest_commit = selected_branch.get("latestCommit") or {}
             current_branch_data = {
                 "currentBranch": selected_branch.get("name"),
                 "branchHash": selected_branch.get("branchHash"),
-                "description": selected_branch.get("description")
+                "description": selected_branch.get("description"),
+                "latestCommitHash": latest_commit.get("commitHash")
             }
             with open(current_branch_file, "w") as f:
                 json.dump(current_branch_data, f, indent=2)
