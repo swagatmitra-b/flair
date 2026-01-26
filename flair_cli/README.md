@@ -38,8 +38,9 @@ flair init --skip-base-model
 ## cloning a repository
 
 saves to .flair/repo.json and .flair/branch.json and creates three files
-base_model.<ext>, params.<ext>, zkml_proof.json, zkml_settings.json,
-zkml_verification_key.json in the root directory
+saves repo metadata to .flair/repo.json plus branch pointers in .flair/HEAD and .flair/branches.json,
+and downloads the latest artifacts (base_model.<ext>, params.<ext>, zkml_proof.json,
+zkml_settings.json, zkml_verification_key.json) into the repo root
 
 ```bash
 flair clone <repo_hash>
@@ -217,4 +218,24 @@ flair zkp status
 **Note:** ZKP generation requires EZKL and Python 3.9-3.11. Install with:
 ```bash
 pip install ezkl
+```
+
+## Directory structure (CLI)
+
+# Created in each repo after `flair init`
+.flair/
+	repo_config.json         # Repo metadata from init (framework, description, repo hash)
+	repo.json                # Remote repo snapshot used by clone/checkout
+	HEAD                     # Current branch pointer (name + branchHash)
+	branches.json            # Cached branch list for the repo
+	.params/                 # Model weight exports from `flair add`
+		params.pt|npz          # Latest extracted weights (framework-dependent)
+	.zkp/                    # ZK proof artifacts (created by `flair zkp create`)
+		proof.json             # Metadata (model, dims, artifact filenames, CIDs)
+		proof.zlib             # Compressed proof
+		verification_key.zlib  # Compressed VK
+		settings.zlib          # Compressed settings
+		.verified              # Verification log (created by `flair zkp verify`)
+	.cache/                  # Per-branch cached artifacts (managed by checkout)
+		<branch>/              # Cached params/zkp files for that branch
 ```
