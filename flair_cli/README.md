@@ -239,4 +239,9 @@ pip install ezkl
 		.verified              # Verification log (created by `flair zkp verify`)
 	.cache/                  # Per-branch cached artifacts (managed by checkout)
 		<branch>/              # Cached params/zkp files for that branch
+
+# HEAD file contains the following:
+## "currentBranch": branch_data.get("name"),
+## "branchHash": branch_data.get("branchHash"),
+## "description": branch_data.get("description")
 ```
