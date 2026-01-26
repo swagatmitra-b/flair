@@ -18,6 +18,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from pathlib import Path
 import json
 import zlib
+import base64
 from datetime import datetime
 from typing import Optional
 import os
@@ -162,6 +163,18 @@ def _decompress_zlib_file(path: Path) -> bytes:
     return zlib.decompress(path.read_bytes())
 
 
+def _compute_cid_v1_raw(file_path: Path) -> str:
+    """Compute IPFS CIDv1 (raw, sha2-256, base32) for a file's contents."""
+    import hashlib
+
+    data = file_path.read_bytes()
+    digest = hashlib.sha256(data).digest()
+    multihash = bytes([0x12, 0x20]) + digest  # 0x12=sha2-256, 0x20=32 bytes
+    cid_bytes = bytes([0x01, 0x55]) + multihash  # 0x01=cidv1, 0x55=raw codec
+    b32 = base64.b32encode(cid_bytes).decode('ascii').lower().rstrip('=')
+    return f"b{b32}"
+
+
 def _make_random_array(dims):
     """Generate a NumPy array of shape dims, float32 in [0,1)."""
     return np.random.rand(*dims).astype(np.float32)
@@ -191,8 +204,7 @@ def _to_backend(array: np.ndarray, backend: str):
 async def _process_model_with_ezkl(model_path: Path, input_dims: list, backend: str, zkp_dir: Path) -> None:
     """
     Process model and generate ZKP proof using EZKL directly.
-    
-    Returns dict with paths to zlib-compressed proof artifacts.
+    Artifacts are written to zlib files in zkp_dir.
     """
     try:
         import ezkl
@@ -459,13 +471,23 @@ def create_zkp(
         
         # Save proof artifacts
         console.print("\n[cyan]Saving proof artifacts...[/cyan]")
+
+        proof_path = zkp_dir / "proof.zlib"
+        vk_path = zkp_dir / "verification_key.zlib"
+        settings_path = zkp_dir / "settings.zlib"
         
         proof_data = {
             "timestamp": datetime.now().isoformat(),
             "model_file": str(model_file),
             "framework": framework,
             "input_dims": dims,
-            "format": "zlib"
+            "format": "zlib",
+            "proof_file": proof_path.name,
+            "verification_key_file": vk_path.name,
+            "settings_file": settings_path.name,
+            "proof_cid": _compute_cid_v1_raw(proof_path),
+            "verification_key_cid": _compute_cid_v1_raw(vk_path),
+            "settings_cid": _compute_cid_v1_raw(settings_path)
         }
         
         proof_file = zkp_dir / "proof.json"

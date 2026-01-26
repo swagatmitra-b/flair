@@ -78,6 +78,8 @@ def to_backend(array: np.ndarray, backend: str):
         return array
 
 
+
+# in the production version, this route would not be used since the zkp is generarted locally in the cli
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """Upload ONNX model and create ZKP.
