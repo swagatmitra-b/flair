@@ -223,6 +223,7 @@ pip install ezkl
 ## Directory structure (CLI)
 
 # Created in each repo after `flair init`
+```bash
 .flair/
 	repo_config.json         # Repo metadata from init (framework, description, repo hash)
 	repo.json                # Remote repo snapshot used by clone/checkout
