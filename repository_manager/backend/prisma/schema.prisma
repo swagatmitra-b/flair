@@ -24,6 +24,12 @@ enum CommitPolicy {
   MERGE
 }
 
+// commit type indicates whether the commit is a delta or a full checkpoint
+enum CommitType {
+  DELTA
+  CHECKPOINT
+}
+
 // user model needed to be created
 model User {
   id                String        @id @default(auto()) @map("_id") @db.ObjectId
@@ -92,6 +98,7 @@ model Commit {
   id                String       @id @default(auto()) @map("_id") @db.ObjectId
   commitHash        String       @unique // hash of the current commit
   previousCommitHash String      @default("_GENESIS_COMMIT_") // parent commit hash; first commit uses _GENESIS_COMMIT_
+  commitType        CommitType   @default(DELTA) // whether this commit is a delta or full checkpoint
   status            CommitStatus // the status of this particuar commit
   rejectedMessage   String? // (Optional) Fwhy the commit was rejected in case it was rejected.  
   message           String // commit message

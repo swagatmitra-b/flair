@@ -149,6 +149,7 @@ export const getLatestCommit = async (req: Request, res: Response) => {
     }
 };
 
+
 export const initiateCommitSession = async (req: Request, res: Response) => {
     try {
         const pk = authorizedPk(res);
@@ -775,6 +776,9 @@ export const finalizeCommit = async (req: Request, res: Response) => {
             return;
         }
 
+        const commitTypeRaw = (req.body?.commitType as string | undefined)?.toUpperCase();
+        const commitType = commitTypeRaw === 'CHECKPOINT' ? 'CHECKPOINT' : 'DELTA';
+
         const commitHash = uuidV4();
         const committer = await prisma.user.findFirst({ where: { wallet: pk } });
         if (!committer) {
@@ -886,6 +890,7 @@ export const finalizeCommit = async (req: Request, res: Response) => {
                     branchId: targetBranchId,
                     commitHash,
                     previousCommitHash: parentCommitHash,
+                    commitType,
                     status: 'MERGED',               // the status is set to MERGED directly for simplicity for now
                     verified: !!zkmlRelationInput,
                     architecture,
