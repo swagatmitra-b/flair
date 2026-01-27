@@ -138,7 +138,7 @@ def clone(
                 "currentBranch": selected_branch.get("name"),
                 "branchHash": selected_branch.get("branchHash"),
                 "description": selected_branch.get("description"),
-                "latestCommitHash": latest_commit.get("commitHash")
+                "previousCommit": latest_commit.get("commitHash")
             }
             with open(current_branch_file, "w") as f:
                 json.dump(current_branch_data, f, indent=2)
