@@ -220,6 +220,73 @@ flair zkp status
 pip install ezkl
 ```
 
+## Push Commits
+
+### Push a commit to remote repository
+Creates and uploads a commit following the 4-step commit creation flow with ZKML proofs.
+
+**Prerequisites:**
+- Must run `flair add .` to extract model parameters first
+- Must run `flair zkp create` to generate zero-knowledge proof
+
+**Features:**
+- Automatically creates branch if it doesn't exist (e.g., first push creates 'main')
+- Validates ZKML proof uniqueness before upload
+- Uploads binary proof artifacts and parameters to IPFS
+- Updates local HEAD with new commit hash
+
+```bash
+# First push - creates branch and commit
+flair push -u origin main -m "Initial commit"
+## 
+## Pushing to branch: main
+## Branch 'main' not found. Creating...
+## ✓ Branch 'main' created
+## Parent commit: Genesis
+## 
+## Step 1/5: Initiating commit session...
+## ✓ Session initiated
+## Step 2/5: Checking ZKML proof uniqueness...
+## ✓ ZKML proof verified as unique
+## Step 3/5: Uploading ZKML proofs...
+## ✓ ZKML proofs uploaded
+## Step 4/5: Uploading parameters...
+## ✓ Parameters uploaded (hash: a1b2c3d4e5f6g7h8)
+## Step 5/5: Finalizing commit...
+## 
+## ✓ Commit created successfully!
+##   Commit hash: 9f8e7d6c5b4a...
+##   Branch: main
+##   Message: Initial commit
+
+# Push to existing branch
+flair push main -m "Updated model weights"
+## Pushing to branch: main
+## Parent commit: 9f8e7d6c5b4a
+## ...
+## ✓ Commit created successfully!
+
+# Push to current branch (from HEAD)
+flair push -m "Fix: improved accuracy"
+## Pushing to branch: main
+## ...
+## ✓ Commit created successfully!
+```
+
+**Workflow:**
+1. Validates prerequisites (params and ZKP files exist)
+2. Initiates commit session with parent commit hash from HEAD
+3. Checks ZKML proof CID uniqueness
+4. Uploads ZKML binary files (proof.zlib, verification_key.zlib, settings.zlib)
+5. Uploads parameters binary file with SHA256 hash
+6. Finalizes commit with message, paramHash, and architecture
+7. Updates `.flair/HEAD` with new commit hash and branch info
+
+**Error handling:**
+- Fails if params or ZKP files are missing
+- Validates ZKML proof uniqueness (prevents duplicate proofs)
+- Rollback on upload or finalization errors
+
 ## Directory structure (CLI)
 
 # Created in each repo after `flair init`
@@ -243,5 +310,41 @@ pip install ezkl
 # HEAD file contains the following:
 ## "currentBranch": branch_data.get("name"),
 ## "branchHash": branch_data.get("branchHash"),
-## "description": branch_data.get("description")
+## "description": branch_data.get("description"),
+## "latestCommitHash": latest_commit.get("commitHash")  # Added by clone/push
+```
+
+## Complete Workflow Example
+
+Here's a complete workflow from initialization to pushing a commit:
+
+```bash
+# 1. Initialize repository
+flair init --description "My ML model repo"
+
+# 2. Extract model parameters
+flair add .
+## ✓ Weights saved to params.pt
+
+# 3. Generate zero-knowledge proof
+flair zkp create --input-dims "[1, 3, 224, 224]"
+## ✓ All EZKL steps completed successfully!
+## ✓ ZKP created successfully!
+
+# 4. Push commit to remote
+flair push -u origin main -m "Initial model commit"
+## ✓ Branch 'main' created
+## ✓ Commit created successfully!
+
+# 5. Make changes and push again
+# ... modify model ...
+flair add .
+flair zkp create
+flair push main -m "Improved accuracy to 95%"
+## ✓ Commit created successfully!
+
+# 6. Switch branches
+flair branch experimental
+flair checkout experimental
+flair push -m "Experimental architecture"
 ```
