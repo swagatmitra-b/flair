@@ -60,6 +60,22 @@ def _load_repo_config() -> dict:
         return json.load(f)
 
 
+def _get_current_commit_hash() -> Optional[str]:
+    """Get current commit hash from .flair/HEAD"""
+    flair_dir = _get_flair_dir()
+    head_file = flair_dir / "HEAD"
+    
+    if not head_file.exists():
+        return None
+    
+    try:
+        with open(head_file, 'r') as f:
+            head_data = json.load(f)
+            return head_data.get("previousCommitHash")
+    except Exception:
+        return None
+
+
 def _find_model_file(framework: str) -> Optional[Path]:
     """Find a model file for the given framework in current directory."""
     extensions_map = {
@@ -476,6 +492,9 @@ def create_zkp(
         vk_path = zkp_dir / "verification_key.zlib"
         settings_path = zkp_dir / "settings.zlib"
         
+        # Get current commit hash from HEAD
+        commit_hash = _get_current_commit_hash()
+        
         proof_data = {
             "timestamp": datetime.now().isoformat(),
             "model_file": str(model_file),
@@ -487,7 +506,8 @@ def create_zkp(
             "settings_file": settings_path.name,
             "proof_cid": _compute_cid_v1_raw(proof_path),
             "verification_key_cid": _compute_cid_v1_raw(vk_path),
-            "settings_cid": _compute_cid_v1_raw(settings_path)
+            "settings_cid": _compute_cid_v1_raw(settings_path),
+            "previous_commit_hash": commit_hash
         }
         
         proof_file = zkp_dir / "proof.json"
@@ -561,7 +581,8 @@ def verify_zkp():
             "verified": verified,
             "model_file": proof_data.get('model_file'),
             "framework": proof_data.get('framework'),
-            "input_dims": proof_data.get('input_dims')
+            "input_dims": proof_data.get('input_dims'),
+            "previous_commit_hash": proof_data.get('previous_commit_hash')
         }
         
         verified_file = zkp_dir / ".verified"
