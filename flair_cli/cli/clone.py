@@ -79,11 +79,15 @@ def clone(
         flair_dir = local_dir / ".flair"
         flair_dir.mkdir(exist_ok=True)
         
-        # Create .params and .zkp directories
+        # Create .params, .zkp (for local artifacts), .prev_params, .prev_zkp (for downloaded artifacts)
         params_dir = flair_dir / ".params"
         params_dir.mkdir(exist_ok=True)
         zkp_dir = flair_dir / ".zkp"
         zkp_dir.mkdir(exist_ok=True)
+        prev_params_dir = flair_dir / ".prev_params"
+        prev_params_dir.mkdir(exist_ok=True)
+        prev_zkp_dir = flair_dir / ".prev_zkp"
+        prev_zkp_dir.mkdir(exist_ok=True)
         
         # Save repository metadata
         repo_file = flair_dir / "repo.json"
@@ -130,7 +134,7 @@ def clone(
         with open(branches_file, "w") as f:
             json.dump(branches, f, indent=2)
         
-        # Save current branch info with latest commit hash
+        # Save current branch info with previous commit
         if selected_branch:
             current_branch_file = flair_dir / "HEAD"
             latest_commit = selected_branch.get("latestCommit") or {}
@@ -181,7 +185,7 @@ def clone(
             if not selected_branch and branches:
                 selected_branch = branches[0]       # chooses first branch if no default set
 
-        # Download latest params and zkml proofs for the selected branch only (to .flair directories)
+        # Download latest params and zkml proofs for the selected branch
         if selected_branch:
             latest_commit = selected_branch.get("latestCommit") or {}
             params = (latest_commit.get("params") or {}).get("ipfsObject")
@@ -192,10 +196,10 @@ def clone(
                 _download_file(params["uri"], target)
 
             zkml = (latest_commit.get("params") or {}).get("ZKMLProof") or {}
-            for key, label in [("proof", "zkml_proof"), ("settings", "zkml_settings"), ("verification_key", "zkml_verification_key")]:
+            for key, label in [("proof", "proof"), ("settings", "settings"), ("verification_key", "verification_key")]:
                 obj = zkml.get(key)
                 if obj and obj.get("uri"):
-                    ext = _ensure_ext(obj.get("extension") or "json")
+                    ext = _ensure_ext(obj.get("extension") or "zlib")
                     target = flair_dir / ".zkp" / f"{label}{ext if ext else ''}"
                     console.print(f"[dim]Downloading {label.replace('_', ' ')} for {selected_branch.get('name')}...[/dim]")
                     _download_file(obj["uri"], target)

@@ -55,51 +55,47 @@ def _get_head_info() -> dict | None:
 
 def _get_params_file() -> Path | None:
     """Find params file in .flair/.params/"""
-    params_dir = _get_flair_dir() / ".params"
-    if not params_dir.exists():
-        return None
+    flair_dir = _get_flair_dir()
     
-    # Look for params.pt or params.npz
-    for pattern in ["params.pt", "params.npz", "params.*"]:
-        files = list(params_dir.glob(pattern))
-        if files:
-            return files[0]
+    params_dir = flair_dir / ".params"
+    if params_dir.exists():
+        for pattern in ["params.pt", "params.npz", "params.*"]:
+            files = list(params_dir.glob(pattern))
+            if files:
+                return files[0]
     
     return None
 
 
 def _get_zkp_files() -> dict | None:
     """Get ZKP proof files and metadata from .flair/.zkp/"""
-    zkp_dir = _get_flair_dir() / ".zkp"
-    proof_json = zkp_dir / "proof.json"
+    flair_dir = _get_flair_dir()
+    proof_json = flair_dir / ".zkp" / "proof.json"
     
-    if not proof_json.exists():
-        return None
+    if proof_json.exists():
+        try:
+            with open(proof_json, 'r') as f:
+                proof_data = json.load(f)
+            
+            zkp_dir = flair_dir / ".zkp"
+            proof_file = zkp_dir / proof_data.get("proof_file", "proof.zlib")
+            vk_file = zkp_dir / proof_data.get("verification_key_file", "verification_key.zlib")
+            settings_file = zkp_dir / proof_data.get("settings_file", "settings.zlib")
+            
+            if all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
+                return {
+                    "proof_file": proof_file,
+                    "vk_file": vk_file,
+                    "settings_file": settings_file,
+                    "proof_cid": proof_data.get("proof_cid"),
+                    "vk_cid": proof_data.get("verification_key_cid"),
+                    "settings_cid": proof_data.get("settings_cid"),
+                    "base_commit_hash": proof_data.get("base_commit_hash")
+                }
+        except Exception as e:
+            console.print(f"[yellow]Warning: Error reading proof.json: {e}[/yellow]")
     
-    try:
-        with open(proof_json, 'r') as f:
-            proof_data = json.load(f)
-        
-        # Check if proof files exist
-        proof_file = zkp_dir / proof_data.get("proof_file", "proof.zlib")
-        vk_file = zkp_dir / proof_data.get("verification_key_file", "verification_key.zlib")
-        settings_file = zkp_dir / proof_data.get("settings_file", "settings.zlib")
-        
-        if not all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
-            return None
-        
-        return {
-            "proof_file": proof_file,
-            "vk_file": vk_file,
-            "settings_file": settings_file,
-            "proof_cid": proof_data.get("proof_cid"),
-            "vk_cid": proof_data.get("verification_key_cid"),
-            "settings_cid": proof_data.get("settings_cid"),
-            "base_commit_hash": proof_data.get("base_commit_hash")
-        }
-    except Exception as e:
-        console.print(f"[red]Error reading proof.json: {e}[/red]")
-        return None
+    return None
 
 
 def _compute_param_hash(file_path: Path) -> str:
@@ -199,8 +195,8 @@ def push(
         
         # Determine parent commit hash
         parent_commit_hash = "_GENESIS_COMMIT_"
-        if head_info and head_info.get("latestCommitHash"):
-            parent_commit_hash = head_info["latestCommitHash"]
+        if head_info and head_info.get("previousCommit"):
+            parent_commit_hash = head_info["previousCommit"]
         
         console.print(f"[dim]Parent commit: {parent_commit_hash[:16] if parent_commit_hash != '_GENESIS_COMMIT_' else 'Genesis'}[/dim]")
         
@@ -348,7 +344,7 @@ def push(
         head_data = {
             "currentBranch": target_branch_name,
             "branchHash": branch_hash,
-            "latestCommitHash": commit_hash
+            "previousCommit": commit_hash
         }
         with open(head_file, "w") as f:
             json.dump(head_data, f, indent=2)
