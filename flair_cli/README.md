@@ -16,6 +16,39 @@ flair auth logout
 
 ## Repository Commands
 
+### Create sample model files
+
+Generate sample model scaffolds to help you get started quickly. The generated files include example architectures and usage patterns.
+
+```bash
+flair new --example pytorch
+## ✓ PyTorch sample model created: model_pytorch.py
+## 
+## The file includes:
+##   • Sample CNN model class
+##   • Example save/load functions
+##   • Usage examples
+## 
+## To save your model for Flair:
+##   1. Modify the model as needed
+##   2. Run the script to generate model.pt
+##   3. Use 'flair params create --model model.pt'
+
+flair new --example tensorflow
+## ✓ TensorFlow sample model created: model_tensorflow.py
+## 
+## The file includes:
+##   • Sample CNN model (Sequential API)
+##   • Alternative Functional API example
+##   • Example save/load functions
+##   • Usage examples
+
+flair new --example pytorch --output my_model.py  # Custom output filename
+## ✓ PyTorch sample model created: my_model.py
+```
+
+**Note:** The generated files are only sample scaffolds. You are free to modify or ignore them. Flair does not require any specific architecture format.
+
 ### Init repository with automatic base model detection
 
 ```bash
