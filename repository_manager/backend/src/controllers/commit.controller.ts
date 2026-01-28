@@ -777,6 +777,18 @@ export const finalizeCommit = async (req: Request, res: Response) => {
             return;
         }
 
+        if (!commitHash) {
+            res.status(400).json({ error: { message: 'commitHash is required.' } });
+            return;
+        }
+
+        // Validate commitHash is a valid UUIDv4
+        const uuidv4Regex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidv4Regex.test(commitHash)) {
+            res.status(400).json({ error: { message: 'commitHash must be a valid UUIDv4 format.' } });
+            return;
+        }
+
         const commitTypeRaw = (req.body?.commitType as string | undefined)?.toUpperCase();
         const commitType = commitTypeRaw === 'CHECKPOINT' ? 'CHECKPOINT' : 'DELTA';
 
@@ -795,8 +807,9 @@ export const finalizeCommit = async (req: Request, res: Response) => {
         // Parent commit hash was validated during initiation
         const parentCommitHash = sessionJwt.parentCommitHash as string;
 
+        // Check commitHash uniqueness
         if (await prisma.commit.count({ where: { commitHash } })) {
-            res.status(400).json({ error: { message: 'Commit hash already exists.' } });
+            res.status(409).json({ error: { message: 'Commit hash already exists. Must use a unique UUIDv4.' } });
             return;
         }
 
