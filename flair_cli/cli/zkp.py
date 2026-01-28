@@ -76,6 +76,31 @@ def _get_current_commit_hash() -> Optional[str]:
         return None
 
 
+def _get_latest_local_commit() -> tuple[dict, Path] | None:
+    """Get the latest local commit and its directory."""
+    flair_dir = _get_flair_dir()
+    local_commits_dir = flair_dir / ".local_commits"
+    
+    if not local_commits_dir.exists():
+        return None
+    
+    # Get the most recently created commit directory
+    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    if not commit_dirs:
+        return None
+    
+    commit_dir = commit_dirs[0]
+    commit_file = commit_dir / "commit.json"
+    
+    if commit_file.exists():
+        with open(commit_file, 'r') as f:
+            commit_data = json.load(f)
+        return (commit_data, commit_dir)
+    
+    return None
+
+
 def _find_model_file(framework: str) -> Optional[Path]:
     """Find a model file for the given framework in current directory."""
     extensions_map = {
@@ -421,6 +446,15 @@ def create_zkp(
         flair zkp create --model model.pt --backend pytorch
     """
     try:
+        # Check if the latest commit already has ZKP
+        local_commit_result = _get_latest_local_commit()
+        if local_commit_result:
+            commit_data, _ = local_commit_result
+            if commit_data.get("zkp") is not None:
+                console.print("[red]✗ This commit already has a zero-knowledge proof.[/red]")
+                console.print("[yellow]To create a new commit with a different ZKP, run 'flair add' first.[/yellow]")
+                raise typer.Exit(code=1)
+        
         # Load repo config
         repo_config = _load_repo_config()
         framework = repo_config.get("framework", "").lower()
@@ -464,8 +498,13 @@ def create_zkp(
         except json.JSONDecodeError:
             raise typer.BadParameter(f"Invalid JSON for input-dims: {input_dims}")
         
-        # Prepare ZKP directory
-        zkp_dir = _get_zkp_dir()
+        # Prepare ZKP directory (local commit directory, not .zkp)
+        local_commit_result = _get_latest_local_commit()
+        if not local_commit_result:
+            console.print("[red]No local commits found. Run 'flair add' first.[/red]")
+            raise typer.Exit(code=1)
+        
+        commit_data, commit_dir = local_commit_result
         
         console.print("\n[cyan]Generating Zero-Knowledge Proof using EZKL...[/cyan]")
         console.print("[dim]This may take several minutes depending on model complexity...[/dim]\n")
@@ -476,8 +515,8 @@ def create_zkp(
             asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(
-                    _process_model_with_ezkl(onnx_file, dims, backend_to_use, zkp_dir)
-                )
+                    _process_model_with_ezkl(onnx_file, dims, backend_to_use, commit_dir)
+                )                
             finally:
                 loop.close()
         except ImportError as e:
@@ -488,14 +527,14 @@ def create_zkp(
         # Save proof artifacts
         console.print("\n[cyan]Saving proof artifacts...[/cyan]")
 
-        proof_path = zkp_dir / "proof.zlib"
-        vk_path = zkp_dir / "verification_key.zlib"
-        settings_path = zkp_dir / "settings.zlib"
+        proof_path = commit_dir / "proof.zlib"
+        vk_path = commit_dir / "verification_key.zlib"
+        settings_path = commit_dir / "settings.zlib"
         
         # Get current commit hash from HEAD
         commit_hash = _get_current_commit_hash()
         
-        proof_data = {
+        zkp_data = {
             "timestamp": datetime.now().isoformat(),
             "model_file": str(model_file),
             "framework": framework,
@@ -507,20 +546,30 @@ def create_zkp(
             "proof_cid": _compute_cid_v1_raw(proof_path),
             "verification_key_cid": _compute_cid_v1_raw(vk_path),
             "settings_cid": _compute_cid_v1_raw(settings_path),
-            "previous_commit_hash": commit_hash
+            "base_commit_hash": commit_hash
         }
         
-        proof_file = zkp_dir / "proof.json"
-        with open(proof_file, 'w') as f:
-            json.dump(proof_data, f, indent=2)
+        # Update commit.json with ZKP data
+        commit_file = commit_dir / "commit.json"
+        with open(commit_file, 'r') as f:
+            commit_data = json.load(f)
+        
+        commit_data["zkp"] = zkp_data
+        
+        with open(commit_file, 'w') as f:
+            json.dump(commit_data, f, indent=2)
         
         console.print(f"[green]✓ ZKP created successfully![/green]")
-        console.print(f"[dim]Saved to: {proof_file}[/dim]")
+        console.print(f"[dim]Saved to: {commit_dir.name}/[/dim]")
+        console.print(f"[dim]Proof files: proof.zlib, verification_key.zlib, settings.zlib[/dim]")
         
         # Clean up ONNX file if it was converted
         if onnx_file != model_file and onnx_file.exists():
             onnx_file.unlink()
             console.print(f"[dim]Cleaned up temporary ONNX file[/dim]")
+        
+        console.print(f"\n[dim]Next steps:[/dim]")
+        console.print(f"  • Run 'flair push -m \"Your message\"' to push this commit to the repository")
         
     except typer.BadParameter:
         raise

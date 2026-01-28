@@ -160,7 +160,7 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
-def _get_latest_local_commit() -> dict | None:
+def _get_latest_local_commit() -> tuple[dict, Path] | None:
     """Get the latest local commit from .flair/.local_commits/"""
     flair_dir = Path.cwd() / ".flair"
     local_commits_dir = flair_dir / ".local_commits"
@@ -179,7 +179,7 @@ def _get_latest_local_commit() -> dict | None:
     
     if commit_file.exists():
         with open(commit_file, 'r') as f:
-            return json.load(f)
+            return json.load(f), commit_dir
     
     return None
 
@@ -205,20 +205,22 @@ def create(
             raise typer.Exit(code=1)
         
         # Get the latest local commit
-        commit_data = _get_latest_local_commit()
-        if not commit_data:
+        latest_commit = _get_latest_local_commit()
+        if not latest_commit:
             console.print("[red]No local commits found. Run 'flair add' first.[/red]")
+            raise typer.Exit(code=1)
+        
+        commit_data, commit_dir = latest_commit
+        
+        # Check if params already exist in this commit
+        if commit_data.get("params") is not None:
+            console.print("[red]✗ This commit already has parameters.[/red]")
+            console.print("[yellow]To create a new commit with different parameters, run 'flair add' first.[/yellow]")
             raise typer.Exit(code=1)
         
         commit_hash = commit_data.get("commitHash")
         if not commit_hash:
             console.print("[red]Invalid commit data.[/red]")
-            raise typer.Exit(code=1)
-        
-        # Get commit directory
-        commit_dir = flair_dir / ".local_commits" / commit_hash
-        if not commit_dir.exists():
-            console.print("[red]Commit directory not found.[/red]")
             raise typer.Exit(code=1)
         
         # Determine model file

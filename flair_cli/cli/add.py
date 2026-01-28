@@ -12,20 +12,28 @@ app = typer.Typer()
 console = Console()
 
 
-def _detect_model_files() -> list[Path]:
-    """Detect model files in current directory."""
-    model_extensions = [
-        "*.pt", "*.pth",  # PyTorch
-        "*.h5", "*.keras",  # TensorFlow/Keras
-        "*.onnx",  # ONNX
-        "*.pb",  # TensorFlow SavedModel
-    ]
+def _get_latest_local_commit() -> tuple[dict, Path] | None:
+    """Get the latest local commit from .flair/.local_commits/"""
+    flair_dir = Path.cwd() / ".flair"
+    local_commits_dir = flair_dir / ".local_commits"
     
-    found_files = []
-    for pattern in model_extensions:
-        found_files.extend(Path.cwd().glob(pattern))
+    if not local_commits_dir.exists():
+        return None
     
-    return sorted(found_files)
+    # Get the most recently created commit directory
+    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    if not commit_dirs:
+        return None
+    
+    commit_dir = commit_dirs[0]
+    commit_file = commit_dir / "commit.json"
+    
+    if commit_file.exists():
+        with open(commit_file, 'r') as f:
+            return json.load(f), commit_dir
+    
+    return None
 
 
 @app.command()
@@ -44,6 +52,20 @@ def add():
         if not flair_dir.exists():
             console.print("[red]Not in a Flair repository. Run 'flair init' first.[/red]")
             raise typer.Exit(code=1)
+        
+        # Check if there's an incomplete commit
+        latest_commit = _get_latest_local_commit()
+        if latest_commit:
+            commit_data, _ = latest_commit
+            if commit_data.get("params") is None or commit_data.get("zkp") is None:
+                console.print("[red]✗ Cannot create a new commit yet.[/red]")
+                console.print(f"[yellow]The current commit ({commit_data.get('commitHash')[:8]}...) is incomplete:[/yellow]")
+                if commit_data.get("params") is None:
+                    console.print("[yellow]  • Missing: params (run 'flair params create')[/yellow]")
+                if commit_data.get("zkp") is None:
+                    console.print("[yellow]  • Missing: ZKP proof (run 'flair zkp create')[/yellow]")
+                console.print("[yellow]Complete the current commit before creating a new one.[/yellow]")
+                raise typer.Exit(code=1)
         
         # Load repo config to get framework
         config_file = flair_dir / "repo_config.json"
