@@ -160,6 +160,153 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
+def _get_head_info() -> dict | None:
+    """Get current HEAD information."""
+    flair_dir = Path.cwd() / ".flair"
+    head_file = flair_dir / "HEAD"
+    
+    if not head_file.exists():
+        return None
+    
+    try:
+        with open(head_file, 'r') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _get_previous_commit_params(previous_commit_hash: str) -> Path | None:
+    """Get params file from previous commit."""
+    if previous_commit_hash == "_GENESIS_COMMIT_":
+        return None
+    
+    flair_dir = Path.cwd() / ".flair"
+    local_commits_dir = flair_dir / ".local_commits"
+    
+    if not local_commits_dir.exists():
+        return None
+    
+    # Find the commit directory with matching hash
+    for commit_dir in local_commits_dir.iterdir():
+        if not commit_dir.is_dir():
+            continue
+        
+        commit_file = commit_dir / "commit.json"
+        if not commit_file.exists():
+            continue
+        
+        try:
+            with open(commit_file, 'r') as f:
+                commit_data = json.load(f)
+            
+            if commit_data.get("commitHash") == previous_commit_hash:
+                params_info = commit_data.get("params")
+                if params_info and params_info.get("file"):
+                    params_file = commit_dir / params_info["file"]
+                    if params_file.exists():
+                        return params_file
+        except Exception:
+            continue
+    
+    return None
+
+
+def _compute_pytorch_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+    """Compute delta between current and previous PyTorch parameters."""
+    try:
+        import torch
+        
+        console.print(f"[dim]Computing PyTorch parameter delta...[/dim]")
+        
+        # Load both parameter sets
+        current_params = torch.load(current_path, map_location="cpu")
+        previous_params = torch.load(previous_path, map_location="cpu")
+        
+        # Compute delta
+        delta_params = {}
+        for key in current_params.keys():
+            if key in previous_params:
+                delta_params[key] = current_params[key] - previous_params[key]
+            else:
+                # New parameter, include as-is
+                delta_params[key] = current_params[key]
+        
+        # Save delta
+        torch.save(delta_params, output_path)
+        
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        console.print(f"[green]✓ PyTorch delta computed ({size_mb:.2f} MB)[/green]")
+        return True
+        
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to compute PyTorch delta: {e}[/yellow]")
+        return False
+
+
+def _compute_tensorflow_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+    """Compute delta between current and previous TensorFlow parameters."""
+    try:
+        import numpy as np
+        
+        console.print(f"[dim]Computing TensorFlow parameter delta...[/dim]")
+        
+        # Load both parameter sets
+        current_params = np.load(current_path)
+        previous_params = np.load(previous_path)
+        
+        # Compute delta
+        delta_params = {}
+        for key in current_params.files:
+            if key in previous_params.files:
+                delta_params[key] = current_params[key] - previous_params[key]
+            else:
+                # New parameter, include as-is
+                delta_params[key] = current_params[key]
+        
+        # Save delta
+        np.savez(output_path, **delta_params)
+        
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        console.print(f"[green]✓ TensorFlow delta computed ({size_mb:.2f} MB)[/green]")
+        return True
+        
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to compute TensorFlow delta: {e}[/yellow]")
+        return False
+
+
+def _compute_onnx_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+    """Compute delta between current and previous ONNX parameters."""
+    try:
+        import numpy as np
+        
+        console.print(f"[dim]Computing ONNX parameter delta...[/dim]")
+        
+        # Load both parameter sets
+        current_params = np.load(current_path)
+        previous_params = np.load(previous_path)
+        
+        # Compute delta
+        delta_params = {}
+        for key in current_params.files:
+            if key in previous_params.files:
+                delta_params[key] = current_params[key] - previous_params[key]
+            else:
+                # New parameter, include as-is
+                delta_params[key] = current_params[key]
+        
+        # Save delta
+        np.savez(output_path, **delta_params)
+        
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+        console.print(f"[green]✓ ONNX delta computed ({size_mb:.2f} MB)[/green]")
+        return True
+        
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to compute ONNX delta: {e}[/yellow]")
+        return False
+
+
 def _get_latest_local_commit() -> tuple[dict, Path] | None:
     """Get the latest local commit from .flair/.local_commits/"""
     flair_dir = Path.cwd() / ".flair"
@@ -282,6 +429,58 @@ def create(
             # Compute hash of params file
             params_hash = _compute_file_hash(output_path)
             
+            # Compute delta parameters if there's a previous commit
+            head_info = _get_head_info()
+            previous_commit_hash = None
+            delta_params_info = None
+            
+            if head_info:
+                previous_commit_hash = head_info.get("previousCommit", "_GENESIS_COMMIT_")
+            else:
+                previous_commit_hash = "_GENESIS_COMMIT_"
+            
+            if previous_commit_hash and previous_commit_hash != "_GENESIS_COMMIT_":
+                console.print(f"\n[cyan]Computing delta from previous commit...[/cyan]")
+                console.print(f"[dim]Previous commit: {previous_commit_hash[:16]}...[/dim]")
+                
+                # Get previous commit's params
+                previous_params_path = _get_previous_commit_params(previous_commit_hash)
+                
+                if previous_params_path:
+                    # Create .delta_params directory in commit folder
+                    delta_dir = commit_dir / ".delta_params"
+                    delta_dir.mkdir(exist_ok=True)
+                    
+                    # Determine delta output path based on framework
+                    if framework == "pytorch":
+                        delta_output_path = delta_dir / "delta.pt"
+                    else:
+                        delta_output_path = delta_dir / "delta.npz"
+                    
+                    # Compute delta based on framework
+                    delta_success = False
+                    if framework == "pytorch":
+                        delta_success = _compute_pytorch_delta(output_path, previous_params_path, delta_output_path)
+                    elif framework == "tensorflow":
+                        delta_success = _compute_tensorflow_delta(output_path, previous_params_path, delta_output_path)
+                    elif framework == "onnx":
+                        delta_success = _compute_onnx_delta(output_path, previous_params_path, delta_output_path)
+                    
+                    if delta_success:
+                        # Compute hash of delta file
+                        delta_hash = _compute_file_hash(delta_output_path)
+                        delta_params_info = {
+                            "file": delta_output_path.name,
+                            "hash": delta_hash,
+                            "previousCommitHash": previous_commit_hash
+                        }
+                        console.print(f"[dim]Delta file: {delta_output_path.name}[/dim]")
+                        console.print(f"[dim]Delta hash: {delta_hash[:16]}...[/dim]")
+                else:
+                    console.print(f"[yellow]Warning: Previous commit params not found locally. Skipping delta computation.[/yellow]")
+            else:
+                console.print(f"\n[dim]First commit (genesis) - no delta computed[/dim]")
+            
             # Update commit.json with params information
             commit_file = commit_dir / "commit.json"
             with open(commit_file, 'r') as f:
@@ -293,12 +492,18 @@ def create(
                 "framework": framework
             }
             
+            # Add delta params info if available
+            if delta_params_info:
+                commit_data["deltaParams"] = delta_params_info
+            
             with open(commit_file, 'w') as f:
                 json.dump(commit_data, f, indent=2)
             
             console.print(f"\n[green]✓ Parameters saved to commit directory[/green]")
             console.print(f"  File: {output_path.name}")
             console.print(f"  Hash: {params_hash[:16]}...")
+            if delta_params_info:
+                console.print(f"  Delta: {delta_params_info['file']}")
             console.print(f"\n[dim]Next steps:[/dim]")
             console.print(f"  1. (Optional) Run 'flair zkp create' to generate zero-knowledge proof")
             console.print(f"  2. Run 'flair push -m \"Your message\"' to push to repository")
