@@ -90,38 +90,23 @@ Flair is **infrastructure for building models**, not for making decisions.
 
 ## Architecture Overview
 
+```bash
 Local Client
-
 ├─ Trains model on private data
-
 ├─ Produces model update + metadata
-
 └─ Pushes commit via Flair CLI
-
 ↓
-
 Flair Backend
-
 ├─ Stores repo & commit metadata
-
 ├─ Triggers async aggregation
-
 ├─ Verifies zk proofs (optional)
-
 └─ Records provenance
-
 ↓
-
 Federated Learning Engine (e.g. Flower)
-
 ├─ Aggregates updates
-
 ├─ Handles staleness & concurrency
-
 └─ Produces updated global model
-
-
-
+```
 ---
 
 ## Supported Frameworks
