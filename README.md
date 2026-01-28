@@ -112,8 +112,7 @@ Federated Learning Engine (e.g. Flower)
 ## Supported Frameworks
 
 - **PyTorch**
-
-(Additional frameworks may be supported in the future.)
+- **TensorFlow**
 
 ---
 
