@@ -26,6 +26,31 @@ def _get_flair_dir() -> Path:
     return flair_dir
 
 
+def _get_latest_local_commit() -> tuple[dict, Path] | None:
+    """Get the latest local commit and its directory."""
+    flair_dir = _get_flair_dir()
+    local_commits_dir = flair_dir / ".local_commits"
+    
+    if not local_commits_dir.exists():
+        return None
+    
+    # Get the most recently created commit directory
+    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    if not commit_dirs:
+        return None
+    
+    commit_dir = commit_dirs[0]
+    commit_file = commit_dir / "commit.json"
+    
+    if commit_file.exists():
+        with open(commit_file, 'r') as f:
+            commit_data = json.load(f)
+        return (commit_data, commit_dir)
+    
+    return None
+
+
 def _load_repo_config() -> dict:
     """Load repository configuration from .flair/repo_config.json"""
     flair_dir = _get_flair_dir()
@@ -54,46 +79,50 @@ def _get_head_info() -> dict | None:
 
 
 def _get_params_file() -> Path | None:
-    """Find params file in .flair/.params/"""
-    flair_dir = _get_flair_dir()
+    """Find params file in the latest local commit directory."""
+    result = _get_latest_local_commit()
+    if not result:
+        return None
     
-    params_dir = flair_dir / ".params"
-    if params_dir.exists():
-        for pattern in ["params.pt", "params.npz", "params.*"]:
-            files = list(params_dir.glob(pattern))
-            if files:
-                return files[0]
+    commit_data, commit_dir = result
+    params_info = commit_data.get("params")
+    
+    if not params_info or not params_info.get("file"):
+        return None
+    
+    params_file = commit_dir / params_info["file"]
+    if params_file.exists():
+        return params_file
     
     return None
 
 
 def _get_zkp_files() -> dict | None:
-    """Get ZKP proof files and metadata from .flair/.zkp/"""
-    flair_dir = _get_flair_dir()
-    proof_json = flair_dir / ".zkp" / "proof.json"
+    """Get ZKP proof files and metadata from the latest local commit directory."""
+    result = _get_latest_local_commit()
+    if not result:
+        return None
     
-    if proof_json.exists():
-        try:
-            with open(proof_json, 'r') as f:
-                proof_data = json.load(f)
-            
-            zkp_dir = flair_dir / ".zkp"
-            proof_file = zkp_dir / proof_data.get("proof_file", "proof.zlib")
-            vk_file = zkp_dir / proof_data.get("verification_key_file", "verification_key.zlib")
-            settings_file = zkp_dir / proof_data.get("settings_file", "settings.zlib")
-            
-            if all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
-                return {
-                    "proof_file": proof_file,
-                    "vk_file": vk_file,
-                    "settings_file": settings_file,
-                    "proof_cid": proof_data.get("proof_cid"),
-                    "vk_cid": proof_data.get("verification_key_cid"),
-                    "settings_cid": proof_data.get("settings_cid"),
-                    "base_commit_hash": proof_data.get("base_commit_hash")
-                }
-        except Exception as e:
-            console.print(f"[yellow]Warning: Error reading proof.json: {e}[/yellow]")
+    commit_data, commit_dir = result
+    zkp_info = commit_data.get("zkp")
+    
+    if not zkp_info:
+        return None
+    
+    proof_file = commit_dir / zkp_info.get("proof_file", "proof.zlib")
+    vk_file = commit_dir / zkp_info.get("verification_key_file", "verification_key.zlib")
+    settings_file = commit_dir / zkp_info.get("settings_file", "settings.zlib")
+    
+    if all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
+        return {
+            "proof_file": proof_file,
+            "vk_file": vk_file,
+            "settings_file": settings_file,
+            "proof_cid": zkp_info.get("proof_cid"),
+            "vk_cid": zkp_info.get("verification_key_cid"),
+            "settings_cid": zkp_info.get("settings_cid"),
+            "base_commit_hash": zkp_info.get("base_commit_hash")
+        }
     
     return None
 
@@ -116,7 +145,8 @@ def push(
     """Push a commit to remote repository.
     
     Prerequisites:
-    - Run 'flair add .' to extract model parameters
+    - Run 'flair add' to create a local commit
+    - Run 'flair params create' to add model parameters
     - Run 'flair zkp create' to generate zero-knowledge proof
     
     Examples:
@@ -125,10 +155,19 @@ def push(
         flair push  # Push to current branch
     """
     try:
+        # Get the latest local commit
+        local_commit_result = _get_latest_local_commit()
+        if not local_commit_result:
+            console.print("[red]✗ No local commits found. Run 'flair add' first.[/red]")
+            raise typer.Exit(code=1)
+        
+        local_commit_data, commit_dir = local_commit_result
+        commit_hash = local_commit_data.get("commitHash")
+        
         # Validate prerequisites
         params_file = _get_params_file()
         if not params_file:
-            console.print("[red]✗ No params file found. Run 'flair add .' first.[/red]")
+            console.print("[red]✗ No params file found. Run 'flair params create' first.[/red]")
             raise typer.Exit(code=1)
         
         zkp_files = _get_zkp_files()
@@ -317,6 +356,7 @@ def push(
             finalize_resp = client.post(
                 f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/finalize",
                 json={
+                    "commitHash": commit_hash,
                     "message": message,
                     "paramHash": param_hash,
                     "architecture": framework,
@@ -328,10 +368,13 @@ def push(
             finalize_resp.raise_for_status()
             finalize_data = finalize_resp.json()
         
-        commit_hash = finalize_data.get("commitHash")
-        if not commit_hash:
+        returned_commit_hash = finalize_data.get("commitHash")
+        if not returned_commit_hash:
             console.print("[red]Failed to finalize commit[/red]")
             raise typer.Exit(code=1)
+        
+        if returned_commit_hash != commit_hash:
+            console.print("[yellow]Warning: Returned commit hash doesn't match sent commit hash[/yellow]")
         
         console.print(f"\n[green]✓ Commit created successfully![/green]")
         console.print(f"  Commit hash: {commit_hash[:16]}...")
