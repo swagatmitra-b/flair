@@ -204,6 +204,17 @@ flair params create --model model.h5  # Specify TensorFlow model
 ##   File: params.pt
 ##   Hash: 1a2b3c4d5e6f7g8h...
 ## 
+## Computing delta from previous commit...
+## Previous commit: 9f8e7d6c...
+## ✓ PyTorch delta computed (2.34 MB)
+## Delta file: delta.pt
+## Delta hash: 5e6f7g8h...
+## 
+## ✓ Parameters saved to commit directory
+##   File: params.pt
+##   Hash: 1a2b3c4d5e6f7g8h...
+##   Delta: delta.pt
+## 
 ## Next steps:
 ##   1. (Optional) Run 'flair zkp create' to generate zero-knowledge proof
 ##   2. Run 'flair push -m "Your message"' to push to repository
@@ -213,6 +224,13 @@ flair params create --model model.h5  # Specify TensorFlow model
 1. PyTorch: Extracts state_dict and saves as .pt
 2. TensorFlow: Extracts weights as numpy arrays and saves as .npz
 3. ONNX: Extracts initializers and saves as .npz
+
+**Delta computation:**
+- Automatically computes parameter deltas from the previous commit
+- Stores delta in `.delta_params/` folder within the commit directory
+- Delta = current parameters - previous parameters
+- Skipped for genesis commits (first commit)
+- Supports all frameworks (PyTorch, TensorFlow, ONNX)
 
 **Note:** You cannot overwrite existing params. To create new params, run `flair add` to create a new commit first.
 
@@ -379,6 +397,8 @@ flair push -m "Fix: improved accuracy"
 		<uuidv4>/              # Each commit has its own directory
 			commit.json          # Commit metadata (params, zkp, message, status)
 			params.pt|npz        # Extracted model weights (framework-dependent)
+			.delta_params/       # Delta parameters directory
+				delta.pt|npz       # Parameter differences from previous commit
 			proof.zlib           # Compressed ZK proof
 			verification_key.zlib  # Compressed VK
 			settings.zlib        # Compressed settings
