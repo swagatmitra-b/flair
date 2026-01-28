@@ -360,6 +360,7 @@ def push(
                     "message": message,
                     "paramHash": param_hash,
                     "architecture": framework,
+                    "commitType": "CHECKPOINT",
                     "initiateToken": initiate_token,
                     "zkmlReceiptToken": zkml_receipt_token,
                     "paramsReceiptToken": params_receipt_token
