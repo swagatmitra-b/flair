@@ -655,6 +655,7 @@ export const finalizeCommit = async (req: Request, res: Response) => {
         const { branchId, repoId } = req;
         const {
             message,
+            commitHash,         // commit hash will be created in the cli now
             paramHash,
             architecture,
             initiateToken,
@@ -779,7 +780,6 @@ export const finalizeCommit = async (req: Request, res: Response) => {
         const commitTypeRaw = (req.body?.commitType as string | undefined)?.toUpperCase();
         const commitType = commitTypeRaw === 'CHECKPOINT' ? 'CHECKPOINT' : 'DELTA';
 
-        const commitHash = uuidV4();
         const committer = await prisma.user.findFirst({ where: { wallet: pk } });
         if (!committer) {
             res.status(401).json({ error: { message: 'User not found.' } });
