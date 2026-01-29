@@ -185,7 +185,8 @@ flair add
 ## Next steps:
 ##   1. Run 'flair params create' to add model parameters
 ##   2. Run 'flair zkp create' to generate zero-knowledge proof
-##   3. Run 'flair push -m "Your message"' to push to repository
+##   3. Run 'flair commit -m "Your message"' to finalize commit
+##   4. Run 'flair push' to upload commit to repository
 ```
 
 **Note:** You cannot create a new commit until the current one is complete (has both params and ZKP).
@@ -217,7 +218,8 @@ flair params create --model model.h5  # Specify TensorFlow model
 ## 
 ## Next steps:
 ##   1. (Optional) Run 'flair zkp create' to generate zero-knowledge proof
-##   2. Run 'flair push -m "Your message"' to push to repository
+##   2. Run 'flair commit -m "Your message"' to finalize commit
+##   3. Run 'flair push' to upload commit to repository
 ```
 
 **Extraction details:**
@@ -233,6 +235,50 @@ flair params create --model model.h5  # Specify TensorFlow model
 - Supports all frameworks (PyTorch, TensorFlow, ONNX)
 
 **Note:** You cannot overwrite existing params. To create new params, run `flair add` to create a new commit first.
+
+### Finalize commit with message
+Finalizes the commit by setting the message and determining commit type (CHECKPOINT for genesis, DELTA for subsequent).
+
+**Prerequisites:**
+- Must run `flair add` to create a commit
+- Must run `flair params create` to extract parameters
+- Must run `flair zkp create` to generate zero-knowledge proof
+
+**Commit Types:**
+- **CHECKPOINT**: First commit in repository. Uploads full parameters.
+- **DELTA**: Subsequent commits. Uploads only parameter differences from previous commit.
+
+```bash
+flair commit -m "Initial model commit"
+## ✓ Commit finalized
+##   Commit hash: a1b2c3d4f5g6h7i8...
+##   Commit type: CHECKPOINT
+##   Message: Initial model commit
+##   Uploading: full parameters (params)
+## 
+## Next step:
+##   Run 'flair push' to upload commit to repository
+
+flair commit -m "Updated with training data v2"
+## ✓ Commit finalized
+##   Commit hash: b2c3d4e5f6g7h8i9...
+##   Commit type: DELTA
+##   Message: Updated with training data v2
+##   Uploading: delta parameters (delta_params)
+## 
+## Next step:
+##   Run 'flair push' to upload commit to repository
+```
+
+**How it works:**
+1. Checks if this is the first commit in the repository (genesis)
+2. Sets `commitType` to `CHECKPOINT` for genesis, `DELTA` for subsequent commits
+3. Stores message and commitType in commit.json
+4. The push command will use this type to determine which file to upload:
+   - CHECKPOINT: uploads full params from `.params/` folder
+   - DELTA: uploads delta params from `.delta_params/` folder
+
+**Note:** You cannot finalize a commit twice. To create a new commit, run `flair add` first.
 
 ## Zero-Knowledge Proofs (ZKP)
 
@@ -271,7 +317,8 @@ flair zkp create                                    # Auto-detect model with def
 ## Proof files: proof.zlib, verification_key.zlib, settings.zlib
 ## 
 ## Next steps:
-##   • Run 'flair push -m "Your message"' to push this commit to the repository
+##   • Run 'flair commit -m "Your message"' to finalize this commit
+##   • Run 'flair push' to push this commit to the repository
 
 flair zkp create --input-dims "[1, 3, 256, 256]"   # Custom input dimensions
 flair zkp create --model custom.pt                  # Specify model file
@@ -318,13 +365,18 @@ pip install ezkl
 ## Push Commits
 
 ### Push a commit to remote repository
-Uploads the completed local commit to the remote repository.
+Uploads the completed local commit to the remote repository using the CHECKPOINT or DELTA commit type.
 
 **Prerequisites:**
 - Must run `flair add` to create a commit
 - Must run `flair params create` to extract model parameters
 - Must run `flair zkp create` to generate zero-knowledge proof
-- Current commit must be complete (both params and ZKP must exist)
+- Must run `flair commit -m "message"` to finalize commit and determine type
+- Current commit must be complete (params, ZKP, and finalized message must exist)
+
+**Upload behavior based on commit type:**
+- **CHECKPOINT** (genesis): Uploads full parameters from `.params/` folder
+- **DELTA**: Uploads delta parameters from `.delta_params/` folder (difference from previous commit)
 
 **Features:**
 - Automatically creates branch if it doesn't exist (e.g., first push creates 'main')
@@ -333,8 +385,8 @@ Uploads the completed local commit to the remote repository.
 - Updates local HEAD with new commit hash
 
 ```bash
-# First push - creates branch and commit
-flair push -u origin main -m "Initial commit"
+# First push - creates CHECKPOINT commit (genesis)
+flair push -u origin main
 ## 
 ## Pushing to branch: main
 ## Branch 'main' not found. Creating...
@@ -348,24 +400,38 @@ flair push -u origin main -m "Initial commit"
 ## Step 3/5: Uploading ZKML proofs...
 ## ✓ ZKML proofs uploaded
 ## Step 4/5: Uploading parameters...
-## ✓ Parameters uploaded (hash: a1b2c3d4e5f6g7h8)
+## ✓ Parameters uploaded (hash: a1b2c3d4e5f6g7h8)  [CHECKPOINT: full params]
 ## Step 5/5: Finalizing commit...
 ## 
 ## ✓ Commit created successfully!
 ##   Commit hash: 9f8e7d6c5b4a...
 ##   Branch: main
 ##   Message: Initial commit
+##   Type: CHECKPOINT
 
-# Push to existing branch
-flair push main -m "Updated model weights"
+# Subsequent push - creates DELTA commit
+flair push main
 ## Pushing to branch: main
 ## Parent commit: 9f8e7d6c5b4a
-## ...
+## 
+## Step 1/5: Initiating commit session...
+## ✓ Session initiated
+## Step 2/5: Checking ZKML proof uniqueness...
+## ✓ ZKML proof verified as unique
+## Step 3/5: Uploading ZKML proofs...
+## ✓ ZKML proofs uploaded
+## Step 4/5: Uploading parameters...
+## ✓ Parameters uploaded (hash: b2c3d4e5f6g7h8i9)  [DELTA: delta params only]
+## Step 5/5: Finalizing commit...
+## 
 ## ✓ Commit created successfully!
+##   Commit hash: a1b2c3d4e5f6g7h8...
+##   Branch: main
+##   Message: Updated with training data
+##   Type: DELTA
 
 # Push to current branch (from HEAD)
-flair push -m "Fix: improved accuracy"
-## Pushing to branch: main
+flair push
 ## ...
 ## ✓ Commit created successfully!
 ```

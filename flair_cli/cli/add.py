@@ -89,9 +89,11 @@ def add():
         commit_data = {
             "commitHash": commit_hash,
             "architecture": repo_config.get("framework", "unknown"),
-            "params": None,  # Will be filled by flair params create
-            "zkp": None,     # Will be filled by flair zkp create
-            "message": None, # Will be filled by flair push
+            "params": None,         # Will be filled by flair params create
+            "deltaParams": None,    # Will be filled by flair params create (if not genesis)
+            "zkp": None,            # Will be filled by flair zkp create
+            "message": None,        # Will be filled by flair commit
+            "commitType": None,     # Will be filled by flair commit (CHECKPOINT or DELTA)
             "createdAt": None,
             "status": "CREATED"
         }
@@ -106,7 +108,8 @@ def add():
         console.print(f"\n[dim]Next steps:[/dim]")
         console.print(f"  1. Run 'flair params create' to add model parameters")
         console.print(f"  2. Run 'flair zkp create' to generate zero-knowledge proof")
-        console.print(f"  3. Run 'flair push -m \"Your message\"' to push to repository")
+        console.print(f"  3. Run 'flair commit -m \"Your message\"' to finalize commit")
+        console.print(f"  4. Run 'flair push' to upload commit to repository")
         
     except Exception as e:
         console.print(f"[red]✗ Failed to create commit: {str(e)}[/red]")

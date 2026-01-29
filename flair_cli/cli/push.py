@@ -78,21 +78,39 @@ def _get_head_info() -> dict | None:
         return None
 
 
-def _get_params_file() -> Path | None:
-    """Find params file in the latest local commit directory."""
+def _get_params_file(commit_type: str = "CHECKPOINT") -> Path | None:
+    """Find params file in the latest local commit directory.
+    
+    Args:
+        commit_type: Either "CHECKPOINT" (full params) or "DELTA" (delta params)
+    
+    Returns:
+        Path to the appropriate params file, or None if not found
+    """
     result = _get_latest_local_commit()
     if not result:
         return None
     
     commit_data, commit_dir = result
-    params_info = commit_data.get("params")
     
-    if not params_info or not params_info.get("file"):
-        return None
-    
-    params_file = commit_dir / params_info["file"]
-    if params_file.exists():
-        return params_file
+    if commit_type == "DELTA":
+        # For DELTA commits, look for delta params
+        delta_params_info = commit_data.get("deltaParams")
+        if not delta_params_info or not delta_params_info.get("file"):
+            return None
+        
+        delta_file = commit_dir / delta_params_info["file"]
+        if delta_file.exists():
+            return delta_file
+    else:
+        # For CHECKPOINT commits, use full params
+        params_info = commit_data.get("params")
+        if not params_info or not params_info.get("file"):
+            return None
+        
+        params_file = commit_dir / params_info["file"]
+        if params_file.exists():
+            return params_file
     
     return None
 
@@ -139,8 +157,7 @@ def _compute_param_hash(file_path: Path) -> str:
 @app.command()
 def push(
     branch_name: str = typer.Argument(None, help="Branch name to push to"),
-    upstream: str = typer.Option(None, "-u", "--set-upstream", help="Set upstream (always 'origin')"),
-    message: str = typer.Option("Update model", "-m", "--message", help="Commit message")
+    upstream: str = typer.Option(None, "-u", "--set-upstream", help="Set upstream (always 'origin')")
 ):
     """Push a commit to remote repository.
     
@@ -148,9 +165,10 @@ def push(
     - Run 'flair add' to create a local commit
     - Run 'flair params create' to add model parameters
     - Run 'flair zkp create' to generate zero-knowledge proof
+    - Run 'flair commit -m "message"' to finalize the commit
     
     Examples:
-        flair push -u origin main -m "Initial commit"
+        flair push -u origin main
         flair push main
         flair push  # Push to current branch
     """
@@ -164,10 +182,22 @@ def push(
         local_commit_data, commit_dir = local_commit_result
         commit_hash = local_commit_data.get("commitHash")
         
+        # Check if commit is finalized
+        if local_commit_data.get("message") is None:
+            console.print("[red]✗ Commit not finalized.[/red]")
+            console.print("[yellow]Run 'flair commit -m \"your message\"' first.[/yellow]")
+            raise typer.Exit(code=1)
+        
+        message = local_commit_data.get("message")
+        commit_type = local_commit_data.get("commitType", "CHECKPOINT")
+        
         # Validate prerequisites
-        params_file = _get_params_file()
+        params_file = _get_params_file(commit_type)
         if not params_file:
-            console.print("[red]✗ No params file found. Run 'flair params create' first.[/red]")
+            if commit_type == "DELTA":
+                console.print("[red]✗ No delta params file found. Run 'flair params create' first.[/red]")
+            else:
+                console.print("[red]✗ No params file found. Run 'flair params create' first.[/red]")
             raise typer.Exit(code=1)
         
         zkp_files = _get_zkp_files()
@@ -360,7 +390,7 @@ def push(
                     "message": message,
                     "paramHash": param_hash,
                     "architecture": framework,
-                    "commitType": "CHECKPOINT",
+                    "commitType": commit_type,
                     "initiateToken": initiate_token,
                     "zkmlReceiptToken": zkml_receipt_token,
                     "paramsReceiptToken": params_receipt_token
