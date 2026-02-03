@@ -384,34 +384,53 @@ If a previous commit's full parameters were deleted during cleanup, they are aut
 
 ## Push Commits
 
-### Push a commit to remote repository
-Uploads the completed local commit to the remote repository using the CHECKPOINT or DELTA commit type. Delta parameters provide significant bandwidth savings (95%+ reduction for subsequent commits).
+### Push commits to remote repository
+Uploads all completed local commits serially to the remote repository. Supports batch pushing of multiple commits in chronological order. Each commit uses either CHECKPOINT or DELTA type based on position in history.
 
-**Prerequisites:**
+**New Batch Push Capability:**
+- Create multiple local commits before pushing
+- Push all completed commits at once in chronological order
+- Automatic synchronization with remote HEAD
+- Skips incomplete commits (stops at first incomplete)
+- Each commit goes through full 5-step validation
+
+**Prerequisites (for each commit):**
 - Must run `flair add` to create a commit
 - Must run `flair params create` to extract model parameters
 - Must run `flair zkp create` to generate zero-knowledge proof
 - Must run `flair commit -m "message"` to finalize commit, compute delta, and determine type
-- Current commit must be complete (params, ZKP, delta computation, and finalized message must exist)
+- Commit must be complete (params, ZKP, delta computation, and finalized message)
 
 **Upload behavior based on commit type:**
 - **CHECKPOINT** (genesis): Uploads full parameters from `.params/` folder (~100 MB for typical models)
 - **DELTA**: Uploads delta parameters from `.delta_params/` folder (difference from previous commit, ~2-8 MB typical)
 
 **Features:**
-- Automatically creates branch if it doesn't exist (e.g., first push creates 'main')
-- Validates ZKML proof uniqueness before upload
-- Uploads binary proof artifacts and parameters to IPFS
-- Updates local HEAD with new commit hash
+- **Serial pushing**: Pushes commits in creation time order (oldest first)
+- **Smart filtering**: Only pushes complete commits, skips incomplete ones
+- **Remote sync**: Fetches remote HEAD via `/latest` endpoint to avoid duplicates
+- **Auto-branching**: Creates branch if it doesn't exist (e.g., first push creates 'main')
+- **ZKML validation**: Validates ZKML proof uniqueness before upload
+- **IPFS upload**: Uploads binary proof artifacts and parameters to IPFS
+- **HEAD update**: Updates local HEAD with latest pushed commit hash
+- **Progress tracking**: Shows X/Y commits pushed with detailed per-commit logs
 
 ```bash
-# First push - creates CHECKPOINT commit (genesis)
+# First push - single CHECKPOINT commit (genesis)
 flair push -u origin main
 ## 
 ## Pushing to branch: main
+## Found 1 local commit(s)
 ## Branch 'main' not found. Creating...
 ## ✓ Branch 'main' created
-## Parent commit: Genesis
+## Remote HEAD: Genesis (no commits yet)
+## Pushing 1 commit(s) serially...
+## 
+## ═══ Commit 1/1 ═══
+## Hash: a1b2c3d4...
+## Type: CHECKPOINT
+## Message: Initial model commit
+## Parent: Genesis...
 ## 
 ## Step 1/5: Initiating commit session...
 ## ✓ Session initiated
@@ -420,19 +439,34 @@ flair push -u origin main
 ## Step 3/5: Uploading ZKML proofs...
 ## ✓ ZKML proofs uploaded
 ## Step 4/5: Uploading parameters...
-## ✓ Parameters uploaded (hash: a1b2c3d4e5f6g7h8)  [CHECKPOINT: full params]
+## ✓ Parameters uploaded (hash: 1a2b3c4d...)
 ## Step 5/5: Finalizing commit...
-## 
-## ✓ Commit created successfully!
-##   Commit hash: 9f8e7d6c5b4a...
-##   Branch: main
-##   Message: Initial commit
+## ✓ Commit 1 created successfully!
+##   Hash: a1b2c3d4...
 ##   Type: CHECKPOINT
+## 
+## ═══════════════════════════════════
+## ✓ Push complete!
+##   Branch: main
+##   Commits pushed: 1/1
+##   Latest commit: a1b2c3d4...
+## ═══════════════════════════════════
+## 
+## ✓ HEAD updated
 
-# Subsequent push - creates DELTA commit
+# Batch push - multiple DELTA commits at once
 flair push main
 ## Pushing to branch: main
-## Parent commit: 9f8e7d6c5b4a
+## Found 4 local commit(s)
+## Remote HEAD: a1b2c3d4...
+## Skipping incomplete commit: z9y8x7w6...  # Being worked on
+## Pushing 3 commit(s) serially...
+## 
+## ═══ Commit 1/3 ═══
+## Hash: b2c3d4e5...
+## Type: DELTA
+## Message: Updated with training data v2
+## Parent: a1b2c3d4...
 ## 
 ## Step 1/5: Initiating commit session...
 ## ✓ Session initiated
@@ -441,34 +475,67 @@ flair push main
 ## Step 3/5: Uploading ZKML proofs...
 ## ✓ ZKML proofs uploaded
 ## Step 4/5: Uploading parameters...
-## ✓ Parameters uploaded (hash: b2c3d4e5f6g7h8i9)  [DELTA: delta params only]
+## ✓ Parameters uploaded (hash: 2b3c4d5e...)
 ## Step 5/5: Finalizing commit...
-## 
-## ✓ Commit created successfully!
-##   Commit hash: a1b2c3d4e5f6g7h8...
-##   Branch: main
-##   Message: Updated with training data
+## ✓ Commit 1 created successfully!
+##   Hash: b2c3d4e5...
 ##   Type: DELTA
+## 
+## ═══ Commit 2/3 ═══
+## Hash: c3d4e5f6...
+## Type: DELTA
+## Message: Improved accuracy to 95%
+## Parent: b2c3d4e5...
+## [... 5 steps ...]
+## ✓ Commit 2 created successfully!
+##   Hash: c3d4e5f6...
+##   Type: DELTA
+## 
+## ═══ Commit 3/3 ═══
+## Hash: d4e5f6g7...
+## Type: DELTA
+## Message: Fine-tuned hyperparameters
+## Parent: c3d4e5f6...
+## [... 5 steps ...]
+## ✓ Commit 3 created successfully!
+##   Hash: d4e5f6g7...
+##   Type: DELTA
+## 
+## ═══════════════════════════════════
+## ✓ Push complete!
+##   Branch: main
+##   Commits pushed: 3/3
+##   Latest commit: d4e5f6g7...
+## ═══════════════════════════════════
+## 
+## ✓ HEAD updated
 
 # Push to current branch (from HEAD)
 flair push
-## ...
-## ✓ Commit created successfully!
+## ✓ All commits already pushed. Branch is up to date.
 ```
 
-**Workflow:**
-1. Validates prerequisites (params and ZKP files exist)
-2. Initiates commit session with parent commit hash from HEAD
-3. Checks ZKML proof CID uniqueness
-4. Uploads ZKML binary files (proof.zlib, verification_key.zlib, settings.zlib)
-5. Uploads parameters binary file with SHA256 hash
-6. Finalizes commit with message, paramHash, and architecture
-7. Updates `.flair/HEAD` with new commit hash and branch info
+**Push Workflow:**
+1. Fetches all local commits sorted by creation time (oldest first)
+2. Gets remote HEAD commit from `/latest` endpoint
+3. Filters only complete commits (params + ZKP + finalized message)
+4. Stops at first incomplete commit (skip the one being worked on)
+5. Compares local commits with remote HEAD to find divergence point
+6. For each commit to push (serially):
+   - Step 1: Initiates commit session with parent commit hash
+   - Step 2: Checks ZKML proof CID uniqueness
+   - Step 3: Uploads ZKML binary files (proof.zlib, verification_key.zlib, settings.zlib)
+   - Step 4: Uploads parameters binary file with SHA256 hash
+   - Step 5: Finalizes commit with message, paramHash, and architecture
+   - Updates parent hash for next commit in chain
+7. Updates `.flair/HEAD` with latest pushed commit hash and branch info
+8. Displays summary: commits pushed (X/Y) and final HEAD
 
 **Error handling:**
-- Fails if params or ZKP files are missing
-- Validates ZKML proof uniqueness (prevents duplicate proofs)
-- Rollback on upload or finalization errors
+- Skips commits with missing params or ZKP files (continues to next)
+- Validates ZKML proof uniqueness for each commit (prevents duplicate proofs)
+- Continues pushing remaining commits if one fails
+- Shows clear error messages for failed commits (✗ Commit X: reason)
 
 ## Directory structure (CLI)
 
@@ -521,26 +588,54 @@ flair zkp create --input-dims "[1, 3, 224, 224]"
 ## ✓ All EZKL steps completed successfully!
 ## ✓ ZKP created successfully!
 
-# 5. Push commit to remote
-flair push -u origin main -m "Initial model commit"
+# 5. Finalize and push first commit
+flair commit -m "Initial model commit"
+flair push -u origin main
 ## ✓ Branch 'main' created
-## ✓ Commit created successfully!
+## ✓ Push complete! Commits pushed: 1/1
 
-# 6. Make changes and push again
-# ... modify model ...
-flair add                    # Create new commit
-flair params create          # Extract new params
-flair zkp create             # Generate new proof
-flair push main -m "Improved accuracy to 95%"
-## ✓ Commit created successfully!
+# 6. Create multiple commits locally (batch workflow)
+# ... modify model (round 1) ...
+flair add
+flair params create
+flair zkp create
+flair commit -m "Improved accuracy to 95%"
 
-# 7. Switch branches
+# ... modify model (round 2) ...
+flair add
+flair params create
+flair zkp create
+flair commit -m "Fine-tuned hyperparameters"
+
+# ... modify model (round 3) ...
+flair add
+flair params create
+flair zkp create
+flair commit -m "Added data augmentation"
+
+# 7. Push all commits at once (batch push)
+flair push main
+## Pushing 3 commit(s) serially...
+## ✓ Push complete! Commits pushed: 3/3
+
+# 8. Continue working on next commit (not pushed yet)
+flair add
+flair params create
+# ... still working, not finalized yet ...
+
+# 9. Push again - skips incomplete commit
+flair push main
+## Skipping incomplete commit: abc123...
+## ✓ All commits already pushed. Branch is up to date.
+
+# 10. Switch branches
 flair branch experimental
 flair checkout experimental
 flair add
 flair params create
 flair zkp create
-flair push -m "Experimental architecture"
+flair commit -m "Experimental architecture"
+flair push
 ```
 
 ## Validation Rules

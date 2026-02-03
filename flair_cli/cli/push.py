@@ -51,6 +51,84 @@ def _get_latest_local_commit() -> tuple[dict, Path] | None:
     return None
 
 
+def _get_all_local_commits() -> list[tuple[dict, Path]]:
+    """Get all local commits sorted by creation time (oldest first)."""
+    flair_dir = _get_flair_dir()
+    local_commits_dir = flair_dir / ".local_commits"
+    
+    if not local_commits_dir.exists():
+        return []
+    
+    # Get all commit directories sorted by creation time (oldest first)
+    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime)
+    
+    commits = []
+    for commit_dir in commit_dirs:
+        commit_file = commit_dir / "commit.json"
+        if commit_file.exists():
+            try:
+                with open(commit_file, 'r') as f:
+                    commit_data = json.load(f)
+                commits.append((commit_data, commit_dir))
+            except Exception:
+                continue
+    
+    return commits
+
+
+def _is_commit_complete(commit_data: dict, commit_dir: Path) -> bool:
+    """Check if a commit is complete (has params, ZKP, and finalized message)."""
+    # Check if message exists (finalized with flair commit -m)
+    if not commit_data.get("message"):
+        return False
+    
+    # Check if commitType exists (set during finalization)
+    if not commit_data.get("commitType"):
+        return False
+    
+    # Check if params exist
+    params_info = commit_data.get("params")
+    if not params_info or not params_info.get("file"):
+        return False
+    
+    params_file = commit_dir / params_info["file"]
+    if not params_file.exists():
+        return False
+    
+    # Check if ZKP files exist
+    zkp_info = commit_data.get("zkp")
+    if not zkp_info:
+        return False
+    
+    proof_file = commit_dir / zkp_info.get("proof_file", "proof.zlib")
+    vk_file = commit_dir / zkp_info.get("verification_key_file", "verification_key.zlib")
+    settings_file = commit_dir / zkp_info.get("settings_file", "settings.zlib")
+    
+    if not all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
+        return False
+    
+    return True
+
+
+def _get_remote_latest_commit(repo_hash: str, branch_hash: str) -> str | None:
+    """Get the latest commit hash from remote branch."""
+    try:
+        with _client_with_auth() as client:
+            response = client.get(
+                f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/latest"
+            )
+            response.raise_for_status()
+            data = response.json().get("data", {})
+            return data.get("commitHash")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            # Branch exists but has no commits yet
+            return None
+        raise
+    except Exception:
+        return None
+
+
 def _load_repo_config() -> dict:
     """Load repository configuration from .flair/repo_config.json"""
     flair_dir = _get_flair_dir()
@@ -159,9 +237,12 @@ def push(
     branch_name: str = typer.Argument(None, help="Branch name to push to"),
     upstream: str = typer.Option(None, "-u", "--set-upstream", help="Set upstream (always 'origin')")
 ):
-    """Push a commit to remote repository.
+    """Push commits to remote repository.
     
-    Prerequisites:
+    Pushes all completed local commits serially to the remote branch.
+    Skips incomplete commits (missing params, ZKP, or not finalized).
+    
+    Prerequisites (for each commit):
     - Run 'flair add' to create a local commit
     - Run 'flair params create' to add model parameters
     - Run 'flair zkp create' to generate zero-knowledge proof
@@ -173,37 +254,11 @@ def push(
         flair push  # Push to current branch
     """
     try:
-        # Get the latest local commit
-        local_commit_result = _get_latest_local_commit()
-        if not local_commit_result:
-            console.print("[red]✗ No local commits found. Run 'flair add' first.[/red]")
-            raise typer.Exit(code=1)
-        
-        local_commit_data, commit_dir = local_commit_result
-        commit_hash = local_commit_data.get("commitHash")
-        
-        # Check if commit is finalized
-        if local_commit_data.get("message") is None:
-            console.print("[red]✗ Commit not finalized.[/red]")
-            console.print("[yellow]Run 'flair commit -m \"your message\"' first.[/yellow]")
-            raise typer.Exit(code=1)
-        
-        message = local_commit_data.get("message")
-        commit_type = local_commit_data.get("commitType", "CHECKPOINT")
-        
-        # Validate prerequisites
-        params_file = _get_params_file(commit_type)
-        if not params_file:
-            if commit_type == "DELTA":
-                console.print("[red]✗ No delta params file found. Run 'flair params create' first.[/red]")
-            else:
-                console.print("[red]✗ No params file found. Run 'flair params create' first.[/red]")
-            raise typer.Exit(code=1)
-        
-        zkp_files = _get_zkp_files()
-        if not zkp_files:
-            console.print("[red]✗ No ZKP proof found. Run 'flair zkp create' first.[/red]")
-            raise typer.Exit(code=1)
+        # Get all local commits sorted by creation time
+        all_local_commits = _get_all_local_commits()
+        if not all_local_commits:
+            console.print("[red]No local commits found. Run 'flair add' first.[/red]")
+            raise typer.Exit(1)
         
         # Load repo config
         repo_config = _load_repo_config()
@@ -211,7 +266,7 @@ def push(
         
         if not repo_hash:
             console.print("[red]Repository hash not found in config.[/red]")
-            raise typer.Exit(code=1)
+            raise typer.Exit(1)
         
         # Get HEAD info
         head_info = _get_head_info()
@@ -262,168 +317,261 @@ def push(
             console.print("[red]Invalid branch data received[/red]")
             raise typer.Exit(code=1)
         
-        # Determine parent commit hash
-        parent_commit_hash = "_GENESIS_COMMIT_"
-        if head_info and head_info.get("previousCommit"):
-            parent_commit_hash = head_info["previousCommit"]
+        # Get remote latest commit
+        remote_head_hash = _get_remote_latest_commit(repo_hash, branch_hash)
         
-        console.print(f"[dim]Parent commit: {parent_commit_hash[:16] if parent_commit_hash != '_GENESIS_COMMIT_' else 'Genesis'}[/dim]")
+        if remote_head_hash:
+            console.print(f"[dim]Remote HEAD: {remote_head_hash[:16]}...[/dim]")
+        else:
+            console.print(f"[dim]Remote HEAD: Genesis (no commits yet)[/dim]")
         
-        # Step 1: Initiate commit session
-        console.print("\n[cyan]Step 1/5: Initiating commit session...[/cyan]")
-        with _client_with_auth() as client:
-            base_url = _base_url()
-            init_resp = client.post(
-                f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/initiate",
-                json={"parentCommitHash": parent_commit_hash}
-            )
-            init_resp.raise_for_status()
-            init_data = init_resp.json()
+        # Filter commits to push: only complete commits
+        commits_to_push = []
+        for commit_data, commit_dir in all_local_commits:
+            if _is_commit_complete(commit_data, commit_dir):
+                commits_to_push.append((commit_data, commit_dir))
+            else:
+                # Stop at first incomplete commit (being worked on)
+                console.print(f"[dim]Skipping incomplete commit: {commit_data.get('commitHash', 'unknown')[:16]}...[/dim]")
+                break
         
-        session_id = init_data.get("sessionId")
-        initiate_token = init_data.get("initiateToken")
+        if not commits_to_push:
+            console.print("[yellow]No complete commits to push.[/yellow]")
+            console.print("[dim]Ensure commits have params, ZKP, and are finalized with 'flair commit -m'.[/dim]")
+            raise typer.Exit(0)
         
-        if not session_id or not initiate_token:
-            console.print("[red]Failed to initiate commit session[/red]")
-            raise typer.Exit(code=1)
+        # Find where to start pushing (after remote head)
+        start_index = 0
+        if remote_head_hash:
+            for i, (commit_data, _) in enumerate(commits_to_push):
+                if commit_data.get("commitHash") == remote_head_hash:
+                    start_index = i + 1
+                    break
         
-        console.print(f"[green]✓ Session initiated[/green]")
+        commits_to_push = commits_to_push[start_index:]
         
-        # Step 2: Check ZKML proof uniqueness
-        console.print("[cyan]Step 2/5: Checking ZKML proof uniqueness...[/cyan]")
-        with _client_with_auth() as client:
-            zkml_check_resp = client.post(
-                f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/zkml-check",
-                json={
+        if not commits_to_push:
+            console.print("[green]✓ All commits already pushed. Branch is up to date.[/green]")
+            raise typer.Exit(0)
+        
+        console.print(f"[cyan]Pushing {len(commits_to_push)} commit(s) serially...[/cyan]\n")
+        
+        # Determine initial parent commit hash
+        parent_commit_hash = remote_head_hash if remote_head_hash else "_GENESIS_COMMIT_"
+        
+        # Push each commit serially
+        framework = repo_config.get("framework", "unknown")
+        pushed_count = 0
+        
+        for idx, (commit_data, commit_dir) in enumerate(commits_to_push, 1):
+            commit_hash = commit_data.get("commitHash")
+            message = commit_data.get("message")
+            commit_type = commit_data.get("commitType", "CHECKPOINT")
+            
+            console.print(f"[bold cyan]═══ Commit {idx}/{len(commits_to_push)} ═══[/bold cyan]")
+            console.print(f"[dim]Hash: {commit_hash[:16]}...[/dim]")
+            console.print(f"[dim]Type: {commit_type}[/dim]")
+            console.print(f"[dim]Message: {message}[/dim]")
+            console.print(f"[dim]Parent: {parent_commit_hash[:16] if parent_commit_hash != '_GENESIS_COMMIT_' else 'Genesis'}...[/dim]\n")
+            
+            # Get params file for this commit
+            params_info = commit_data.get("params")
+            if commit_type == "DELTA":
+                delta_params_info = commit_data.get("deltaParams")
+                if not delta_params_info or not delta_params_info.get("file"):
+                    console.print(f"[red]✗ Commit {idx}: Delta parameters missing[/red]")
+                    continue
+                params_file = commit_dir / delta_params_info["file"]
+            else:
+                if not params_info or not params_info.get("file"):
+                    console.print(f"[red]✗ Commit {idx}: Parameters missing[/red]")
+                    continue
+                params_file = commit_dir / params_info["file"]
+            
+            if not params_file.exists():
+                console.print(f"[red]✗ Commit {idx}: Parameters file not found[/red]")
+                continue
+            
+            # Get ZKP files for this commit
+            zkp_info = commit_data.get("zkp")
+            if not zkp_info:
+                console.print(f"[red]✗ Commit {idx}: ZKP info missing[/red]")
+                continue
+            
+            proof_file = commit_dir / zkp_info.get("proof_file", "proof.zlib")
+            vk_file = commit_dir / zkp_info.get("verification_key_file", "verification_key.zlib")
+            settings_file = commit_dir / zkp_info.get("settings_file", "settings.zlib")
+            
+            if not all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
+                console.print(f"[red]✗ Commit {idx}: ZKP files missing[/red]")
+                continue
+            
+            zkp_files = {
+                "proof_file": proof_file,
+                "vk_file": vk_file,
+                "settings_file": settings_file,
+                "proof_cid": zkp_info.get("proof_cid"),
+                "vk_cid": zkp_info.get("verification_key_cid"),
+                "settings_cid": zkp_info.get("settings_cid"),
+                "base_commit_hash": zkp_info.get("base_commit_hash")
+            }
+            
+            # Step 1: Initiate commit session
+            console.print("[cyan]Step 1/5: Initiating commit session...[/cyan]")
+            with _client_with_auth() as client:
+                response = client.post(
+                    f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/create/initiate",
+                    json={"parentCommitHash": parent_commit_hash}
+                )
+                response.raise_for_status()
+                init_data = response.json()
+            
+            session_id = init_data.get("sessionId")
+            initiate_token = init_data.get("initiateToken")
+            
+            if not session_id or not initiate_token:
+                console.print(f"[red]✗ Commit {idx}: Failed to initiate session[/red]")
+                continue
+            
+            console.print(f"[green]✓ Session initiated[/green]")
+            
+            # Step 2: Check ZKML proof uniqueness
+            console.print("[cyan]Step 2/5: Checking ZKML proof uniqueness...[/cyan]")
+            with _client_with_auth() as client:
+                response = client.post(
+                    f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/create/zkml-check",
+                    json={
+                        "sessionId": session_id,
+                        "initiateToken": initiate_token,
+                        "proofCid": zkp_files["proof_cid"],
+                        "settingsCid": zkp_files["settings_cid"],
+                        "vkCid": zkp_files["vk_cid"]
+                    }
+                )
+                response.raise_for_status()
+                zkml_check_data = response.json()
+            
+            zkml_token = zkml_check_data.get("zkmlToken")
+            if not zkml_token:
+                console.print(f"[red]✗ Commit {idx}: Failed to verify ZKML proof uniqueness[/red]")
+                continue
+            
+            console.print(f"[green]✓ ZKML proof verified as unique[/green]")
+            
+            # Step 3: Upload ZKML proofs
+            console.print("[cyan]Step 3/5: Uploading ZKML proofs...[/cyan]")
+            with _client_with_auth() as client:
+                files = {
+                    "proof": ("proof.zlib", open(zkp_files["proof_file"], "rb"), "application/octet-stream"),
+                    "settings": ("settings.zlib", open(zkp_files["settings_file"], "rb"), "application/octet-stream"),
+                    "verification_key": ("verification_key.zlib", open(zkp_files["vk_file"], "rb"), "application/octet-stream")
+                }
+                data = {
                     "sessionId": session_id,
                     "initiateToken": initiate_token,
-                    "proofCid": zkp_files["proof_cid"],
-                    "settingsCid": zkp_files["settings_cid"],
-                    "vkCid": zkp_files["vk_cid"]
-                }
-            )
-            zkml_check_resp.raise_for_status()
-            zkml_check_data = zkml_check_resp.json()
-        
-        zkml_token = zkml_check_data.get("zkmlToken")
-        if not zkml_token:
-            console.print("[red]Failed to verify ZKML uniqueness[/red]")
-            raise typer.Exit(code=1)
-        
-        console.print(f"[green]✓ ZKML proof verified as unique[/green]")
-        
-        # Step 3: Upload ZKML proofs
-        console.print("[cyan]Step 3/5: Uploading ZKML proofs...[/cyan]")
-        with _client_with_auth() as client:
-            with open(zkp_files["proof_file"], 'rb') as pf, \
-                 open(zkp_files["vk_file"], 'rb') as vkf, \
-                 open(zkp_files["settings_file"], 'rb') as sf:
-                
-                files = {
-                    'proof': ('proof.zlib', pf, 'application/octet-stream'),
-                    'verification_key': ('verification_key.zlib', vkf, 'application/octet-stream'),
-                    'settings': ('settings.zlib', sf, 'application/octet-stream')
+                    "zkmlToken": zkml_token
                 }
                 
-                data = {
-                    'sessionId': session_id,
-                    'initiateToken': initiate_token,
-                    'zkmlToken': zkml_token
-                }
-                
-                zkml_upload_resp = client.post(
-                    f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/zkml-upload",
+                response = client.post(
+                    f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/create/zkml-upload",
                     files=files,
                     data=data
                 )
-                zkml_upload_resp.raise_for_status()
-                zkml_upload_data = zkml_upload_resp.json()
-        
-        zkml_receipt_token = zkml_upload_data.get("zkmlReceiptToken")
-        if not zkml_receipt_token:
-            console.print("[red]Failed to upload ZKML proofs[/red]")
-            raise typer.Exit(code=1)
-        
-        console.print(f"[green]✓ ZKML proofs uploaded[/green]")
-        
-        # Step 4: Upload parameters
-        console.print("[cyan]Step 4/5: Uploading parameters...[/cyan]")
-        param_hash = _compute_param_hash(params_file)
-        
-        with _client_with_auth() as client:
-            with open(params_file, 'rb') as pf:
+                response.raise_for_status()
+                zkml_upload_data = response.json()
+            
+            zkml_receipt_token = zkml_upload_data.get("zkmlReceiptToken")
+            if not zkml_receipt_token:
+                console.print(f"[red]✗ Commit {idx}: Failed to upload ZKML proofs[/red]")
+                continue
+            
+            console.print(f"[green]✓ ZKML proofs uploaded[/green]")
+            
+            # Step 4: Upload parameters
+            console.print("[cyan]Step 4/5: Uploading parameters...[/cyan]")
+            param_hash = _compute_param_hash(params_file)
+            
+            with _client_with_auth() as client:
                 files = {
-                    'params': (params_file.name, pf, 'application/octet-stream')
+                    "params": (params_file.name, open(params_file, "rb"), "application/octet-stream")
                 }
-                
                 data = {
-                    'sessionId': session_id,
-                    'initiateToken': initiate_token,
-                    'zkmlReceiptToken': zkml_receipt_token
-                }
-                
-                params_upload_resp = client.post(
-                    f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/params-upload",
-                    files=files,
-                    data=data
-                )
-                params_upload_resp.raise_for_status()
-                params_upload_data = params_upload_resp.json()
-        
-        params_receipt_token = params_upload_data.get("paramsReceiptToken")
-        if not params_receipt_token:
-            console.print("[red]Failed to upload parameters[/red]")
-            raise typer.Exit(code=1)
-        
-        console.print(f"[green]✓ Parameters uploaded (hash: {param_hash[:16]})[/green]")
-        
-        # Step 5: Finalize commit
-        console.print("[cyan]Step 5/5: Finalizing commit...[/cyan]")
-        
-        framework = repo_config.get("framework", "unknown")
-        
-        with _client_with_auth() as client:
-            finalize_resp = client.post(
-                f"{base_url}/repos/{repo_hash}/branches/{branch_hash}/commits/create/finalize",
-                json={
-                    "commitHash": commit_hash,
-                    "message": message,
-                    "paramHash": param_hash,
-                    "architecture": framework,
-                    "commitType": commit_type,
+                    "sessionId": session_id,
                     "initiateToken": initiate_token,
                     "zkmlReceiptToken": zkml_receipt_token,
-                    "paramsReceiptToken": params_receipt_token
+                    "paramHash": param_hash
                 }
-            )
-            finalize_resp.raise_for_status()
-            finalize_data = finalize_resp.json()
+                
+                response = client.post(
+                    f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/create/params-upload",
+                    files=files,
+                    data=data
+                )
+                response.raise_for_status()
+                params_upload_data = response.json()
+            
+            params_receipt_token = params_upload_data.get("paramsReceiptToken")
+            if not params_receipt_token:
+                console.print(f"[red]✗ Commit {idx}: Failed to upload parameters[/red]")
+                continue
+            
+            console.print(f"[green]✓ Parameters uploaded (hash: {param_hash[:16]}...)[/green]")
+            
+            # Step 5: Finalize commit
+            console.print("[cyan]Step 5/5: Finalizing commit...[/cyan]")
+            
+            with _client_with_auth() as client:
+                response = client.post(
+                    f"{_base_url()}/api/repo/hash/{repo_hash}/branch/hash/{branch_hash}/commit/create/finalize",
+                    json={
+                        "sessionId": session_id,
+                        "initiateToken": initiate_token,
+                        "zkmlReceiptToken": zkml_receipt_token,
+                        "paramsReceiptToken": params_receipt_token,
+                        "message": message,
+                        "architecture": framework
+                    }
+                )
+                response.raise_for_status()
+                finalize_data = response.json()
+            
+            returned_commit_hash = finalize_data.get("commitHash")
+            if not returned_commit_hash:
+                console.print(f"[red]✗ Commit {idx}: Finalization failed[/red]")
+                continue
+            
+            console.print(f"[bold green]✓ Commit {idx} created successfully![/bold green]")
+            console.print(f"  [dim]Hash: {returned_commit_hash[:16]}...[/dim]")
+            console.print(f"  [dim]Type: {commit_type}[/dim]\n")
+            
+            # Update parent for next commit
+            parent_commit_hash = returned_commit_hash
+            pushed_count += 1
         
-        returned_commit_hash = finalize_data.get("commitHash")
-        if not returned_commit_hash:
-            console.print("[red]Failed to finalize commit[/red]")
-            raise typer.Exit(code=1)
+        # Summary
+        console.print(f"[bold green]═══════════════════════════════════[/bold green]")
+        console.print(f"[bold green]✓ Push complete![/bold green]")
+        console.print(f"  [dim]Branch: {target_branch_name}[/dim]")
+        console.print(f"  [dim]Commits pushed: {pushed_count}/{len(commits_to_push)}[/dim]")
+        console.print(f"  [dim]Latest commit: {parent_commit_hash[:16]}...[/dim]")
+        console.print(f"[bold green]═══════════════════════════════════[/bold green]")
         
-        if returned_commit_hash != commit_hash:
-            console.print("[yellow]Warning: Returned commit hash doesn't match sent commit hash[/yellow]")
-        
-        console.print(f"\n[green]✓ Commit created successfully![/green]")
-        console.print(f"  Commit hash: {commit_hash[:16]}...")
-        console.print(f"  Branch: {target_branch_name}")
-        console.print(f"  Message: {message}")
-        
-        # Update HEAD
-        flair_dir = _get_flair_dir()
-        head_file = flair_dir / "HEAD"
-        head_data = {
-            "currentBranch": target_branch_name,
-            "branchHash": branch_hash,
-            "previousCommit": commit_hash
-        }
-        with open(head_file, "w") as f:
-            json.dump(head_data, f, indent=2)
-        
-        console.print(f"\n[dim]Run 'flair status' to see your commit[/dim]")
+        # Update .flair/HEAD with new commit hash
+        if pushed_count > 0:
+            flair_dir = _get_flair_dir()
+            head_file = flair_dir / "HEAD"
+            
+            head_data = {
+                "currentBranch": target_branch_name,
+                "branchHash": branch_hash,
+                "latestCommitHash": parent_commit_hash,
+                "previousCommit": parent_commit_hash
+            }
+            
+            with open(head_file, 'w') as f:
+                json.dump(head_data, f, indent=2)
+            
+            console.print(f"\n[green]✓ HEAD updated[/green]")
         
     except httpx.HTTPStatusError as e:
         error_detail = e.response.json() if e.response.content else {}
