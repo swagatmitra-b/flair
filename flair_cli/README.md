@@ -228,78 +228,6 @@ This strategy provides significant storage savings (95%+ for large commit histor
 
 **Note:** You cannot overwrite existing params. To create new params, run `flair add` to create a new commit first.
 
-### Finalize commit with message
-Finalizes the commit by setting the message, determining commit type (CHECKPOINT for genesis, DELTA for subsequent), computing parameter deltas, and cleaning up old storage.
-
-**Prerequisites:**
-- Must run `flair add` to create a commit
-- Must run `flair params create` to extract parameters
-- Must run `flair zkp create` to generate zero-knowledge proof
-
-**Commit Types:**
-- **CHECKPOINT**: First commit in repository. Stores full parameters.
-- **DELTA**: Subsequent commits. Computes and stores only parameter differences from previous commit.
-
-```bash
-flair commit -m "Initial model commit"
-## ✓ Computing delta from previous commit...
-## Previous commit: Genesis (CHECKPOINT)
-## 
-## ✓ Commit finalized
-##   Commit hash: a1b2c3d4f5g6h7i8...
-##   Commit type: CHECKPOINT
-##   Message: Initial model commit
-##   Parameters: Full params retained (100 MB)
-## 
-## Next step:
-##   Run 'flair push' to upload commit to repository
-
-flair commit -m "Updated with training data v2"
-## ✓ Computing delta from previous commit...
-## Previous commit: a1b2c3d4f5g6h7i8...
-## ✓ PyTorch delta computed (2.34 MB)
-## 
-## ✓ Commit finalized
-##   Commit hash: b2c3d4e5f6g7h8i9...
-##   Commit type: DELTA
-##   Message: Updated with training data v2
-##   Parameters: Delta stored (2.34 MB), full params retained for next delta
-##   Storage cleanup: Removed full params from 1 old commit
-## 
-## Next step:
-##   Run 'flair push' to upload commit to repository
-```
-
-**How it works:**
-1. Checks if this is the first commit in the repository (genesis)
-2. Sets `commitType` to `CHECKPOINT` for genesis, `DELTA` for subsequent commits
-3. For DELTA commits:
-   - Loads current and previous parameters
-   - Computes delta: `delta = current - previous`
-   - Stores delta in `.delta_params/` folder
-   - Cleans up full parameters from old DELTA commits (keeps latest 2 + all CHECKPOINT)
-4. Stores message and commitType in commit.json
-5. The push command uses this type to determine which file to upload:
-   - CHECKPOINT: uploads full params from `.params/` folder
-   - DELTA: uploads delta params from `.delta_params/` folder
-
-**Parameter Reconstruction (Automatic Fallback):**
-If a previous commit's full parameters were deleted during cleanup, they are automatically reconstructed:
-- Traverses backward through commit history to find the CHECKPOINT
-- Loads the CHECKPOINT full parameters
-- Applies deltas serially forward to reconstruct the target commit
-- Returns reconstructed parameters for delta computation
-- Reconstruction is transparent and maintains data integrity
-
-**Storage Optimization Summary:**
-- Genesis CHECKPOINT commit keeps full params
-- Latest 2 commits always keep full params (for reliable delta computation)
-- Older DELTA commits store only deltas (95% smaller)
-- Total savings: 95%+ for large commit histories
-- Safety: Automatic reconstruction ensures no data loss
-
-**Note:** You cannot finalize a commit twice. To create a new commit, run `flair add` first.
-
 ## Zero-Knowledge Proofs (ZKP)
 
 ### Create a ZKP for your model
@@ -381,6 +309,78 @@ flair zkp status
 ```bash
 pip install ezkl
 ```
+
+### Finalize commit with message
+Finalizes the commit by setting the message, determining commit type (CHECKPOINT for genesis, DELTA for subsequent), computing parameter deltas, and cleaning up old storage.
+
+**Prerequisites:**
+- Must run `flair add` to create a commit
+- Must run `flair params create` to extract parameters
+- Must run `flair zkp create` to generate zero-knowledge proof
+
+**Commit Types:**
+- **CHECKPOINT**: First commit in repository. Stores full parameters.
+- **DELTA**: Subsequent commits. Computes and stores only parameter differences from previous commit.
+
+```bash
+flair commit -m "Initial model commit"
+## ✓ Computing delta from previous commit...
+## Previous commit: Genesis (CHECKPOINT)
+## 
+## ✓ Commit finalized
+##   Commit hash: a1b2c3d4f5g6h7i8...
+##   Commit type: CHECKPOINT
+##   Message: Initial model commit
+##   Parameters: Full params retained (100 MB)
+## 
+## Next step:
+##   Run 'flair push' to upload commit to repository
+
+flair commit -m "Updated with training data v2"
+## ✓ Computing delta from previous commit...
+## Previous commit: a1b2c3d4f5g6h7i8...
+## ✓ PyTorch delta computed (2.34 MB)
+## 
+## ✓ Commit finalized
+##   Commit hash: b2c3d4e5f6g7h8i9...
+##   Commit type: DELTA
+##   Message: Updated with training data v2
+##   Parameters: Delta stored (2.34 MB), full params retained for next delta
+##   Storage cleanup: Removed full params from 1 old commit
+## 
+## Next step:
+##   Run 'flair push' to upload commit to repository
+```
+
+**How it works:**
+1. Checks if this is the first commit in the repository (genesis)
+2. Sets `commitType` to `CHECKPOINT` for genesis, `DELTA` for subsequent commits
+3. For DELTA commits:
+   - Loads current and previous parameters
+   - Computes delta: `delta = current - previous`
+   - Stores delta in `.delta_params/` folder
+   - Cleans up full parameters from old DELTA commits (keeps latest 2 + all CHECKPOINT)
+4. Stores message and commitType in commit.json
+5. The push command uses this type to determine which file to upload:
+   - CHECKPOINT: uploads full params from `.params/` folder
+   - DELTA: uploads delta params from `.delta_params/` folder
+
+**Parameter Reconstruction (Automatic Fallback):**
+If a previous commit's full parameters were deleted during cleanup, they are automatically reconstructed:
+- Traverses backward through commit history to find the CHECKPOINT
+- Loads the CHECKPOINT full parameters
+- Applies deltas serially forward to reconstruct the target commit
+- Returns reconstructed parameters for delta computation
+- Reconstruction is transparent and maintains data integrity
+
+**Storage Optimization Summary:**
+- Genesis CHECKPOINT commit keeps full params
+- Latest 2 commits always keep full params (for reliable delta computation)
+- Older DELTA commits store only deltas (95% smaller)
+- Total savings: 95%+ for large commit histories
+- Safety: Automatic reconstruction ensures no data loss
+
+**Note:** You cannot finalize a commit twice. To create a new commit, run `flair add` first.
 
 ## Push Commits
 
