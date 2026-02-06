@@ -69,17 +69,11 @@ def init(
         with open(repo_file, "w") as f:
             json.dump(resp, f, indent=2)
 
-        repo_config_file = flair_dir / "repo_config.json"
-        repo_config = {
-            "name": name,
-            "description": description,
-            "useCase": use_case,
-            "framework": framework,
-            "repoHash": resp.get("repoHash"),
-            "commitRetentionLimit": 25
-        }
-        with open(repo_config_file, "w") as f:
-            json.dump(repo_config, f, indent=2)
+        settings_file = Path.cwd() / "config.yaml"
+        if not settings_file.exists():
+            settings_content = "commitRetentionLimit: 25\n"
+            with open(settings_file, "w") as f:
+                f.write(settings_content)
 
         console.print("✓ Repository initialized successfully!", style="green")
         console.print(f"  Name: {resp.get('name')}")

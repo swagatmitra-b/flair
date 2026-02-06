@@ -163,15 +163,46 @@ def _garbage_collect_local_commits(retention_limit: int) -> int:
 
 
 def _load_repo_config() -> dict:
-    """Load repository configuration from .flair/repo_config.json"""
+    """Load repository info from .flair/repo.json"""
     flair_dir = _get_flair_dir()
-    config_file = flair_dir / "repo_config.json"
+    config_file = flair_dir / "repo.json"
     
     if not config_file.exists():
-        raise typer.BadParameter("Repository configuration not found. Run 'flair init' first.")
+        raise typer.BadParameter("Repository info not found. Run 'flair init' first.")
     
     with open(config_file, 'r') as f:
         return json.load(f)
+
+
+def _load_repo_settings() -> dict:
+    """Load repo settings from config.yaml in the repo root."""
+    settings_file = Path.cwd() / "config.yaml"
+    if not settings_file.exists():
+        return {"commitRetentionLimit": 25}
+
+    settings: dict[str, object] = {}
+    try:
+        with open(settings_file, "r") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#"):
+                    continue
+                if ":" not in stripped:
+                    continue
+                key, value = stripped.split(":", 1)
+                key = key.strip()
+                value = value.strip()
+                if value.isdigit():
+                    settings[key] = int(value)
+                else:
+                    settings[key] = value
+    except Exception:
+        return {"commitRetentionLimit": 25}
+
+    if "commitRetentionLimit" not in settings:
+        settings["commitRetentionLimit"] = 25
+
+    return settings
 
 
 def _get_head_info() -> dict | None:
@@ -295,7 +326,7 @@ def push(
         
         # Load repo config
         repo_config = _load_repo_config()
-        repo_hash = repo_config.get("repoHash")
+        repo_hash = repo_config.get("repoHash") or repo_config.get("metadata", {}).get("repoHash")
         
         if not repo_hash:
             console.print("[red]Repository hash not found in config.[/red]")
@@ -393,7 +424,7 @@ def push(
         parent_commit_hash = remote_head_hash if remote_head_hash else "_GENESIS_COMMIT_"
         
         # Push each commit serially
-        framework = repo_config.get("framework", "unknown")
+        framework = repo_config.get("metadata", {}).get("framework") or repo_config.get("framework", "unknown")
         pushed_count = 0
         
         for idx, (commit_data, commit_dir) in enumerate(commits_to_push, 1):
@@ -606,7 +637,8 @@ def push(
             
             console.print(f"\n[green]✓ HEAD updated[/green]")
 
-            retention_limit = repo_config.get("commitRetentionLimit", 25)
+            settings = _load_repo_settings()
+            retention_limit = settings.get("commitRetentionLimit", 25)
             if isinstance(retention_limit, int) and retention_limit > 0:
                 deleted_count = _garbage_collect_local_commits(retention_limit)
                 if deleted_count > 0:

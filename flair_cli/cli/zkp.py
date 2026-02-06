@@ -47,13 +47,13 @@ def _get_zkp_dir() -> Path:
 
 
 def _load_repo_config() -> dict:
-    """Load repository configuration from .flair/repo_config.json"""
+    """Load repository info from .flair/repo.json"""
     flair_dir = _get_flair_dir()
-    config_file = flair_dir / "repo_config.json"
+    config_file = flair_dir / "repo.json"
     
     if not config_file.exists():
         raise typer.BadParameter(
-            "Repository configuration not found. Run 'flair init' first."
+            "Repository info not found. Run 'flair init' first."
         )
     
     with open(config_file, 'r') as f:
@@ -457,11 +457,11 @@ def create_zkp(
         
         # Load repo config
         repo_config = _load_repo_config()
-        framework = repo_config.get("framework", "").lower()
+        framework = (repo_config.get("metadata", {}).get("framework") or repo_config.get("framework", "")).lower()
         
         if not framework:
             raise typer.BadParameter(
-                "Framework not found in repo config. Ensure repository was initialized properly."
+                "Framework not found in repo info. Ensure repository was initialized properly."
             )
         
         # Determine backend

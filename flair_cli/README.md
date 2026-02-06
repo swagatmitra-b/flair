@@ -542,8 +542,7 @@ flair push
 # Created in each repo after `flair init`
 ```bash
 .flair/
-	repo_config.json         # Repo metadata from init (framework, description, repo hash)
-	repo.json                # Remote repo snapshot used by clone/checkout
+   repo.json                # Remote repo snapshot used by clone/checkout
 	HEAD                     # Current branch pointer (name + branchHash)
 	branches.json            # Cached branch list for the repo
 	.local_commits/          # Local commits directory
@@ -555,8 +554,11 @@ flair push
 			proof.zlib           # Compressed ZK proof
 			verification_key.zlib  # Compressed VK
 			settings.zlib        # Compressed settings
-	.cache/                  # Per-branch cached artifacts (managed by checkout)
+   .cache/                  # Per-branch cached artifacts (managed by checkout)
 		<branch>/              # Cached params/zkp files for that branch
+
+# Repo settings file in project root
+config.yaml               # Repo settings (commitRetentionLimit)
 
 # HEAD file contains the following:
 ## "currentBranch": branch_data.get("name"),

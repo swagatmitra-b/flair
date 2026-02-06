@@ -67,13 +67,13 @@ def add():
                 console.print("[yellow]Complete the current commit before creating a new one.[/yellow]")
                 raise typer.Exit(code=1)
         
-        # Load repo config to get framework
-        config_file = flair_dir / "repo_config.json"
-        if not config_file.exists():
-            console.print("[red]Repository configuration not found. Run 'flair init' first.[/red]")
+        # Load repo info to get framework
+        repo_file = flair_dir / "repo.json"
+        if not repo_file.exists():
+            console.print("[red]Repository info not found. Run 'flair init' first.[/red]")
             raise typer.Exit(code=1)
         
-        with open(config_file, 'r') as f:
+        with open(repo_file, 'r') as f:
             repo_config = json.load(f)
         
         # Create local commits directory
@@ -88,7 +88,7 @@ def add():
         # Create commit JSON with available data
         commit_data = {
             "commitHash": commit_hash,
-            "architecture": repo_config.get("framework", "unknown"),
+            "architecture": repo_config.get("metadata", {}).get("framework") or repo_config.get("framework", "unknown"),
             "params": None,         # Will be filled by flair params create
             "deltaParams": None,    # Will be filled by flair params create (if not genesis)
             "zkp": None,            # Will be filled by flair zkp create
