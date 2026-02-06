@@ -9,6 +9,7 @@ from pathlib import Path
 import json
 import httpx
 import hashlib
+import shutil
 
 from ..api import client as api_client
 from ..api.utils import _base_url, _client_with_auth
@@ -127,6 +128,38 @@ def _get_remote_latest_commit(repo_hash: str, branch_hash: str) -> str | None:
         raise
     except Exception:
         return None
+
+
+def _garbage_collect_local_commits(retention_limit: int) -> int:
+    """Delete local commits older than the retention limit.
+
+    Returns: Number of commits deleted
+    """
+    if retention_limit <= 0:
+        return 0
+
+    flair_dir = _get_flair_dir()
+    local_commits_dir = flair_dir / ".local_commits"
+
+    if not local_commits_dir.exists():
+        return 0
+
+    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    if len(commit_dirs) <= retention_limit:
+        return 0
+
+    to_delete = commit_dirs[retention_limit:]
+    deleted_count = 0
+
+    for commit_dir in to_delete:
+        try:
+            shutil.rmtree(commit_dir)
+            deleted_count += 1
+        except Exception:
+            continue
+
+    return deleted_count
 
 
 def _load_repo_config() -> dict:
@@ -572,6 +605,12 @@ def push(
                 json.dump(head_data, f, indent=2)
             
             console.print(f"\n[green]✓ HEAD updated[/green]")
+
+            retention_limit = repo_config.get("commitRetentionLimit", 25)
+            if isinstance(retention_limit, int) and retention_limit > 0:
+                deleted_count = _garbage_collect_local_commits(retention_limit)
+                if deleted_count > 0:
+                    console.print(f"[dim]Garbage collected {deleted_count} old local commit(s)[/dim]")
         
     except httpx.HTTPStatusError as e:
         error_detail = e.response.json() if e.response.content else {}
