@@ -444,23 +444,27 @@ def push(
                 delta_params_info = commit_data.get("deltaParams")
                 if not delta_params_info or not delta_params_info.get("file"):
                     console.print(f"[red]✗ Commit {idx}: Delta parameters missing[/red]")
-                    continue
+                    console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                    raise typer.Exit(code=1)
                 params_file = commit_dir / delta_params_info["file"]
             else:
                 if not params_info or not params_info.get("file"):
                     console.print(f"[red]✗ Commit {idx}: Parameters missing[/red]")
-                    continue
+                    console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                    raise typer.Exit(code=1)
                 params_file = commit_dir / params_info["file"]
             
             if not params_file.exists():
                 console.print(f"[red]✗ Commit {idx}: Parameters file not found[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             # Get ZKP files for this commit
             zkp_info = commit_data.get("zkp")
             if not zkp_info:
                 console.print(f"[red]✗ Commit {idx}: ZKP info missing[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             proof_file = commit_dir / zkp_info.get("proof_file", "proof.zlib")
             vk_file = commit_dir / zkp_info.get("verification_key_file", "verification_key.zlib")
@@ -468,7 +472,8 @@ def push(
             
             if not all([proof_file.exists(), vk_file.exists(), settings_file.exists()]):
                 console.print(f"[red]✗ Commit {idx}: ZKP files missing[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             zkp_files = {
                 "proof_file": proof_file,
@@ -495,7 +500,8 @@ def push(
             
             if not session_id or not initiate_token:
                 console.print(f"[red]✗ Commit {idx}: Failed to initiate session[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             console.print(f"[green]✓ Session initiated[/green]")
             
@@ -518,7 +524,8 @@ def push(
             zkml_token = zkml_check_data.get("zkmlToken")
             if not zkml_token:
                 console.print(f"[red]✗ Commit {idx}: Failed to verify ZKML proof uniqueness[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             console.print(f"[green]✓ ZKML proof verified as unique[/green]")
             
@@ -547,7 +554,8 @@ def push(
             zkml_receipt_token = zkml_upload_data.get("zkmlReceiptToken")
             if not zkml_receipt_token:
                 console.print(f"[red]✗ Commit {idx}: Failed to upload ZKML proofs[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             console.print(f"[green]✓ ZKML proofs uploaded[/green]")
             
@@ -577,7 +585,8 @@ def push(
             params_receipt_token = params_upload_data.get("paramsReceiptToken")
             if not params_receipt_token:
                 console.print(f"[red]✗ Commit {idx}: Failed to upload parameters[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             console.print(f"[green]✓ Parameters uploaded (hash: {param_hash[:16]}...)[/green]")
             
@@ -602,7 +611,8 @@ def push(
             returned_commit_hash = finalize_data.get("commitHash")
             if not returned_commit_hash:
                 console.print(f"[red]✗ Commit {idx}: Finalization failed[/red]")
-                continue
+                console.print(f"[yellow]Stopping push after {pushed_count} successful commit(s).[/yellow]")
+                raise typer.Exit(code=1)
             
             console.print(f"[bold green]✓ Commit {idx} created successfully![/bold green]")
             console.print(f"  [dim]Hash: {returned_commit_hash[:16]}...[/dim]")
