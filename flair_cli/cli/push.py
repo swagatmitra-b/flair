@@ -1,6 +1,6 @@
 """
 Push command: Create and upload a commit to remote repository.
-Follows the 4-step commit creation flow with ZKML proofs.
+Follows the 5-step commit creation flow with ZKML proofs.
 """
 from __future__ import annotations
 import typer

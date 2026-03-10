@@ -33,9 +33,7 @@ Instead of sending data to a server:
 3. Every update is treated as a **commit**, just like Git  
 4. Commits can be reviewed, merged, reverted, and tracked over time  
 
-Raw datasets remain **within the contributor’s training environment**.
-
-**Privacy by design:** Flair records only model updates and metadata as commits. Training can happen in any environment (local machines, cloud GPUs, or research clusters), while datasets remain within the contributor’s own training environment and are never uploaded to the repository.
+Raw data **never leaves the contributor’s machine**.
 
 ---
 
