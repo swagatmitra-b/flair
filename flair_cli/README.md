@@ -2,6 +2,38 @@
 
 Lines starting with `##` indicate command output.
 
+## Table of Contents
+
+- [Authentication](#authentication)
+- [Repository Commands](#repository-commands)
+   - [Create sample model files](#create-sample-model-files)
+   - [Init repository with automatic base model detection](#init-repository-with-automatic-base-model-detection)
+   - [Skip base model prompt during init](#skip-base-model-prompt-during-init)
+- [Clone a repository](#cloning-a-repository)
+- [Base model Commands](#base-model-commands)
+   - [Upload base model manually](#upload-base-model-manually)
+   - [Replace existing base model](#replace-existing-base-model-admin-command)
+   - [Force upload without prompts](#force-upload-without-prompts)
+   - [Check if base model exists](#check-if-base-model-exists)
+   - [Delete base model](#delete-base-model-admin-command)
+   - [Download base model](#download-base-model)
+- [Branch Functions](#branch-functions)
+   - [Create a new branch](#create-a-new-branch)
+   - [List all branches](#list-all-branches)
+   - [Delete a branch](#delete-a-branch)
+   - [Switch branches](#switch-branches)
+- [Commit Workflow](#commit-workflow)
+   - [Create a new local commit](#create-a-new-local-commit)
+   - [Create model params](#create-model-params)
+   - [Zero-Knowledge Proofs (ZKP)](#zero-knowledge-proofs-zkp)
+   - [Finalize commit with message](#finalize-commit-with-message)
+- [Push Commits](#push-commits)
+- [Revert Commits](#revert-commits)
+- [Reset Commits](#reset-commits)
+- [Directory structure (CLI)](#directory-structure-cli)
+- [Complete Workflow Example](#complete-workflow-example)
+- [Validation Rules](#validation-rules)
+
 ## Authentication
 
 ```bash
@@ -175,6 +207,25 @@ flair checkout feature --no-cache # Force fresh download from API
 
 ### Create a new local commit
 Creates a new commit in `.flair/.local_commits/` with a unique UUID. This must be done before creating params or ZKP.
+
+Commit structure:
+
+```json
+{
+   "commitHash": "commit_hash",
+   "architecture": "pytorch|tensorflow|onnx",
+   "params": "parameters if a checkpoint commit",
+   "deltaParams": "delta parameters if a delta commit",
+   "zkp": "zkps",
+   "message": "commit message",
+   "commitType": "CHECKPOINT|DELTA",
+   "architectureHash": "current hash of the model architecture",
+   "previousArchitectureHash": "previous hash of the model architecture",
+   "architectureChanged": "true|false",
+   "createdAt": "time when flair commit is executed",
+   "status": "CREATED"
+}
+```
 
 ```bash
 flair add
@@ -813,6 +864,17 @@ config.yaml               # Repo settings (commitRetentionLimit)
 ## "branchHash": branch_data.get("branchHash"),
 ## "description": branch_data.get("description"),
 ## "latestCommitHash": latest_commit.get("commitHash")  # Added by clone/push
+
+# HEAD file structure example:
+```json
+{
+   "currentBranch": "main",
+   "branchHash": "branch_hash",
+   "description": "optional branch description",
+   "latestCommitHash": "commit_hash",
+   "previousCommit": "commit_hash"
+}
+```
 
 # commit.json includes architecture-aware fields:
 ## "commitType": "CHECKPOINT" | "DELTA",
