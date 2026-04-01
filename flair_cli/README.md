@@ -637,6 +637,112 @@ flair revert HEAD
 - Run `flair push` to upload the revert commit to remote
 - Original commits remain unchanged in history
 
+## Reset Commits
+
+### Reset HEAD to a previous local commit
+Discards unpushed local commits and restores working model parameters to an earlier state.
+**Important:** Can only reset to unpushed commits - cannot move HEAD before REMOTE_HEAD.
+
+**When to use reset vs. revert:**
+- **revert**: Creates a new commit that undoes the latest commit (permanent history)
+- **reset**: Deletes unpushed local commits entirely (discards history)
+
+**Reset constraints (v1):**
+- Can only reset to recent unpushed commits via HEAD~N syntax
+- Cannot reset to arbitrary commits
+- Cannot reset past REMOTE_HEAD (pushing boundary)
+- Must use `--hard` flag to confirm disk changes
+
+**What the reset command does:**
+1. Validates that target is >= REMOTE_HEAD (all commits after remote)
+2. Collects unpushed commits to delete (from HEAD back to target, exclusive of target)
+3. Loads target commit's full parameters (reconstructs from deltas if needed)
+4. Permanently deletes local commit directories and all contents
+5. Restores working directory model to target state
+6. Updates HEAD only after all deletions and restorations succeed
+
+**Result:**
+All unpushed commits after target are gone:
+```
+Before:  C0 (pushed) -> C1 -> C2 -> C3 -> C4 (HEAD, unpushed)
+After:   C0 (pushed) -> C1 -> C2 (HEAD)
+```
+Where C0 was pushed (REMOTE_HEAD), C3 and C4 are deleted.
+
+```bash
+# Simple reset - go back 1 commit (default)
+flair reset
+## Analyzing reset target...
+## Target: HEAD~1 = a1b2c3d4...
+## Current HEAD: z9y8x7w6...
+## 
+## Step 1/4: Collecting commits to delete...
+## ✓ Will delete 1 commit(s):
+##   • z9y8x7w6...
+## 
+## Step 2/4: Loading target commit state...
+## ✓ Target commit state loaded
+##   Parameters: 1024 items
+## 
+## Step 3/4: Deleting local commits...
+##   ✓ Deleted z9y8x7w6...
+## ✓ Deleted 1 local commit(s)
+## 
+## Step 4/4: Restoring working model...
+## ✓ Working model restored
+## 
+## ═══════════════════════════════════
+## ✓ Reset successful!
+## ═══════════════════════════════════
+## 
+## Deleted 1 unpushed commit(s)
+## HEAD moved to: a1b2c3d4...
+## Working model restored to target state
+
+# Reset multiple commits
+flair reset --hard HEAD~3
+## ✓ Reset successful!
+## Deleted 3 unpushed commit(s)
+## HEAD moved to: b2c3d4e5...
+
+# Discard all unpushed commits (back to REMOTE_HEAD)
+flair reset --to-remote
+## ✓ Reset successful!
+## Deleted 4 unpushed commit(s)
+## HEAD moved to: c3d4e5f6... (REMOTE_HEAD)
+
+# Explicit syntax (same as 'flair reset')
+flair reset --hard HEAD~1
+## ✓ Reset successful!
+```
+
+**Reset workflow:**
+1. Reads current HEAD and REMOTE_HEAD tracking
+2. Parses target (HEAD~N or --to-remote)
+3. Validates target >= REMOTE_HEAD (prevents losing pushed commits)
+4. Counts available commits and validates target is reachable
+5. Collects all commits between HEAD and target (going backward)
+6. Loads target commit state before deletion
+7. Deletes each local commit directory and all contents
+8. Restores working model parameters to target state
+9. Updates `.flair/HEAD` to point to target
+10. Reports deleted commits and new HEAD position
+
+**Error cases:**
+- No local commits to reset
+- Invalid syntax (not HEAD~N or --to-remote)
+- Target is behind REMOTE_HEAD (cannot reset pushed commits)
+- Not enough commits available (HEAD~5 on 3 commits)
+- Failed to load or reconstruct target parameters
+- Failed to restore working model (warning only)
+
+**After resetting:**
+- Deleted commits are permanently gone (no recovery)
+- Working model is restored to target state
+- Can create new commits from target
+- REMOTE_HEAD remains unchanged
+- Deleted commits can be recreated if needed
+
 ## Directory structure (CLI)
 
 
@@ -740,7 +846,15 @@ flair push main
 ## Pushing 1 commit(s) serially...
 ## ✓ Push complete! Commits pushed: 1/1
 
-# 11. Switch branches
+# 11. Reset if you decided against the latest local commit
+# (different from revert: revert creates a compensating commit, reset deletes commits)
+flair reset --hard HEAD~1
+## ✓ Reset successful!
+## Deleted 1 unpushed commit(s)
+## HEAD moved to: c3d4e5f6...
+## Working model restored to target state
+
+# 12. Switch branches
 flair branch experimental
 flair checkout experimental
 flair add

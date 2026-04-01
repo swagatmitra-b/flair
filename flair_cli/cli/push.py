@@ -646,6 +646,11 @@ def push(
                 json.dump(head_data, f, indent=2)
             
             console.print(f"\n[green]✓ HEAD updated[/green]")
+            
+            # Also track REMOTE_HEAD for reset command
+            remote_head_file = flair_dir / "REMOTE_HEAD"
+            with open(remote_head_file, 'w') as f:
+                json.dump(head_data, f, indent=2)
 
             settings = _load_repo_settings()
             retention_limit = settings.get("commitRetentionLimit", 25)
