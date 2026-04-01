@@ -26,19 +26,10 @@ import asyncio
 import numpy as np
 
 from ..core import config as config_mod
+from .utils.local_commits import _get_flair_dir, _get_latest_local_commit
 
 app = typer.Typer()
 console = Console()
-
-
-def _get_flair_dir() -> Path:
-    """Get the .flair directory in current repo."""
-    flair_dir = Path.cwd() / ".flair"
-    if not flair_dir.exists():
-        raise typer.BadParameter("Not in a Flair repository. Run 'flair init' first.")
-    return flair_dir
-
-
 def _get_zkp_dir() -> Path:
     """Get or create the .zkp directory inside .flair."""
     zkp_dir = _get_flair_dir() / ".zkp"
@@ -74,31 +65,6 @@ def _get_current_commit_hash() -> Optional[str]:
             return head_data.get("previousCommitHash")
     except Exception:
         return None
-
-
-def _get_latest_local_commit() -> tuple[dict, Path] | None:
-    """Get the latest local commit and its directory."""
-    flair_dir = _get_flair_dir()
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return None
-    
-    # Get the most recently created commit directory
-    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-    
-    if not commit_dirs:
-        return None
-    
-    commit_dir = commit_dirs[0]
-    commit_file = commit_dir / "commit.json"
-    
-    if commit_file.exists():
-        with open(commit_file, 'r') as f:
-            commit_data = json.load(f)
-        return (commit_data, commit_dir)
-    
-    return None
 
 
 def _find_model_file(framework: str) -> Optional[Path]:

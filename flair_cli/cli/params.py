@@ -8,6 +8,8 @@ from pathlib import Path
 import json
 import hashlib
 
+from .utils.local_commits import _get_head_info, _get_latest_local_commit
+
 app = typer.Typer()
 console = Console()
 
@@ -160,21 +162,6 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
-def _get_head_info() -> dict | None:
-    """Get current HEAD information."""
-    flair_dir = Path.cwd() / ".flair"
-    head_file = flair_dir / "HEAD"
-    
-    if not head_file.exists():
-        return None
-    
-    try:
-        with open(head_file, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
 def _get_previous_commit_params(previous_commit_hash: str) -> Path | None:
     """Get params file from previous commit."""
     if previous_commit_hash == "_GENESIS_COMMIT_":
@@ -305,30 +292,6 @@ def _compute_onnx_delta(current_path: Path, previous_path: Path, output_path: Pa
     except Exception as e:
         console.print(f"[yellow]Warning: Failed to compute ONNX delta: {e}[/yellow]")
         return False
-
-
-def _get_latest_local_commit() -> tuple[dict, Path] | None:
-    """Get the latest local commit from .flair/.local_commits/"""
-    flair_dir = Path.cwd() / ".flair"
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return None
-    
-    # Get the most recently created commit directory
-    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-    
-    if not commit_dirs:
-        return None
-    
-    commit_dir = commit_dirs[0]
-    commit_file = commit_dir / "commit.json"
-    
-    if commit_file.exists():
-        with open(commit_file, 'r') as f:
-            return json.load(f), commit_dir
-    
-    return None
 
 
 @app.command()

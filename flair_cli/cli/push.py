@@ -14,69 +14,10 @@ import shutil
 from ..api import client as api_client
 from ..api.utils import _base_url, _client_with_auth
 from ..core import session
+from .utils.local_commits import _get_all_local_commits, _get_flair_dir, _get_head_info, _get_latest_local_commit
 
 app = typer.Typer()
 console = Console()
-
-
-def _get_flair_dir() -> Path:
-    """Get .flair directory in current repo."""
-    flair_dir = Path.cwd() / ".flair"
-    if not flair_dir.exists():
-        raise typer.BadParameter("Not in a Flair repository. Run 'flair init' first.")
-    return flair_dir
-
-
-def _get_latest_local_commit() -> tuple[dict, Path] | None:
-    """Get the latest local commit and its directory."""
-    flair_dir = _get_flair_dir()
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return None
-    
-    # Get the most recently created commit directory
-    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-    
-    if not commit_dirs:
-        return None
-    
-    commit_dir = commit_dirs[0]
-    commit_file = commit_dir / "commit.json"
-    
-    if commit_file.exists():
-        with open(commit_file, 'r') as f:
-            commit_data = json.load(f)
-        return (commit_data, commit_dir)
-    
-    return None
-
-
-def _get_all_local_commits() -> list[tuple[dict, Path]]:
-    """Get all local commits sorted by creation time (oldest first)."""
-    flair_dir = _get_flair_dir()
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return []
-    
-    # Get all commit directories sorted by creation time (oldest first)
-    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime)
-    
-    commits = []
-    for commit_dir in commit_dirs:
-        commit_file = commit_dir / "commit.json"
-        if commit_file.exists():
-            try:
-                with open(commit_file, 'r') as f:
-                    commit_data = json.load(f)
-                commits.append((commit_data, commit_dir))
-            except Exception:
-                continue
-    
-    return commits
-
-
 def _is_commit_complete(commit_data: dict, commit_dir: Path) -> bool:
     """Check if a commit is complete (has params, ZKP, and finalized message)."""
     # Check if message exists (finalized with flair commit -m)
@@ -203,21 +144,6 @@ def _load_repo_settings() -> dict:
         settings["commitRetentionLimit"] = 25
 
     return settings
-
-
-def _get_head_info() -> dict | None:
-    """Get current branch and commit from .flair/HEAD"""
-    flair_dir = _get_flair_dir()
-    head_file = flair_dir / "HEAD"
-    
-    if not head_file.exists():
-        return None
-    
-    try:
-        with open(head_file, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return None
 
 
 def _get_params_file(commit_type: str = "CHECKPOINT") -> Path | None:

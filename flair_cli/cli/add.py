@@ -8,34 +8,10 @@ from pathlib import Path
 import json
 from uuid import uuid4
 
+from .utils.local_commits import _get_latest_local_commit
+
 app = typer.Typer()
 console = Console()
-
-
-def _get_latest_local_commit() -> tuple[dict, Path] | None:
-    """Get the latest local commit from .flair/.local_commits/"""
-    flair_dir = Path.cwd() / ".flair"
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return None
-    
-    # Get the most recently created commit directory
-    commit_dirs = sorted(local_commits_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True)
-    
-    if not commit_dirs:
-        return None
-    
-    commit_dir = commit_dirs[0]
-    commit_file = commit_dir / "commit.json"
-    
-    if commit_file.exists():
-        with open(commit_file, 'r') as f:
-            return json.load(f), commit_dir
-    
-    return None
-
-
 @app.command()
 def add():
     """Create a new local commit.

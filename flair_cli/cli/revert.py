@@ -10,207 +10,45 @@ import json
 import shutil
 from uuid import uuid4
 
+from .utils.local_commits import _get_commit_by_hash, _get_flair_dir, _get_head_info
+from .utils.param_io import _load_numpy_params as _shared_load_numpy_params
+from .utils.param_io import _load_pytorch_params as _shared_load_pytorch_params
+from .utils.param_io import _save_numpy_params as _shared_save_numpy_params
+from .utils.param_io import _save_pytorch_params as _shared_save_pytorch_params
+from .utils.reconstruction import _reconstruct_params_from_checkpoint as _shared_reconstruct_params_from_checkpoint
+
 app = typer.Typer()
 console = Console()
 
 
-def _get_flair_dir() -> Path:
-    """Get .flair directory in current repo."""
-    flair_dir = Path.cwd() / ".flair"
-    if not flair_dir.exists():
-        raise typer.BadParameter("Not in a Flair repository. Run 'flair init' first.")
-    return flair_dir
-
-
-def _get_head_info() -> dict | None:
-    """Get current HEAD information."""
-    flair_dir = _get_flair_dir()
-    head_file = flair_dir / "HEAD"
-    
-    if not head_file.exists():
-        return None
-    
-    try:
-        with open(head_file, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def _get_commit_by_hash(commit_hash: str) -> tuple[dict, Path] | None:
-    """Get commit data and directory by hash."""
-    flair_dir = _get_flair_dir()
-    local_commits_dir = flair_dir / ".local_commits"
-    
-    if not local_commits_dir.exists():
-        return None
-    
-    commit_dir = local_commits_dir / commit_hash
-    commit_file = commit_dir / "commit.json"
-    
-    if commit_file.exists():
-        with open(commit_file, 'r') as f:
-            return json.load(f), commit_dir
-    
-    return None
+def _warn_param_io(message: str):
+    console.print(f"[yellow]Warning: {message}[/yellow]")
 
 
 def _load_pytorch_params(file_path: Path):
-    """Load PyTorch parameters from file."""
-    try:
-        import torch
-        return torch.load(file_path, map_location="cpu")
-    except Exception as e:
-        console.print(f"[yellow]Warning: Failed to load PyTorch params from {file_path}: {e}[/yellow]")
-        return None
+    return _shared_load_pytorch_params(file_path, warn=_warn_param_io)
 
 
 def _load_numpy_params(file_path: Path):
-    """Load NumPy parameters from file."""
-    try:
-        import numpy as np
-        data = np.load(file_path)
-        # Convert to dict-like structure
-        return {key: data[key] for key in data.files}
-    except Exception as e:
-        console.print(f"[yellow]Warning: Failed to load NumPy params from {file_path}: {e}[/yellow]")
-        return None
+    return _shared_load_numpy_params(file_path, warn=_warn_param_io)
 
 
 def _save_pytorch_params(params, file_path: Path) -> bool:
-    """Save PyTorch parameters to file."""
-    try:
-        import torch
-        torch.save(params, file_path)
-        return True
-    except Exception as e:
-        console.print(f"[yellow]Warning: Failed to save PyTorch params: {e}[/yellow]")
-        return False
+    return _shared_save_pytorch_params(params, file_path, warn=_warn_param_io)
 
 
 def _save_numpy_params(params: dict, file_path: Path) -> bool:
-    """Save NumPy parameters to file."""
-    try:
-        import numpy as np
-        np.savez(file_path, **params)
-        return True
-    except Exception as e:
-        console.print(f"[yellow]Warning: Failed to save NumPy params: {e}[/yellow]")
-        return False
+    return _shared_save_numpy_params(params, file_path, warn=_warn_param_io)
 
 
 def _reconstruct_params_from_checkpoint(target_commit_hash: str, framework: str) -> dict | None:
-    """Reconstruct parameters by traversing back to checkpoint and applying deltas.
-    
-    Returns: reconstructed_params or None if failed
-    """
-    console.print("[dim]Reconstructing parameters from checkpoint...[/dim]")
-    
-    # Traverse back to find CHECKPOINT commit
-    current_hash = target_commit_hash
-    checkpoint_hash = None
-    traversal_stack = []
-    
-    # Build traversal stack until we find a CHECKPOINT
-    while current_hash and current_hash != "_GENESIS_COMMIT_":
-        commit_result = _get_commit_by_hash(current_hash)
-        if not commit_result:
-            console.print(f"[yellow]Warning: Commit {current_hash[:16]}... not found during traversal[/yellow]")
-            break
-        
-        commit_data, _ = commit_result
-        traversal_stack.append((current_hash, commit_data))
-        
-        if commit_data.get("commitType") == "CHECKPOINT":
-            checkpoint_hash = current_hash
-            break
-        
-        # Move to previous commit
-        current_hash = commit_data.get("previousCommitHash")
-    
-    if not checkpoint_hash:
-        console.print("[yellow]Warning: Could not find CHECKPOINT commit[/yellow]")
-        return None
-    
-    console.print(f"[dim]Found CHECKPOINT at: {checkpoint_hash[:16]}...[/dim]")
-    
-    # Start from checkpoint and apply deltas
-    checkpoint_commit_result = _get_commit_by_hash(checkpoint_hash)
-    if not checkpoint_commit_result:
-        console.print("[yellow]Warning: Could not load CHECKPOINT commit[/yellow]")
-        return None
-    
-    checkpoint_data, checkpoint_dir = checkpoint_commit_result
-    
-    # Load full params from CHECKPOINT
-    params_info = checkpoint_data.get("params")
-    if not params_info or not params_info.get("file"):
-        console.print("[yellow]Warning: CHECKPOINT has no params[/yellow]")
-        return None
-    
-    params_file = checkpoint_dir / params_info["file"]
-    if not params_file.exists():
-        console.print(f"[yellow]Warning: CHECKPOINT params file not found: {params_file}[/yellow]")
-        return None
-    
-    # Load checkpoint params
-    if framework == "pytorch":
-        current_params = _load_pytorch_params(params_file)
-    else:
-        current_params = _load_numpy_params(params_file)
-    
-    if current_params is None:
-        return None
-    
-    console.print(f"[dim]Loaded CHECKPOINT params[/dim]")
-    
-    # Apply deltas in reverse order (from checkpoint toward target)
-    traversal_stack.reverse()
-    
-    for i, (commit_hash, commit_data) in enumerate(traversal_stack[1:], 1):  # Skip checkpoint itself
-        delta_info = commit_data.get("deltaParams")
-        if not delta_info or not delta_info.get("file"):
-            console.print(f"[yellow]Warning: No delta found for {commit_hash[:16]}..., cannot reconstruct[/yellow]")
-            return None
-        
-        commit_result = _get_commit_by_hash(commit_hash)
-        if not commit_result:
-            continue
-        
-        _, commit_dir = commit_result
-        delta_file = commit_dir / ".delta_params" / delta_info["file"]
-        
-        if not delta_file.exists():
-            console.print(f"[yellow]Warning: Delta file not found: {delta_file}[/yellow]")
-            return None
-        
-        # Load delta
-        if framework == "pytorch":
-            delta_params = _load_pytorch_params(delta_file)
-        else:
-            delta_params = _load_numpy_params(delta_file)
-        
-        if delta_params is None:
-            return None
-        
-        # Apply delta
-        if framework == "pytorch":
-            for key in delta_params.keys():
-                if key in current_params:
-                    current_params[key] = current_params[key] + delta_params[key]
-                else:
-                    current_params[key] = delta_params[key]
-        else:
-            for key in delta_params.keys():
-                if key in current_params:
-                    current_params[key] = current_params[key] + delta_params[key]
-                else:
-                    current_params[key] = delta_params[key]
-        
-        console.print(f"[dim]Applied delta from {commit_hash[:16]}...[/dim]")
-    
-    console.print(f"[green]✓ Parameters reconstructed from CHECKPOINT[/green]")
-    return current_params
+    """Reconstruct parameters by traversing back to checkpoint and applying deltas."""
+    return _shared_reconstruct_params_from_checkpoint(
+        target_commit_hash,
+        framework,
+        info=lambda msg: console.print(f"[dim]{msg}[/dim]") if not msg.startswith("✓") else console.print(f"[green]{msg}[/green]"),
+        warn=lambda msg: console.print(f"[yellow]Warning: {msg}[/yellow]"),
+    )
 
 
 def _get_parent_full_params(parent_commit_hash: str, framework: str) -> dict | None:
