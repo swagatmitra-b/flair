@@ -540,7 +540,105 @@ flair push
 - **No partial deletion**: remaining local commits are left untouched for later push
 - Shows clear error messages for failed commits (✗ Commit X: reason)
 
+## Revert Commits
+
+### Revert to the previous commit
+Creates a new checkpoint commit with the exact parameters from the parent commit. This allows you to undo the latest commit without deleting history.
+
+**Important constraints (v1):**
+- Can only revert the latest commit (HEAD)
+- Cannot revert arbitrary commits in history
+- Reason: Earlier model updates are dependencies for later ones, so reverting a middle commit could create invalid model state
+
+**What the revert command does:**
+1. Validates that HEAD exists and is not the genesis commit
+2. Reads the parent commit's full parameters (reconstructs from deltas if needed)
+3. Creates a new checkpoint commit with:
+   - Exact copy of parent's parameters
+   - Metadata field: `reverts: <HEAD commit hash>`
+   - Message: "Revert <HEAD hash>" (customizable with `-m`)
+4. Updates HEAD to point to the new revert commit
+5. Does NOT delete or modify any previous commits
+
+**Result:**
+Original commit chain remains intact:
+```
+Before:  C0 -> C1 -> C2 -> C3 (HEAD)
+After:   C0 -> C1 -> C2 -> C3 -> C4 (HEAD)  # C4 reverts C3
+```
+Where C4 has: `params(C2) = C4.params`, `C4.previousCommitHash = C3`, `C4.reverts = C3`
+
+```bash
+# Simple revert - uses default message
+flair revert
+## Reverting latest commit...
+## Current HEAD: a1b2c3d4...
+## Parent commit: z9y8x7w6...
+## 
+## Step 1/4: Loading parent parameters...
+## ✓ Parent parameters loaded
+## Step 2/4: Creating revert commit...
+## ✓ Revert commit directory created
+## Step 3/4: Copying ZKP files...
+## ✓ ZKP files copied from parent
+## Step 4/4: Finalizing revert commit...
+## ✓ Commit finalized
+## 
+## ═══════════════════════════════════
+## ✓ Revert successful!
+## ═══════════════════════════════════
+## 
+## Reverted latest commit a1b2c3d4...
+## Created compensating checkpoint commit b2c3d4e5...
+##
+## Summary:
+##   Reverted commit: a1b2c3d4...
+##   New HEAD: b2c3d4e5...
+##   Commit type: CHECKPOINT
+##   Message: Revert a1b2c3d4...
+##   Metadata: {'reverts': 'a1b2c3d4...'}
+##
+## Next steps:
+##   Run 'flair push' to upload the revert commit to remote
+
+# Revert with custom message
+flair revert -m "Undo training error - bad data epoch"
+## ✓ Revert successful!
+## Created compensating checkpoint commit b2c3d4e5...
+## Message: Undo training error - bad data epoch
+
+# Explicit HEAD reference (same behavior as 'flair revert')
+flair revert HEAD
+## ✓ Revert successful!
+## Created compensating checkpoint commit b2c3d4e5...
+```
+
+**Revert workflow:**
+1. Reads current HEAD commit
+2. Validates HEAD is not genesis (has a parent to revert to)
+3. Loads or reconstructs parent's full parameters
+4. Creates new commit directory with new UUID
+5. Saves parent's parameters as new commit's full parameters
+6. Copies ZKP files from parent (proof is same since parameters are same)
+7. Creates commit.json with type=CHECKPOINT and metadata.reverts field
+8. Updates `.flair/HEAD` to point to new revert commit
+9. Reports success and next steps
+
+**Error cases:**
+- No commits found (need at least genesis + one more)
+- HEAD is genesis commit (nothing to revert to)
+- Cannot determine parent commit
+- Failed to load or reconstruct parent parameters
+- ZKP files unavailable from parent (warning only, user can regenerate)
+
+**After reverting:**
+- New commit is stored locally and ready to push
+- If parent's ZKP files were not available, run `flair zkp create` first
+- Run `flair push` to upload the revert commit to remote
+- Original commits remain unchanged in history
+
 ## Directory structure (CLI)
+
 
 # Created in each repo after `flair init`
 ```bash
@@ -633,7 +731,16 @@ flair push main
 ## Skipping incomplete commit: abc123...
 ## ✓ All commits already pushed. Branch is up to date.
 
-# 10. Switch branches
+# 10. Revert the latest commit if something went wrong
+flair revert -m "Undo accidental change"
+## ✓ Revert successful!
+## Created compensating checkpoint commit def456...
+
+flair push main
+## Pushing 1 commit(s) serially...
+## ✓ Push complete! Commits pushed: 1/1
+
+# 11. Switch branches
 flair branch experimental
 flair checkout experimental
 flair add
