@@ -16,6 +16,7 @@ from .utils.param_io import _load_pytorch_params as _shared_load_pytorch_params
 from .utils.param_io import _save_numpy_params as _shared_save_numpy_params
 from .utils.param_io import _save_pytorch_params as _shared_save_pytorch_params
 from .utils.reconstruction import _reconstruct_params_from_checkpoint as _shared_reconstruct_params_from_checkpoint
+from .utils.architecture import compute_architecture_hash
 
 app = typer.Typer()
 console = Console()
@@ -193,6 +194,8 @@ def revert(
         if not success:
             console.print("[red]✗ Failed to save parameters[/red]")
             raise typer.Exit(code=1)
+
+        current_architecture_hash = compute_architecture_hash(parent_params, framework=framework)
         
         size_mb = params_file.stat().st_size / (1024 * 1024)
         console.print(f"[green]✓ Revert commit directory created[/green]")
@@ -244,6 +247,9 @@ def revert(
         revert_commit_data = {
             "commitHash": revert_commit_hash,
             "architecture": framework,
+            "architectureHash": current_architecture_hash,
+            "previousArchitectureHash": parent_commit_data.get("architectureHash"),
+            "architectureChanged": parent_commit_data.get("architectureHash") not in (None, current_architecture_hash),
             "params": {
                 "file": params_filename,
                 "hash": None  # Could compute hash if needed

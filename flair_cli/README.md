@@ -195,6 +195,10 @@ flair add
 Extracts model parameters and saves them to the current commit directory.
 Automatically detects framework (.pt, .pth for PyTorch, .h5, .keras for TensorFlow, or .onnx).
 
+Each params extraction also computes and stores an `architectureHash` for the commit.
+The hash is deterministic and derived from parameter names, parameter order, and tensor shapes
+(plus framework metadata when available).
+
 **Prerequisites:** Must run `flair add` first to create a commit.
 
 ```bash
@@ -204,6 +208,7 @@ flair params create --model model.h5  # Specify TensorFlow model
 ## ✓ Parameters saved to commit directory
 ##   File: params.pt
 ##   Hash: 1a2b3c4d5e6f7g8h...
+##   Architecture hash: ab12cd34ef56...
 ## 
 ## Next steps:
 ##   1. (Optional) Run 'flair zkp create' to generate zero-knowledge proof
@@ -219,10 +224,11 @@ flair params create --model model.h5  # Specify TensorFlow model
 **Storage optimization (Advanced):**
 Full parameters are automatically managed by the `flair commit` command:
 - **Genesis commit (CHECKPOINT)**: Full parameters retained
-- **Subsequent commits (DELTA)**: Delta computed and stored; cleanup deletes full params from older commits
+- **Matching architecture commits (DELTA)**: Delta computed and stored; cleanup deletes full params from older commits
+- **Changed architecture commits (CHECKPOINT)**: Full parameters stored automatically (delta is skipped)
 - **Latest 2 commits**: Always retain full parameters for reliable delta computation
 - **Older commits**: Only store deltas (~90-95% smaller than full params)
-- **Reconstruction**: If a previous commit's full params are deleted, they are automatically reconstructed from the CHECKPOINT by applying deltas serially
+- **Reconstruction**: If a previous commit's full params are deleted, they are automatically reconstructed from the nearest compatible CHECKPOINT by applying deltas serially
 
 This strategy provides significant storage savings (95%+ for large commit histories) while maintaining data integrity.
 
@@ -311,7 +317,7 @@ pip install ezkl
 ```
 
 ### Finalize commit with message
-Finalizes the commit by setting the message, determining commit type (CHECKPOINT for genesis, DELTA for subsequent), computing parameter deltas, and cleaning up old storage.
+Finalizes the commit by setting the message, computing architecture metadata, determining commit type (`CHECKPOINT` or `DELTA`), computing parameter deltas when valid, and cleaning up old storage.
 
 **Prerequisites:**
 - Must run `flair add` to create a commit
@@ -320,7 +326,13 @@ Finalizes the commit by setting the message, determining commit type (CHECKPOINT
 
 **Commit Types:**
 - **CHECKPOINT**: First commit in repository. Stores full parameters.
-- **DELTA**: Subsequent commits. Computes and stores only parameter differences from previous commit.
+- **DELTA**: Commit with unchanged architecture. Stores only parameter differences from previous commit.
+- **CHECKPOINT (Architecture Change)**: If architecture differs from previous commit, commit is automatically finalized as CHECKPOINT and stores full parameters.
+
+**Architecture metadata stored in each commit:**
+- `architectureHash`: Hash of parameter names + order + shapes (+ framework metadata when available)
+- `previousArchitectureHash`: Previous commit architecture hash when known
+- `architectureChanged`: Boolean flag indicating architecture transition vs previous commit
 
 ```bash
 flair commit -m "Initial model commit"
@@ -350,28 +362,57 @@ flair commit -m "Updated with training data v2"
 ## 
 ## Next step:
 ##   Run 'flair push' to upload commit to repository
+
+flair commit -m "Added new classification head"
+## ⚠ Architecture change detected: finalizing as CHECKPOINT.
+##   Current architecture hash: 8a7b6c5d4e3f...
+##   Previous architecture hash: 1a2b3c4d5e6f...
+##
+## ✓ Commit finalized
+##   Commit hash: c3d4e5f6g7h8i9j0...
+##   Commit type: CHECKPOINT
+##   Message: Added new classification head
+##   Parameters: Full params retained (architecture changed)
+##
+## Next step:
+##   Run 'flair push' to upload commit to repository
 ```
 
 **How it works:**
-1. Checks if this is the first commit in the repository (genesis)
-2. Sets `commitType` to `CHECKPOINT` for genesis, `DELTA` for subsequent commits
-3. For DELTA commits:
+1. Computes or reads the current commit's `architectureHash`
+2. Reads previous commit architecture metadata (`previousArchitectureHash`)
+3. Chooses commit type:
+   - `CHECKPOINT` for genesis
+   - `DELTA` when architecture hash matches previous commit
+   - `CHECKPOINT` when architecture hash differs (automatic fallback)
+4. For DELTA commits only:
    - Loads current and previous parameters
+   - Verifies architecture hash match before delta computation
    - Computes delta: `delta = current - previous`
    - Stores delta in `.delta_params/` folder
    - Cleans up full parameters from old DELTA commits (keeps latest 2 + all CHECKPOINT)
-4. Stores message and commitType in commit.json
-5. The push command uses this type to determine which file to upload:
+5. Stores `commitType`, `architectureHash`, `previousArchitectureHash`, and `architectureChanged` in commit.json
+6. The push command uses this type to determine which file to upload:
    - CHECKPOINT: uploads full params from `.params/` folder
    - DELTA: uploads delta params from `.delta_params/` folder
 
 **Parameter Reconstruction (Automatic Fallback):**
 If a previous commit's full parameters were deleted during cleanup, they are automatically reconstructed:
-- Traverses backward through commit history to find the CHECKPOINT
-- Loads the CHECKPOINT full parameters
-- Applies deltas serially forward to reconstruct the target commit
+- Traverses backward through commit history to find the nearest CHECKPOINT for the target commit
+- Loads that CHECKPOINT full parameters
+- Applies only DELTAs after that checkpoint to reconstruct the target commit
 - Returns reconstructed parameters for delta computation
 - Reconstruction is transparent and maintains data integrity
+
+Example boundary handling:
+- `C1 CHECKPOINT (architecture A)`
+- `C2 DELTA (architecture A)`
+- `C3 DELTA (architecture A)`
+- `C4 CHECKPOINT (architecture B)`
+- `C5 DELTA (architecture B)`
+
+Reconstructing `C3` starts from `C1` and applies `C2` + `C3`.
+Reconstructing `C5` starts from `C4` and applies `C5`.
 
 **Storage Optimization Summary:**
 - Genesis CHECKPOINT commit keeps full params
@@ -754,7 +795,7 @@ flair reset --hard HEAD~1
 	branches.json            # Cached branch list for the repo
 	.local_commits/          # Local commits directory
 		<uuidv4>/              # Each commit has its own directory
-			commit.json          # Commit metadata (params, zkp, message, status)
+         commit.json          # Commit metadata (params, zkp, commitType, architectureHash, status)
 			params.pt|npz        # Extracted model weights (framework-dependent)
 			.delta_params/       # Delta parameters directory
 				delta.pt|npz       # Parameter differences from previous commit
@@ -772,6 +813,12 @@ config.yaml               # Repo settings (commitRetentionLimit)
 ## "branchHash": branch_data.get("branchHash"),
 ## "description": branch_data.get("description"),
 ## "latestCommitHash": latest_commit.get("commitHash")  # Added by clone/push
+
+# commit.json includes architecture-aware fields:
+## "commitType": "CHECKPOINT" | "DELTA",
+## "architectureHash": "...",
+## "previousArchitectureHash": "..." | null,
+## "architectureChanged": true | false
 ```
 
 ## Complete Workflow Example
@@ -883,5 +930,10 @@ The CLI enforces a strict sequential workflow to prevent incomplete commits:
 4. **Pushing (`flair push`):**
    - Requires both params and ZKP to be complete
    - Error: "Commit incomplete. Run 'flair params create' and/or 'flair zkp create'."
+
+5. **Architecture-aware delta safety (`flair commit`):**
+   - Delta computation runs only when `architectureHash` matches `previousArchitectureHash`
+   - On mismatch, the CLI emits a warning and automatically finalizes as `CHECKPOINT`
+   - Merge-style delta application across differing architectures is rejected
 
 This ensures every commit is complete and prevents accidental overwrites.

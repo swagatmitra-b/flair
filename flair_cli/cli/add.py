@@ -70,6 +70,9 @@ def add():
             "zkp": None,            # Will be filled by flair zkp create
             "message": None,        # Will be filled by flair commit
             "commitType": None,     # Will be filled by flair commit (CHECKPOINT or DELTA)
+            "architectureHash": None,
+            "previousArchitectureHash": None,
+            "architectureChanged": False,
             "createdAt": None,
             "status": "CREATED"
         }

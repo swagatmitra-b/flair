@@ -10,6 +10,7 @@ import json
 import hashlib
 
 from .utils.local_commits import _get_commit_by_hash, _get_head_info, _get_latest_local_commit
+from .utils.architecture import ArchitectureMismatch, compute_architecture_hash, resolve_commit_type
 from .utils.param_io import _load_numpy_params as _shared_load_numpy_params
 from .utils.param_io import _load_pytorch_params as _shared_load_pytorch_params
 from .utils.param_io import _save_numpy_params as _shared_save_numpy_params
@@ -55,10 +56,20 @@ def _is_genesis_commit() -> bool:
     return False
 
 
-def _compute_pytorch_delta(current_params, previous_params) -> dict | None:
+def _compute_pytorch_delta(
+    current_params,
+    previous_params,
+    current_architecture_hash: str | None = None,
+    previous_architecture_hash: str | None = None,
+) -> dict | None:
     """Compute delta between current and previous PyTorch parameters."""
     try:
         import torch
+
+        if current_architecture_hash and previous_architecture_hash:
+            if current_architecture_hash != previous_architecture_hash:
+                raise ArchitectureMismatch("Architecture changed; delta computation is not allowed.")
+
         delta = {}
         for key in current_params.keys():
             if key in previous_params:
@@ -71,10 +82,20 @@ def _compute_pytorch_delta(current_params, previous_params) -> dict | None:
         return None
 
 
-def _compute_numpy_delta(current_params: dict, previous_params: dict) -> dict | None:
+def _compute_numpy_delta(
+    current_params: dict,
+    previous_params: dict,
+    current_architecture_hash: str | None = None,
+    previous_architecture_hash: str | None = None,
+) -> dict | None:
     """Compute delta between current and previous NumPy parameters."""
     try:
         import numpy as np
+
+        if current_architecture_hash and previous_architecture_hash:
+            if current_architecture_hash != previous_architecture_hash:
+                raise ArchitectureMismatch("Architecture changed; delta computation is not allowed.")
+
         delta = {}
         for key in current_params.keys():
             if key in previous_params:
@@ -263,93 +284,162 @@ def finalize(
             console.print("[yellow]To create a new commit, run 'flair add' first.[/yellow]")
             raise typer.Exit(code=1)
         
-        # Determine commit type: CHECKPOINT for genesis, DELTA for subsequent
-        is_genesis = _is_genesis_commit()
-        commit_type = "CHECKPOINT" if is_genesis else "DELTA"
-        
-        console.print(f"\n[cyan]Finalizing {commit_type} commit...[/cyan]")
-        
-        # Get framework
+        # Determine commit type: CHECKPOINT for genesis or when architecture changes.
         framework = commit_data.get("architecture", "pytorch").lower()
-        
-        # For DELTA commits, compute delta from previous
+        head_info = _get_head_info()
+        previous_commit_hash = head_info.get("previousCommit") if head_info else "_GENESIS_COMMIT_"
+
+        current_architecture_hash = commit_data.get("architectureHash")
+        previous_architecture_hash = commit_data.get("previousArchitectureHash")
+        architecture_changed = bool(commit_data.get("architectureChanged"))
+
+        if not current_architecture_hash:
+            params_info = commit_data.get("params")
+            if not params_info or not params_info.get("file"):
+                console.print("[red]✗ Current params info missing[/red]")
+                raise typer.Exit(code=1)
+
+            current_params_file = commit_dir / params_info["file"]
+            if not current_params_file.exists():
+                console.print(f"[red]✗ Current params file not found: {current_params_file}[/red]")
+                raise typer.Exit(code=1)
+
+            if framework == "pytorch":
+                current_params = _load_pytorch_params(current_params_file)
+            else:
+                current_params = _load_numpy_params(current_params_file)
+
+            if current_params is None:
+                raise typer.Exit(code=1)
+
+            current_architecture_hash = compute_architecture_hash(current_params, framework=framework)
+
+        if previous_commit_hash and previous_commit_hash != "_GENESIS_COMMIT_" and not previous_architecture_hash:
+            previous_commit_result = _get_commit_by_hash(previous_commit_hash)
+            if previous_commit_result:
+                previous_commit_data, previous_commit_dir = previous_commit_result
+                previous_architecture_hash = previous_commit_data.get("architectureHash")
+                if not previous_architecture_hash:
+                    previous_params_info = previous_commit_data.get("params")
+                    if previous_params_info and previous_params_info.get("file"):
+                        previous_params_file = previous_commit_dir / previous_params_info["file"]
+                        if previous_params_file.exists():
+                            if framework == "pytorch":
+                                previous_params = _load_pytorch_params(previous_params_file)
+                            else:
+                                previous_params = _load_numpy_params(previous_params_file)
+                            if previous_params is not None:
+                                previous_architecture_hash = compute_architecture_hash(previous_params, framework=framework)
+
+        inferred_commit_type, inferred_architecture_changed = resolve_commit_type(
+            current_architecture_hash,
+            previous_architecture_hash if previous_commit_hash and previous_commit_hash != "_GENESIS_COMMIT_" else None,
+        )
+        architecture_changed = architecture_changed or inferred_architecture_changed
+        commit_type = "CHECKPOINT" if architecture_changed else inferred_commit_type
+
+        console.print(f"\n[cyan]Finalizing {commit_type} commit...[/cyan]")
+
+        if architecture_changed:
+            console.print("[yellow]⚠ Architecture change detected: finalizing as CHECKPOINT.[/yellow]")
+            console.print(f"[yellow]  Current architecture hash: {current_architecture_hash[:16]}...[/yellow]")
+            if previous_architecture_hash:
+                console.print(f"[yellow]  Previous architecture hash: {previous_architecture_hash[:16]}...[/yellow]")
+
+        # For DELTA commits, compute delta from previous.
         if commit_type == "DELTA":
-            head_info = _get_head_info()
-            previous_commit_hash = head_info.get("previousCommit") if head_info else "_GENESIS_COMMIT_"
-            
             if previous_commit_hash and previous_commit_hash != "_GENESIS_COMMIT_":
                 console.print(f"[dim]Previous commit: {previous_commit_hash[:16]}...[/dim]")
-                
-                # Get current full params
+
                 params_info = commit_data.get("params")
                 if not params_info or not params_info.get("file"):
                     console.print("[red]✗ Current params info missing[/red]")
                     raise typer.Exit(code=1)
-                
+
                 current_params_file = commit_dir / params_info["file"]
                 if not current_params_file.exists():
                     console.print(f"[red]✗ Current params file not found: {current_params_file}[/red]")
                     raise typer.Exit(code=1)
-                
-                # Load current full params
+
                 if framework == "pytorch":
                     current_params = _load_pytorch_params(current_params_file)
                 else:
                     current_params = _load_numpy_params(current_params_file)
-                
+
                 if current_params is None:
                     raise typer.Exit(code=1)
-                
-                # Get previous full params (or reconstruct if missing)
+
                 previous_params = _get_previous_full_params(previous_commit_hash, framework)
-                
+
                 if previous_params is None:
                     console.print("[red]✗ Could not get or reconstruct previous parameters[/red]")
                     raise typer.Exit(code=1)
-                
-                # Compute delta
+
                 console.print("[dim]Computing delta...[/dim]")
-                if framework == "pytorch":
-                    delta_params = _compute_pytorch_delta(current_params, previous_params)
-                else:
-                    delta_params = _compute_numpy_delta(current_params, previous_params)
-                
+                try:
+                    if framework == "pytorch":
+                        delta_params = _compute_pytorch_delta(
+                            current_params,
+                            previous_params,
+                            current_architecture_hash,
+                            previous_architecture_hash,
+                        )
+                    else:
+                        delta_params = _compute_numpy_delta(
+                            current_params,
+                            previous_params,
+                            current_architecture_hash,
+                            previous_architecture_hash,
+                        )
+                except ArchitectureMismatch:
+                    console.print("[yellow]⚠ Architecture mismatch detected; finalizing as CHECKPOINT instead of DELTA.[/yellow]")
+                    architecture_changed = True
+                    commit_type = "CHECKPOINT"
+                    delta_params = None
+
                 if delta_params is None:
-                    raise typer.Exit(code=1)
-                
-                # Save delta
-                delta_dir = commit_dir / ".delta_params"
-                delta_dir.mkdir(exist_ok=True)
-                
-                if framework == "pytorch":
-                    delta_file = delta_dir / "delta.pt"
-                    success = _save_pytorch_params(delta_params, delta_file)
-                else:
-                    delta_file = delta_dir / "delta.npz"
-                    success = _save_numpy_params(delta_params, delta_file)
-                
-                if not success:
-                    raise typer.Exit(code=1)
-                
-                delta_hash = _compute_file_hash(delta_file)
-                size_mb = delta_file.stat().st_size / (1024 * 1024)
-                
-                console.print(f"[green]✓ Delta computed and saved[/green]")
-                console.print(f"  File: {delta_file.name}")
-                console.print(f"  Size: {size_mb:.2f} MB")
-                console.print(f"  Hash: {delta_hash[:16]}...")
-                
-                # Update commit.json with delta info
-                commit_data["deltaParams"] = {
-                    "file": delta_file.name,
-                    "hash": delta_hash,
-                    "previousCommitHash": previous_commit_hash
-                }
+                    if architecture_changed:
+                        console.print("[yellow]Architecture changed; delta generation skipped.[/yellow]")
+                    else:
+                        raise typer.Exit(code=1)
+                elif not architecture_changed:
+                    delta_dir = commit_dir / ".delta_params"
+                    delta_dir.mkdir(exist_ok=True)
+
+                    if framework == "pytorch":
+                        delta_file = delta_dir / "delta.pt"
+                        success = _save_pytorch_params(delta_params, delta_file)
+                    else:
+                        delta_file = delta_dir / "delta.npz"
+                        success = _save_numpy_params(delta_params, delta_file)
+
+                    if not success:
+                        raise typer.Exit(code=1)
+
+                    delta_hash = _compute_file_hash(delta_file)
+                    size_mb = delta_file.stat().st_size / (1024 * 1024)
+
+                    console.print(f"[green]✓ Delta computed and saved[/green]")
+                    console.print(f"  File: {delta_file.name}")
+                    console.print(f"  Size: {size_mb:.2f} MB")
+                    console.print(f"  Hash: {delta_hash[:16]}...")
+
+                    commit_data["deltaParams"] = {
+                        "file": delta_file.name,
+                        "hash": delta_hash,
+                        "previousCommitHash": previous_commit_hash,
+                    }
         
         # Update commit.json with message and commitType
+        commit_data["architectureHash"] = current_architecture_hash
+        commit_data["previousArchitectureHash"] = previous_architecture_hash
+        commit_data["architectureChanged"] = architecture_changed
         commit_data["message"] = message
         commit_data["commitType"] = commit_type
         commit_data["status"] = "FINALIZED"
+
+        if commit_type == "CHECKPOINT" and architecture_changed:
+            commit_data["deltaParams"] = None
         
         commit_file = commit_dir / "commit.json"
         with open(commit_file, 'w') as f:
@@ -369,6 +459,8 @@ def finalize(
         
         if commit_type == "CHECKPOINT":
             console.print(f"  [dim]Uploading: full parameters (params)[/dim]")
+            if architecture_changed:
+                console.print("  [yellow]Architecture changed: uploaded as a full checkpoint.[/yellow]")
         else:
             console.print(f"  [dim]Uploading: delta parameters (delta_params)[/dim]")
             console.print(f"  [dim]Retained: full parameters (for reconstruction)[/dim]")

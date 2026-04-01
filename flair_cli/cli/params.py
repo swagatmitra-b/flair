@@ -8,10 +8,23 @@ from pathlib import Path
 import json
 import hashlib
 
-from .utils.local_commits import _get_head_info, _get_latest_local_commit
+from .utils.local_commits import _get_commit_by_hash, _get_head_info, _get_latest_local_commit
+from .utils.architecture import ArchitectureMismatch, compute_architecture_hash
+from .utils.param_io import _load_numpy_params as _shared_load_numpy_params
+from .utils.param_io import _load_pytorch_params as _shared_load_pytorch_params
 
 app = typer.Typer()
 console = Console()
+
+
+def _warn_param_io(message: str):
+    console.print(f"[yellow]Warning: {message}[/yellow]")
+
+
+def _load_params_from_file(file_path: Path, framework: str):
+    if framework == "pytorch":
+        return _shared_load_pytorch_params(file_path, warn=_warn_param_io)
+    return _shared_load_numpy_params(file_path, warn=_warn_param_io)
 
 
 def _detect_model_files() -> list[Path]:
@@ -198,10 +211,19 @@ def _get_previous_commit_params(previous_commit_hash: str) -> Path | None:
     return None
 
 
-def _compute_pytorch_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+def _compute_pytorch_delta(
+    current_path: Path,
+    previous_path: Path,
+    output_path: Path,
+    current_architecture_hash: str,
+    previous_architecture_hash: str | None,
+) -> bool:
     """Compute delta between current and previous PyTorch parameters."""
     try:
         import torch
+
+        if previous_architecture_hash and current_architecture_hash != previous_architecture_hash:
+            raise ArchitectureMismatch("Architecture changed; delta computation is not allowed.")
         
         console.print(f"[dim]Computing PyTorch parameter delta...[/dim]")
         
@@ -230,10 +252,19 @@ def _compute_pytorch_delta(current_path: Path, previous_path: Path, output_path:
         return False
 
 
-def _compute_tensorflow_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+def _compute_tensorflow_delta(
+    current_path: Path,
+    previous_path: Path,
+    output_path: Path,
+    current_architecture_hash: str,
+    previous_architecture_hash: str | None,
+) -> bool:
     """Compute delta between current and previous TensorFlow parameters."""
     try:
         import numpy as np
+
+        if previous_architecture_hash and current_architecture_hash != previous_architecture_hash:
+            raise ArchitectureMismatch("Architecture changed; delta computation is not allowed.")
         
         console.print(f"[dim]Computing TensorFlow parameter delta...[/dim]")
         
@@ -262,10 +293,19 @@ def _compute_tensorflow_delta(current_path: Path, previous_path: Path, output_pa
         return False
 
 
-def _compute_onnx_delta(current_path: Path, previous_path: Path, output_path: Path) -> bool:
+def _compute_onnx_delta(
+    current_path: Path,
+    previous_path: Path,
+    output_path: Path,
+    current_architecture_hash: str,
+    previous_architecture_hash: str | None,
+) -> bool:
     """Compute delta between current and previous ONNX parameters."""
     try:
         import numpy as np
+
+        if previous_architecture_hash and current_architecture_hash != previous_architecture_hash:
+            raise ArchitectureMismatch("Architecture changed; delta computation is not allowed.")
         
         console.print(f"[dim]Computing ONNX parameter delta...[/dim]")
         
@@ -389,48 +429,92 @@ def create(
             success = _extract_onnx_weights(model_path, output_path)
         
         if success:
-            # Compute hash of params file
+            # Compute hash of params file and architecture signature.
             params_hash = _compute_file_hash(output_path)
-            
-            # Compute delta parameters if there's a previous commit
+            current_params_data = _load_params_from_file(output_path, framework)
+            if current_params_data is None:
+                raise typer.Exit(code=1)
+
+            current_architecture_hash = compute_architecture_hash(
+                current_params_data,
+                framework=framework,
+            )
+
+            # Compute delta parameters if there's a previous commit.
             head_info = _get_head_info()
-            previous_commit_hash = None
+            previous_commit_hash = head_info.get("previousCommit", "_GENESIS_COMMIT_") if head_info else "_GENESIS_COMMIT_"
+            previous_architecture_hash = None
+            architecture_changed = False
             delta_params_info = None
-            
-            if head_info:
-                previous_commit_hash = head_info.get("previousCommit", "_GENESIS_COMMIT_")
-            else:
-                previous_commit_hash = "_GENESIS_COMMIT_"
-            
+
             if previous_commit_hash and previous_commit_hash != "_GENESIS_COMMIT_":
+                previous_commit_result = _get_commit_by_hash(previous_commit_hash)
+                if previous_commit_result:
+                    previous_commit_data, _ = previous_commit_result
+                    previous_architecture_hash = previous_commit_data.get("architectureHash")
+
+                if not previous_architecture_hash:
+                    previous_params_path = _get_previous_commit_params(previous_commit_hash)
+                    if previous_params_path:
+                        previous_params_data = _load_params_from_file(previous_params_path, framework)
+                        if previous_params_data is not None:
+                            previous_architecture_hash = compute_architecture_hash(
+                                previous_params_data,
+                                framework=framework,
+                            )
+
+                if previous_architecture_hash and current_architecture_hash != previous_architecture_hash:
+                    architecture_changed = True
+                    console.print("[yellow]⚠ Architecture change detected: this commit will be finalized as a CHECKPOINT.[/yellow]")
+                    console.print(f"[yellow]  Current architecture hash: {current_architecture_hash[:16]}...[/yellow]")
+                    console.print(f"[yellow]  Previous architecture hash: {previous_architecture_hash[:16]}...[/yellow]")
+
                 console.print(f"\n[cyan]Computing delta from previous commit...[/cyan]")
                 console.print(f"[dim]Previous commit: {previous_commit_hash[:16]}...[/dim]")
-                
-                # Get previous commit's params
+
                 previous_params_path = _get_previous_commit_params(previous_commit_hash)
-                
-                if previous_params_path:
-                    # Create .delta_params directory in commit folder
+                if previous_params_path and not architecture_changed:
                     delta_dir = commit_dir / ".delta_params"
                     delta_dir.mkdir(exist_ok=True)
-                    
-                    # Determine delta output path based on framework
+
                     if framework == "pytorch":
                         delta_output_path = delta_dir / "delta.pt"
                     else:
                         delta_output_path = delta_dir / "delta.npz"
-                    
-                    # Compute delta based on framework
-                    delta_success = False
-                    if framework == "pytorch":
-                        delta_success = _compute_pytorch_delta(output_path, previous_params_path, delta_output_path)
-                    elif framework == "tensorflow":
-                        delta_success = _compute_tensorflow_delta(output_path, previous_params_path, delta_output_path)
-                    elif framework == "onnx":
-                        delta_success = _compute_onnx_delta(output_path, previous_params_path, delta_output_path)
-                    
+
+                    try:
+                        if framework == "pytorch":
+                            delta_success = _compute_pytorch_delta(
+                                output_path,
+                                previous_params_path,
+                                delta_output_path,
+                                current_architecture_hash,
+                                previous_architecture_hash,
+                            )
+                        elif framework == "tensorflow":
+                            delta_success = _compute_tensorflow_delta(
+                                output_path,
+                                previous_params_path,
+                                delta_output_path,
+                                current_architecture_hash,
+                                previous_architecture_hash,
+                            )
+                        elif framework == "onnx":
+                            delta_success = _compute_onnx_delta(
+                                output_path,
+                                previous_params_path,
+                                delta_output_path,
+                                current_architecture_hash,
+                                previous_architecture_hash,
+                            )
+                        else:
+                            delta_success = False
+                    except ArchitectureMismatch:
+                        architecture_changed = True
+                        delta_success = False
+                        console.print("[yellow]⚠ Architecture mismatch detected while computing delta; skipping delta generation.[/yellow]")
+
                     if delta_success:
-                        # Compute hash of delta file
                         delta_hash = _compute_file_hash(delta_output_path)
                         delta_params_info = {
                             "file": delta_output_path.name,
@@ -439,32 +523,39 @@ def create(
                         }
                         console.print(f"[dim]Delta file: {delta_output_path.name}[/dim]")
                         console.print(f"[dim]Delta hash: {delta_hash[:16]}...[/dim]")
+                elif previous_params_path and architecture_changed:
+                    console.print("[yellow]⚠ Architecture changed; full checkpoint will be stored instead of a delta.[/yellow]")
                 else:
-                    console.print(f"[yellow]Warning: Previous commit params not found locally. Skipping delta computation.[/yellow]")
+                    console.print("[yellow]Warning: Previous commit params not found locally. Skipping delta computation.[/yellow]")
             else:
-                console.print(f"\n[dim]First commit (genesis) - no delta computed[/dim]")
-            
-            # Update commit.json with params information
+                console.print("\n[dim]First commit (genesis) - no delta computed[/dim]")
+
+            # Update commit.json with params information.
             commit_file = commit_dir / "commit.json"
             with open(commit_file, 'r') as f:
                 commit_data = json.load(f)
-            
+
             commit_data["params"] = {
                 "file": output_path.name,
                 "hash": params_hash,
                 "framework": framework
             }
-            
-            # Add delta params info if available
-            if delta_params_info:
-                commit_data["deltaParams"] = delta_params_info
-            
+            commit_data["architectureHash"] = current_architecture_hash
+            commit_data["previousArchitectureHash"] = previous_architecture_hash
+            commit_data["architectureChanged"] = architecture_changed
+            commit_data["deltaParams"] = delta_params_info
+
             with open(commit_file, 'w') as f:
                 json.dump(commit_data, f, indent=2)
-            
+
             console.print(f"\n[green]✓ Parameters saved to commit directory[/green]")
             console.print(f"  File: {output_path.name}")
             console.print(f"  Hash: {params_hash[:16]}...")
+            console.print(f"  Architecture hash: {current_architecture_hash[:16]}...")
+            if previous_architecture_hash:
+                console.print(f"  Previous architecture hash: {previous_architecture_hash[:16]}...")
+            if architecture_changed:
+                console.print("  [yellow]Architecture changed: commit will be finalized as CHECKPOINT[/yellow]")
             if delta_params_info:
                 console.print(f"  Delta: {delta_params_info['file']}")
             console.print(f"\n[dim]Next steps:[/dim]")
@@ -472,7 +563,6 @@ def create(
             console.print(f"  2. Run 'flair push -m \"Your message\"' to push to repository")
         else:
             raise typer.Exit(code=1)
-            
     except Exception as e:
         console.print(f"[red]✗ Failed to create params: {str(e)}[/red]")
         raise typer.Exit(code=1)
