@@ -409,6 +409,7 @@ Uploads all completed local commits serially to the remote repository. Supports 
 - **Serial pushing**: Pushes commits in creation time order (oldest first)
 - **Smart filtering**: Only pushes complete commits, skips incomplete ones
 - **Remote sync**: Fetches remote HEAD via `/latest` endpoint to avoid duplicates
+- **Fail-fast execution**: Stops immediately on the first failed commit in a batch push
 - **Auto-branching**: Creates branch if it doesn't exist (e.g., first push creates 'main')
 - **ZKML validation**: Validates ZKML proof uniqueness before upload
 - **IPFS upload**: Uploads binary proof artifacts and parameters to IPFS
@@ -532,9 +533,11 @@ flair push
 8. Displays summary: commits pushed (X/Y) and final HEAD
 
 **Error handling:**
-- Skips commits with missing params or ZKP files (continues to next)
-- Validates ZKML proof uniqueness for each commit (prevents duplicate proofs)
-- Continues pushing remaining commits if one fails
+- **Stops immediately** when any commit fails during a multi-commit push
+- **Records exact progress** by reporting how many commits were successfully pushed before failure
+- **No rollback**: already-pushed commits remain final on remote
+- **No retry loop in the same push**: user must run `flair push` again to continue
+- **No partial deletion**: remaining local commits are left untouched for later push
 - Shows clear error messages for failed commits (✗ Commit X: reason)
 
 ## Directory structure (CLI)
