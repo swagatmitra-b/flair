@@ -1,6 +1,7 @@
-# Flair CLI routes
+# Flair CLI
 
-Lines starting with `##` indicate command output.
+Flair CLI is a local-first command-line tool for versioning trained machine learning models. It brings Git-style workflows—commits, branches, merges, rollback, and deterministic history—to model parameters and training artifacts, while preserving reproducibility and optional privacy-preserving collaboration.
+
 
 ## Table of Contents
 
