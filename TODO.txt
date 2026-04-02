@@ -1,3 +1,0 @@
-1. delta save from previous commit to new commit
-2. model reconstruction from history of commits
-3. checkpoint commits creation in both repository manager and flair cli
