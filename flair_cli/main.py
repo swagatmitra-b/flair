@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset, status as status_cmd
+from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset, status as status_cmd, log as log_cmd
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -39,6 +39,16 @@ def checkout(branch_name: str = typer.Argument(..., help="Branch name to switch 
 def status():
     """Show branch, head, local commit completeness, and unpushed commit count."""
     status_cmd.status()
+
+
+@app.command()
+def log(
+    graph: bool = typer.Option(False, "--graph", help="Show a simple graph-style prefix"),
+    branch: str = typer.Option(None, "--branch", help="Show history for a specific branch"),
+    limit: int = typer.Option(50, "--limit", help="Maximum number of commits to display"),
+):
+    """Show commit history, newest first."""
+    log_cmd.log(graph=graph, branch=branch, limit=limit)
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, json: Optional[bool] = typer.Option(False, "--json", help="Output machine-friendly JSON")):

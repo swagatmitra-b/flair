@@ -7,6 +7,7 @@ Flair CLI is a local-first command-line tool for versioning trained machine lear
 
 - [Authentication](#authentication)
 - [Status Command](#status-command)
+- [Log Command](#log-command)
 - [Repository Commands](#repository-commands)
    - [Create sample model files](#create-sample-model-files)
    - [Init repository with automatic base model detection](#init-repository-with-automatic-base-model-detection)
@@ -75,6 +76,31 @@ flair status
 Notes:
 - `Unfinished local commit` is `yes` when the latest local commit is missing params, ZKP, message, or commit type.
 - `Unpushed commits` counts complete local commits that are not yet part of the remote branch head.
+
+## Log Command
+
+Use `flair log` to view readable commit history (newest first).
+
+```bash
+flair log
+## d4e5f6g7... Fine-tuned hyperparameters
+## c3d4e5f6... Improved accuracy to 95%
+## b2c3d4e5... Updated with training data v2
+## a1b2c3d4... Initial model commit
+```
+
+Optional flags:
+
+```bash
+flair log --graph
+flair log --branch experimental
+flair log --limit 10
+```
+
+Notes:
+- `--graph` adds a simple graph-style prefix to each entry.
+- `--branch` targets a specific branch head when available.
+- `--limit` controls the maximum number of commits printed (default: 50).
 
 ## Repository Commands
 

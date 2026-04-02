@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import httpx
@@ -12,30 +11,9 @@ from rich.console import Console
 from ..api import client as api_client
 from ..api.utils import _base_url, _client_with_auth
 from .utils.local_commits import _get_all_local_commits, _get_flair_dir, _get_head_info, _get_latest_local_commit
+from .utils.repo_state import _load_repo_hash, _short_hash
 
 console = Console()
-
-
-def _short_hash(commit_hash: str | None) -> str:
-    if not commit_hash:
-        return "none"
-    if commit_hash == "_GENESIS_COMMIT_":
-        return "_GENESIS_COMMIT_"
-    return f"{commit_hash[:8]}..."
-
-
-def _load_repo_hash() -> str | None:
-    flair_dir = _get_flair_dir()
-    repo_file = flair_dir / "repo.json"
-    if not repo_file.exists():
-        return None
-
-    try:
-        with open(repo_file, "r") as f:
-            repo_data = json.load(f)
-        return repo_data.get("repoHash") or repo_data.get("hash") or repo_data.get("metadata", {}).get("repoHash")
-    except Exception:
-        return None
 
 
 def _is_params_present(commit_data: dict, commit_dir: Path) -> bool:
