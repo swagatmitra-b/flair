@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset
+from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset, status as status_cmd
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -33,6 +33,12 @@ def checkout(branch_name: str = typer.Argument(..., help="Branch name to switch 
     """Switch to a different branch (alias for 'branch checkout')."""
     from flair_cli.cli.branch import checkout as branch_checkout
     branch_checkout(branch_name)
+
+
+@app.command()
+def status():
+    """Show branch, head, local commit completeness, and unpushed commit count."""
+    status_cmd.status()
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, json: Optional[bool] = typer.Option(False, "--json", help="Output machine-friendly JSON")):
