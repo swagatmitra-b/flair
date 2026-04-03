@@ -60,7 +60,7 @@ def diff(
 ):
     """Compare two model commits and produce a semantic summary of changes.
     
-    This command supports federated learning, medical ML, and model reproducibility workflows.
+    This command supports federated learning and model reproducibility workflows.
     It detects architecture changes, computes overall statistics, per-layer diffs,
     and provides merge readiness assessment.
     

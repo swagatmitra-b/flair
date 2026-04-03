@@ -2,21 +2,19 @@
 diff command: Compare two model commits and produce a semantic summary of changes.
 
 This module provides comprehensive diff functionality for federated learning,
-medical ML, and model reproducibility workflows.
+and model reproducibility workflows.
 """
 
 import json
-from pathlib import Path
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List
 import numpy as np
 import typer
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
-from .utils.local_commits import _get_commit_by_hash, _get_flair_dir
+from .utils.local_commits import _get_commit_by_hash
 from .utils.reconstruction import _reconstruct_params_from_checkpoint
-from .utils.param_io import _load_numpy_params, _load_pytorch_params
 
 app = typer.Typer(help="Compare two commits")
 console = Console()
@@ -380,97 +378,9 @@ def compute_merge_readiness(
     return result
 
 
-def detect_medical_domain(metadata: Dict[str, Any]) -> bool:
-    """
-    Detect if commit is in medical/healthcare domain.
-    
-    Args:
-        metadata: Commit metadata
-        
-    Returns:
-        True if medical domain detected
-    """
-    medical_keywords = {
-        "medical",
-        "healthcare",
-        "clinical",
-        "patient",
-        "diagnosis",
-        "treatment",
-        "hospital",
-        "health",
-        "biomedical",
-        "disease",
-        "pathology",
-    }
-    
-    # Check all string fields in metadata
-    for value in metadata.values():
-        if isinstance(value, str):
-            value_lower = value.lower()
-            if any(keyword in value_lower for keyword in medical_keywords):
-                return True
-    
-    return False
-
-
-def compute_safety_indicators(
-    params_a: Dict[str, np.ndarray],
-    params_b: Dict[str, np.ndarray],
-    overall_stats: Dict[str, Any],
-) -> Dict[str, Any]:
-    """
-    Compute medical-ML specific safety indicators.
-    
-    Args:
-        params_a: Parameters from commit A
-        params_b: Parameters from commit B
-        overall_stats: Overall statistics
-        
-    Returns:
-        Dictionary with safety indicators
-    """
-    # Output distribution shift estimation
-    vec_a = flatten_params(params_a)
-    vec_b = flatten_params(params_b)
-    
-    if len(vec_a) > 0 and len(vec_b) > 0:
-        # Estimate output shift as percentage of parameter change
-        percent_changed = overall_stats.get("percent_changed", 0.0)
-        
-        if percent_changed < 5:
-            output_shift = "low"
-            shift_score = 0.02
-        elif percent_changed < 25:
-            output_shift = "moderate"
-            shift_score = 0.08
-        else:
-            output_shift = "high"
-            shift_score = 0.25
-    else:
-        output_shift = "unknown"
-        shift_score = 0.0
-    
-    # Prediction drift estimation (simplified)
-    mean_delta = overall_stats.get("mean_delta_norm", 0.0)
-    prediction_drift = min(0.15, mean_delta * 10)
-    
-    # Confidence change estimation
-    cosine_sim = overall_stats.get("cosine_similarity", 1.0)
-    confidence_change = (1.0 - cosine_sim) * 0.5  # Normalize to roughly -0.5 to +0.5
-    
-    return {
-        "output_distribution_shift": output_shift,
-        "prediction_drift_percent": round(prediction_drift * 100, 1),
-        "confidence_change": round(confidence_change, 3),
-    }
-
-
 def format_output(
     commit_a: str,
     commit_b: str,
-    params_a: Dict[str, np.ndarray],
-    params_b: Dict[str, np.ndarray],
     metadata_a: Dict[str, Any],
     metadata_b: Dict[str, Any],
     overall_stats: Dict[str, Any],
@@ -478,7 +388,6 @@ def format_output(
     metadata_changes: Dict[str, Tuple[Any, Any]],
     metric_changes: Dict[str, Tuple[Any, Any]],
     merge_readiness: Dict[str, Any],
-    medical_domain: bool,
 ) -> None:
     """Format and print standard diff output."""
     
@@ -561,22 +470,11 @@ Cosine similarity between models: {overall_stats['cosine_similarity']:.4f}"""
         console.print("  This update cannot be merged with the current global model.")
     
     console.print()
-    
-    # Medical domain safety indicators
-    if medical_domain:
-        safety = compute_safety_indicators(params_a, params_b, overall_stats)
-        console.print("[bold]Safety Indicators:[/bold]")
-        console.print(f"  Output distribution shift: {safety['output_distribution_shift']}")
-        console.print(f"  Prediction drift on validation set: {safety['prediction_drift_percent']}%")
-        console.print(f"  Confidence change: {safety['confidence_change']:+.3f}")
-        console.print()
 
 
 def format_detailed_output(
     commit_a: str,
     commit_b: str,
-    params_a: Dict[str, np.ndarray],
-    params_b: Dict[str, np.ndarray],
     metadata_a: Dict[str, Any],
     metadata_b: Dict[str, Any],
     overall_stats: Dict[str, Any],
@@ -584,7 +482,6 @@ def format_detailed_output(
     metadata_changes: Dict[str, Tuple[Any, Any]],
     metric_changes: Dict[str, Tuple[Any, Any]],
     merge_readiness: Dict[str, Any],
-    medical_domain: bool,
 ) -> None:
     """Format and print detailed diff output with all layers."""
     
@@ -592,8 +489,6 @@ def format_detailed_output(
     format_output(
         commit_a,
         commit_b,
-        params_a,
-        params_b,
         metadata_a,
         metadata_b,
         overall_stats,
@@ -601,7 +496,6 @@ def format_detailed_output(
         metadata_changes,
         metric_changes,
         merge_readiness,
-        medical_domain,
     )
     
     # Add all layers (not just top 5)
@@ -633,8 +527,6 @@ def format_detailed_output(
 def format_json_output(
     commit_a: str,
     commit_b: str,
-    params_a: Dict[str, np.ndarray],
-    params_b: Dict[str, np.ndarray],
     metadata_a: Dict[str, Any],
     metadata_b: Dict[str, Any],
     overall_stats: Dict[str, Any],
@@ -642,14 +534,8 @@ def format_json_output(
     metadata_changes: Dict[str, Tuple[Any, Any]],
     metric_changes: Dict[str, Tuple[Any, Any]],
     merge_readiness: Dict[str, Any],
-    medical_domain: bool,
 ) -> str:
     """Format diff output as JSON."""
-    
-    # Build safety indicators if medical domain
-    safety_indicators = None
-    if medical_domain:
-        safety_indicators = compute_safety_indicators(params_a, params_b, overall_stats)
     
     # Convert metadata changes to JSON-serializable format
     metadata_changes_json = {}
@@ -672,9 +558,6 @@ def format_json_output(
         "mergeReadiness": merge_readiness,
     }
     
-    if safety_indicators:
-        output["safetyIndicators"] = safety_indicators
-    
     return json.dumps(output, indent=2)
 
 
@@ -690,11 +573,10 @@ def diff(
     
     This command is designed for:
     - Federated learning workflows
-    - Medical / sensitive ML workflows
     - Model reproducibility and merge validation
     
     The output includes overall statistics, per-layer changes, metadata comparison,
-    metrics, merge readiness assessment, and optional medical domain safety indicators.
+    metrics, and merge readiness assessment.
     
     Example:
         flair diff 9f2c... b71e...
@@ -751,16 +633,11 @@ def diff(
             overall_stats,
         )
         
-        # Detect medical domain
-        medical_domain = detect_medical_domain(metadata_a) or detect_medical_domain(metadata_b)
-        
         # Output in requested format
         if json_output:
             json_str = format_json_output(
                 commit_a,
                 commit_b,
-                params_a,
-                params_b,
                 metadata_a,
                 metadata_b,
                 overall_stats,
@@ -768,15 +645,12 @@ def diff(
                 metadata_changes,
                 metric_changes,
                 merge_readiness,
-                medical_domain,
             )
             console.print(json_str)
         elif detailed:
             format_detailed_output(
                 commit_a,
                 commit_b,
-                params_a,
-                params_b,
                 metadata_a,
                 metadata_b,
                 overall_stats,
@@ -784,14 +658,11 @@ def diff(
                 metadata_changes,
                 metric_changes,
                 merge_readiness,
-                medical_domain,
             )
         else:
             format_output(
                 commit_a,
                 commit_b,
-                params_a,
-                params_b,
                 metadata_a,
                 metadata_b,
                 overall_stats,
@@ -799,7 +670,6 @@ def diff(
                 metadata_changes,
                 metric_changes,
                 merge_readiness,
-                medical_domain,
             )
     
     except FileNotFoundError as e:

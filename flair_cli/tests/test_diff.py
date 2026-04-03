@@ -7,7 +7,6 @@ Tests cover:
 - Per-layer statistics
 - Metadata and metric comparison
 - Merge readiness assessment
-- Medical domain detection
 - Output formatting (standard, detailed, JSON)
 """
 
@@ -26,8 +25,7 @@ from unittest.mock import patch, MagicMock
 #     extract_metadata_changes,
 #     extract_metric_changes,
 #     compute_merge_readiness,
-#     detect_medical_domain,
-#     compute_safety_indicators,
+#
 #     flatten_params,
 # )
 
@@ -179,54 +177,6 @@ class TestMergeReadiness(unittest.TestCase):
         # readiness = compute_merge_readiness(False, params_a, params_b, overall_stats)
         # assert readiness["architecture_compatible"] == False
         # assert readiness["merge_possible"] == False
-        pass
-
-
-class TestMedicalDomain(unittest.TestCase):
-    """Test medical domain detection and safety indicators."""
-    
-    def test_detect_medical_domain_positive(self):
-        """Test detection of medical domain."""
-        metadata = {
-            "dataset": "patient records from hospital X",
-            "description": "Clinical diagnosis model",
-        }
-        
-        # Note: Would call detect_medical_domain here
-        # assert detect_medical_domain(metadata) == True
-        pass
-    
-    def test_detect_medical_domain_negative(self):
-        """Test detection when not medical domain."""
-        metadata = {
-            "dataset": "CIFAR-10 image classification",
-            "description": "General purpose CNN",
-        }
-        
-        # Note: Would call detect_medical_domain here
-        # assert detect_medical_domain(metadata) == False
-        pass
-    
-    def test_compute_safety_indicators(self):
-        """Test computation of medical safety indicators."""
-        params_a = np.random.randn(100)
-        params_b = params_a + np.random.randn(100) * 0.05
-        
-        overall_stats = {
-            "percent_changed": 45.0,
-            "mean_delta_norm": 0.035,
-            "cosine_similarity": 0.98,
-        }
-        
-        # Note: Would call compute_safety_indicators here
-        # indicators = compute_safety_indicators(
-        #     {"p": params_a},
-        #     {"p": params_b},
-        #     overall_stats
-        # )
-        # assert "output_distribution_shift" in indicators
-        # assert "prediction_drift_percent" in indicators
-        # assert "confidence_change" in indicators
         pass
 
 

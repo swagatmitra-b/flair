@@ -105,7 +105,7 @@ Notes:
 
 ## Diff Command
 
-Use `flair diff` to semantically compare two model commits. This command is designed for federated learning, medical/sensitive ML workflows, and model reproducibility validation.
+Use `flair diff` to semantically compare two model commits. This command is designed for federated learning and model reproducibility validation.
 
 The diff is **semantic**, not raw tensors. It focuses on understanding how the model changed, not exact numerical values.
 
@@ -279,19 +279,6 @@ Example interpretation:
 - A `small` update with high similarity (0.99+) → blend weight ~0.15
 - A `moderate` update with good similarity (0.95+) → blend weight ~0.18
 - A `large` update with lower similarity (< 0.9) → blend weight ~0.12
-
-**Medical Domain Safety Indicators** *(if applicable)*
-
-If commit metadata contains medical keywords ("medical", "healthcare", "patient", "clinical", etc.), an additional safety section appears:
-
-```
-Safety Indicators:
-  Output distribution shift: moderate
-  Prediction drift on validation set: 8.2%
-  Confidence change: +0.03
-```
-
-These are estimated from parameter changes and serve as drift warnings for sensitive domains.
 
 ## Repository Commands
 
