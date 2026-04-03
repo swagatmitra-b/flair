@@ -142,6 +142,10 @@ flair diff 9f2c... b71e...
 ##   Recommended merge weight: 0.18
 ```
 
+Notes:
+- The diff output only shows metadata fields that are actually stored in both commits.
+- Training-only values such as `epochs`, `learning_rate`, and `accuracy` are not shown unless they are explicitly stored in a structured `metrics` object.
+
 ### Detailed Mode
 
 Show all changed layers, not just the top 5:
@@ -197,14 +201,14 @@ Returns a machine-readable JSON object with structure:
       "max_abs_difference": 0.024582
     }
   ],
-  "metadataChanges": {
-    "epochs": { "old": 10, "new": 15 },
-    "learning_rate": { "old": 0.0001, "new": 0.00005 }
-  },
-  "metricChanges": {
-    "accuracy": { "old": 0.912, "new": 0.935 },
-    "validation_loss": { "old": 0.42, "new": 0.31 }
-  },
+   "metadataChanges": {
+      "contributor": { "old": "Rahul", "new": "Raj" },
+      "notes": { "old": "baseline run", "new": "added augmentation" }
+   },
+   "metricChanges": {
+      "validation_loss": { "old": 0.42, "new": 0.31 },
+      "f1_score": { "old": 0.91, "new": 0.94 }
+   },
   "mergeReadiness": {
     "architecture_compatible": true,
     "parameter_dimensions_compatible": true,
@@ -247,24 +251,25 @@ Results are sorted by delta norm (descending) to highlight the most-changed laye
 
 **Metadata Comparison**
 
-If commits have different non-internal metadata fields, they're listed:
+If commits have different non-internal metadata fields that are present in both commits, they're listed. Training-only values like `epochs`, `learning_rate`, and top-level `accuracy` are intentionally omitted unless stored under a structured `metrics` object:
 
 ```
 Metadata changes:
-  epochs: 10 -> 15
-  learning_rate: 0.0001 -> 0.00005
-  contributor: Alice
+   contributor: Alice -> Raj
+   notes: baseline -> fine-tuned with augmentation
 ```
 
 **Metric Comparison**
 
-If the commits store metrics (e.g., accuracy, validation_loss), changes are highlighted:
+If both commits store a structured `metrics` object, matching metric keys are highlighted:
 
 ```
 Metrics:
-  accuracy: 91.2% -> 93.5% ↑
   validation_loss: 0.42 -> 0.31 ↓
+   f1_score: 0.91 -> 0.94 ↑
 ```
+
+If no `metrics` object exists in commit metadata, this section is omitted.
 
 **Federated Merge Readiness**
 

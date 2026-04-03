@@ -224,8 +224,8 @@ def extract_metadata_changes(
     """
     changes = {}
     
-    # Check all keys from both metadata objects
-    all_keys = set(metadata_a.keys()) | set(metadata_b.keys())
+    # Only compare keys that exist in both commits.
+    common_keys = set(metadata_a.keys()) & set(metadata_b.keys())
     
     # Skip internal fields
     skip_fields = {
@@ -239,13 +239,34 @@ def extract_metadata_changes(
         "architectureHash",
         "architectureChanged",
     }
+
+    # These training/runtime fields are not reliably stored in commit metadata
+    # in this workflow, so they should not be displayed in diff output.
+    unsupported_training_fields = {
+        "epoch",
+        "epochs",
+        "learning_rate",
+        "lr",
+        "accuracy",
+        "validation_loss",
+        "precision",
+        "recall",
+        "f1_score",
+        "auc",
+        "rmse",
+        "mae",
+        "loss",
+    }
     
-    for key in all_keys:
-        if key in skip_fields:
+    for key in common_keys:
+        if key in skip_fields or key in unsupported_training_fields:
             continue
         
         val_a = metadata_a.get(key)
         val_b = metadata_b.get(key)
+
+        if val_a is None or val_b is None:
+            continue
         
         if val_a != val_b:
             changes[key] = (val_a, val_b)
@@ -267,28 +288,22 @@ def extract_metric_changes(
     Returns:
         Dictionary of changed metrics: {metric: (old_value, new_value)}
     """
+    # Metrics are only compared when both commits explicitly store a `metrics` object.
+    metrics_a = metadata_a.get("metrics")
+    metrics_b = metadata_b.get("metrics")
+
+    if not isinstance(metrics_a, dict) or not isinstance(metrics_b, dict):
+        return {}
+
     changes = {}
-    
-    # Common metric field names
-    metric_fields = {
-        "accuracy",
-        "validation_loss",
-        "precision",
-        "recall",
-        "f1_score",
-        "auc",
-        "rmse",
-        "mae",
-        "loss",
-    }
-    
-    for field in metric_fields:
-        val_a = metadata_a.get(field)
-        val_b = metadata_b.get(field)
-        
-        if val_a is not None and val_b is not None and val_a != val_b:
-            changes[field] = (val_a, val_b)
-    
+    for key in set(metrics_a.keys()) & set(metrics_b.keys()):
+        val_a = metrics_a.get(key)
+        val_b = metrics_b.get(key)
+        if val_a is None or val_b is None:
+            continue
+        if val_a != val_b:
+            changes[key] = (val_a, val_b)
+
     return changes
 
 
