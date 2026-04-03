@@ -6,7 +6,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset, status as status_cmd, log as log_cmd
+from flair_cli.cli import auth, config, init, clone, basemodel, branch, add, zkp, push, params, new, commit, revert, reset, status as status_cmd, log as log_cmd, diff as diff_cmd
 
 app = typer.Typer(help="Flair — model repository ledger CLI")
 console = Console()
@@ -49,6 +49,27 @@ def log(
 ):
     """Show commit history, newest first."""
     log_cmd.log(graph=graph, branch=branch, limit=limit)
+
+
+@app.command()
+def diff(
+    commit_a: str = typer.Argument(..., help="First commit hash to compare"),
+    commit_b: str = typer.Argument(..., help="Second commit hash to compare"),
+    detailed: bool = typer.Option(False, "--detailed", help="Show all layers (not just top 5)"),
+    json: bool = typer.Option(False, "--json", help="Output machine-readable JSON"),
+):
+    """Compare two model commits and produce a semantic summary of changes.
+    
+    This command supports federated learning, medical ML, and model reproducibility workflows.
+    It detects architecture changes, computes overall statistics, per-layer diffs,
+    and provides merge readiness assessment.
+    
+    Example:
+        flair diff 9f2c... b71e...
+        flair diff <commitA> <commitB> --detailed
+        flair diff <commitA> <commitB> --json
+    """
+    diff_cmd.diff(commit_a=commit_a, commit_b=commit_b, detailed=detailed, json_output=json)
 
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context, json: Optional[bool] = typer.Option(False, "--json", help="Output machine-friendly JSON")):

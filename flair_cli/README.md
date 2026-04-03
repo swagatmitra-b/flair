@@ -8,6 +8,7 @@ Flair CLI is a local-first command-line tool for versioning trained machine lear
 - [Authentication](#authentication)
 - [Status Command](#status-command)
 - [Log Command](#log-command)
+- [Diff Command](#diff-command)
 - [Repository Commands](#repository-commands)
    - [Create sample model files](#create-sample-model-files)
    - [Init repository with automatic base model detection](#init-repository-with-automatic-base-model-detection)
@@ -101,6 +102,196 @@ Notes:
 - `--graph` adds a simple graph-style prefix to each entry.
 - `--branch` targets a specific branch head when available.
 - `--limit` controls the maximum number of commits printed (default: 50).
+
+## Diff Command
+
+Use `flair diff` to semantically compare two model commits. This command is designed for federated learning, medical/sensitive ML workflows, and model reproducibility validation.
+
+The diff is **semantic**, not raw tensors. It focuses on understanding how the model changed, not exact numerical values.
+
+### Basic Usage
+
+Compare two commits and get an overview:
+
+```bash
+flair diff 9f2c... b71e...
+## Commit A: 9f2c...
+## Commit B: b71e...
+## 
+## Architecture: unchanged
+## Parameters changed: 12.4M / 14.1M (87.9%)
+## 
+## Overall Change
+## ┌─────────────────────────────────────────────┐
+## │ Mean parameter delta norm: 0.021            │
+## │ Max parameter delta norm: 0.184             │
+## │ Cosine similarity between models: 0.992     │
+## └─────────────────────────────────────────────┘
+## 
+## Largest layer changes:
+##   classifier.fc3.weight Δ norm: 0.184 (100.0% changed)
+##   classifier.fc3.bias Δ norm: 0.071 (55.2% changed)
+##   encoder.layer4.weight Δ norm: 0.053 (38.1% changed)
+##   encoder.layer4.bias Δ norm: 0.028 (22.0% changed)
+##   encoder.layer3.weight Δ norm: 0.019 (15.3% changed)
+##
+## Federated Merge Readiness
+##   Architecture compatible: ✓
+##   Parameter dimensions compatible: ✓
+##   Update magnitude: moderate
+##   Recommended merge weight: 0.18
+```
+
+### Detailed Mode
+
+Show all changed layers, not just the top 5:
+
+```bash
+flair diff <commitA> <commitB> --detailed
+```
+
+This produces a full table with all layers:
+
+```
+Layer Statistics
+┌──────────────────────────────┬───────────┬──────────┬────────────┬──────────────┐
+│ Layer                        │ Shape     │ Δ Norm   │ % Changed  │ Max │Δ│      │
+├──────────────────────────────┼───────────┼──────────┼────────────┼──────────────┤
+│ classifier.fc3.weight        │ 10x512    │ 0.184234 │ 100.00%    │ 0.024582     │
+│ classifier.fc3.bias          │ 10        │ 0.071456 │ 55.20%     │ 0.018934     │
+│ encoder.layer4.weight        │ 128x256   │ 0.053189 │ 38.10%     │ 0.012745     │
+│ encoder.layer4.bias          │ 128       │ 0.028456 │ 22.00%     │ 0.008921     │
+│ encoder.layer3.weight        │ 128x128   │ 0.019234 │ 15.30%     │ 0.005678     │
+└──────────────────────────────┴───────────┴──────────┴────────────┴──────────────┘
+```
+
+### JSON Output
+
+For programmatic consumption, use `--json`:
+
+```bash
+flair diff <commitA> <commitB> --json
+```
+
+Returns a machine-readable JSON object with structure:
+
+```json
+{
+  "commitA": "9f2c...",
+  "commitB": "b71e...",
+  "architectureCompatible": true,
+  "overall": {
+    "total_parameters": 14768384,
+    "changed_parameters": 12957568,
+    "percent_changed": 87.8,
+    "mean_delta_norm": 0.021342,
+    "max_delta_norm": 0.184234,
+    "cosine_similarity": 0.9924
+  },
+  "layers": [
+    {
+      "name": "classifier.fc3.weight",
+      "shape": [10, 512],
+      "delta_norm": 0.184234,
+      "percent_changed": 100.0,
+      "max_abs_difference": 0.024582
+    }
+  ],
+  "metadataChanges": {
+    "epochs": { "old": 10, "new": 15 },
+    "learning_rate": { "old": 0.0001, "new": 0.00005 }
+  },
+  "metricChanges": {
+    "accuracy": { "old": 0.912, "new": 0.935 },
+    "validation_loss": { "old": 0.42, "new": 0.31 }
+  },
+  "mergeReadiness": {
+    "architecture_compatible": true,
+    "parameter_dimensions_compatible": true,
+    "merge_possible": true,
+    "update_magnitude": "moderate",
+    "recommended_merge_weight": 0.18
+  }
+}
+```
+
+### What the Diff Computes
+
+**Architecture Validation**
+
+If the two commits have different `architectureHash` values, the diff terminates with an error:
+
+```
+Cannot diff commits with different model architectures.
+  Architecture Hash A: a1b2c3d4...
+  Architecture Hash B: x9y8z7w6...
+```
+
+**Overall Statistics**
+
+- **Total parameters**: Count of all model weights and biases
+- **Changed parameters**: Number of elements where values differ
+- **Percent changed**: Percentage of total parameters that changed
+- **Mean delta norm**: Average L2 norm of per-parameter deltas
+- **Max delta norm**: Largest L2 norm across all parameters
+- **Cosine similarity**: Similarity between full flattened parameter vectors (1.0 = identical, 0.0 = orthogonal)
+
+**Per-Layer Statistics**
+
+For each parameter/layer:
+- **Δ Norm**: L2 norm of the difference tensor
+- **Percent Changed**: Percentage of non-zero deltas in this layer
+- **Max |Δ|**: Maximum absolute value of any single change
+
+Results are sorted by delta norm (descending) to highlight the most-changed layers first.
+
+**Metadata Comparison**
+
+If commits have different non-internal metadata fields, they're listed:
+
+```
+Metadata changes:
+  epochs: 10 -> 15
+  learning_rate: 0.0001 -> 0.00005
+  contributor: Alice
+```
+
+**Metric Comparison**
+
+If the commits store metrics (e.g., accuracy, validation_loss), changes are highlighted:
+
+```
+Metrics:
+  accuracy: 91.2% -> 93.5% ↑
+  validation_loss: 0.42 -> 0.31 ↓
+```
+
+**Federated Merge Readiness**
+
+This section is designed for federated learning workflows:
+
+- **Architecture compatible**: ✓ if `architectureHash` matches
+- **Parameter dimensions compatible**: ✓ if all shapes match
+- **Update magnitude**: `small` (mean delta < 0.01), `moderate` (0.01–0.1), or `large` (> 0.1)
+- **Recommended merge weight**: Heuristic weight (0–1) for how much to blend this update into the global model, based on cosine similarity and magnitude
+
+Example interpretation:
+- A `small` update with high similarity (0.99+) → blend weight ~0.15
+- A `moderate` update with good similarity (0.95+) → blend weight ~0.18
+- A `large` update with lower similarity (< 0.9) → blend weight ~0.12
+
+**Medical Domain Safety Indicators** *(if applicable)*
+
+If commit metadata contains medical keywords ("medical", "healthcare", "patient", "clinical", etc.), an additional safety section appears:
+
+```
+Safety Indicators:
+  Output distribution shift: moderate
+  Prediction drift on validation set: 8.2%
+  Confidence change: +0.03
+```
+
+These are estimated from parameter changes and serve as drift warnings for sensitive domains.
 
 ## Repository Commands
 
