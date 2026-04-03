@@ -270,6 +270,7 @@ Metrics:
 ```
 
 If no `metrics` object exists in commit metadata, this section is omitted.
+When present, metric values are sourced from each commit's stored `metrics` object (for example, values captured from `metrics.json` during `flair params create`).
 
 **Federated Merge Readiness**
 
@@ -456,6 +457,11 @@ Commit structure:
    "params": "parameters if a checkpoint commit",
    "deltaParams": "delta parameters if a delta commit",
    "zkp": "zkps",
+   "metrics": {
+      "epochs": null,
+      "learning_rate": null,
+      "accuracy": null
+   },
    "message": "commit message",
    "commitType": "CHECKPOINT|DELTA",
    "architectureHash": "current hash of the model architecture",
@@ -484,6 +490,31 @@ flair add
 ### Create model params
 Extracts model parameters and saves them to the current commit directory.
 Automatically detects framework (.pt, .pth for PyTorch, .h5, .keras for TensorFlow, or .onnx).
+
+If a `metrics.json` file is present in the repo root, Flair reads and stores supported values
+into the current commit's `metrics` object: `epochs`, `learning_rate`, and `accuracy`.
+
+Supported `metrics.json` formats:
+
+```json
+{
+   "epochs": 10,
+   "learning_rate": 0.0001,
+   "accuracy": 0.91
+}
+```
+
+or:
+
+```json
+{
+   "metrics": {
+      "epochs": 10,
+      "learning_rate": 0.0001,
+      "accuracy": 0.91
+   }
+}
+```
 
 Each params extraction also computes and stores an `architectureHash` for the commit.
 The hash is deterministic and derived from parameter names, parameter order, and tensor shapes
