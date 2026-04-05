@@ -68,11 +68,7 @@ def add():
             "params": None,         # Will be filled by flair params create
             "deltaParams": None,    # Will be filled by flair params create (if not genesis)
             "zkp": None,            # Will be filled by flair zkp create
-            "metrics": {
-                "epochs": None,
-                "learning_rate": None,
-                "accuracy": None,
-            },
+            "metrics": None,        # Optional, filled using flair metrics command set
             "message": None,        # Will be filled by flair commit
             "commitType": None,     # Will be filled by flair commit (CHECKPOINT or DELTA)
             "architectureHash": None,
