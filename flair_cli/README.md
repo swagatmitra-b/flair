@@ -9,6 +9,7 @@ Flair CLI is a local-first command-line tool for versioning trained machine lear
 - [Status Command](#status-command)
 - [Log Command](#log-command)
 - [Diff Command](#diff-command)
+- [Metrics Command](#metrics-command)
 - [Repository Commands](#repository-commands)
    - [Create sample model files](#create-sample-model-files)
    - [Init repository with automatic base model detection](#init-repository-with-automatic-base-model-detection)
@@ -270,7 +271,35 @@ Metrics:
 ```
 
 If no `metrics` object exists in commit metadata, this section is omitted.
-When present, metric values are sourced from each commit's stored `metrics` object (for example, values captured from `metrics.json` during `flair params create`).
+When present, metric values are sourced from each commit's stored `metrics` object (for example, values staged with `flair metrics set` and captured during `flair commit`).
+
+## Metrics Command
+
+Use `flair metrics` to stage metrics in `.flair/metrics.json`.
+
+Supported options for `flair metrics set`:
+- `--epoch`
+- `--accuracy`
+- `--val-loss`
+- `--train-loss`
+- `--precision`
+- `--recall`
+- `--f1`
+- `--learning-rate`
+- `--notes`
+
+```bash
+flair metrics set --epoch 15 --accuracy 0.935 --val-loss 0.31
+flair metrics show
+flair metrics reset
+```
+
+Behavior:
+- Staging file is always `.flair/metrics.json`
+- `set` merges provided fields and updates `updatedAt`
+- `show` prints current staged metrics
+- `reset` deletes staged metrics
+- `flair commit` copies staged metrics into commit metadata under `metrics` and then clears `.flair/metrics.json`
 
 **Federated Merge Readiness**
 
@@ -491,30 +520,8 @@ flair add
 Extracts model parameters and saves them to the current commit directory.
 Automatically detects framework (.pt, .pth for PyTorch, .h5, .keras for TensorFlow, or .onnx).
 
-If a `metrics.json` file is present in the repo root, Flair reads and stores supported values
-into the current commit's `metrics` object: `epochs`, `learning_rate`, and `accuracy`.
-
-Supported `metrics.json` formats:
-
-```json
-{
-   "epochs": 10,
-   "learning_rate": 0.0001,
-   "accuracy": 0.91
-}
-```
-
-or:
-
-```json
-{
-   "metrics": {
-      "epochs": 10,
-      "learning_rate": 0.0001,
-      "accuracy": 0.91
-   }
-}
-```
+Metrics are no longer read from project-root files during `flair params create`.
+Use `flair metrics set` to stage metrics in `.flair/metrics.json` before running `flair commit`.
 
 Each params extraction also computes and stores an `architectureHash` for the commit.
 The hash is deterministic and derived from parameter names, parameter order, and tensor shapes

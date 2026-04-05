@@ -175,35 +175,6 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
-def _load_metrics_from_json(metrics_path: Path) -> dict[str, float | int] | None:
-    """Load supported metrics from metrics.json.
-
-    Accepted layouts:
-    1. {"epochs": 10, "learning_rate": 0.001, "accuracy": 0.91}
-    2. {"metrics": {"epochs": 10, "learning_rate": 0.001, "accuracy": 0.91}}
-    """
-    try:
-        with open(metrics_path, "r") as f:
-            raw = json.load(f)
-    except Exception as e:
-        console.print(f"[yellow]Warning: Could not read metrics.json: {e}[/yellow]")
-        return None
-
-    payload = raw.get("metrics") if isinstance(raw, dict) and isinstance(raw.get("metrics"), dict) else raw
-    if not isinstance(payload, dict):
-        console.print("[yellow]Warning: metrics.json must contain a JSON object[/yellow]")
-        return None
-
-    supported = ("epochs", "learning_rate", "accuracy")
-    result: dict[str, float | int] = {}
-    for key in supported:
-        value = payload.get(key)
-        if value is not None:
-            result[key] = value
-
-    return result or None
-
-
 def _get_previous_commit_params(previous_commit_hash: str) -> Path | None:
     """Get params file from previous commit."""
     if previous_commit_hash == "_GENESIS_COMMIT_":
@@ -569,24 +540,6 @@ def create(
                 "hash": params_hash,
                 "framework": framework
             }
-
-            # Ensure metrics object is present on legacy commits created before metrics support.
-            if not isinstance(commit_data.get("metrics"), dict):
-                commit_data["metrics"] = {
-                    "epochs": None,
-                    "learning_rate": None,
-                    "accuracy": None,
-                }
-
-            # If metrics.json exists in the working directory, ingest supported fields.
-            metrics_path = Path.cwd() / "metrics.json"
-            if metrics_path.exists():
-                loaded_metrics = _load_metrics_from_json(metrics_path)
-                if loaded_metrics:
-                    for key in ("epochs", "learning_rate", "accuracy"):
-                        if key in loaded_metrics:
-                            commit_data["metrics"][key] = loaded_metrics[key]
-                    console.print("[dim]Loaded metrics from metrics.json[/dim]")
 
             commit_data["architectureHash"] = current_architecture_hash
             commit_data["previousArchitectureHash"] = previous_architecture_hash

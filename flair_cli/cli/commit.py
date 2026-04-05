@@ -229,6 +229,36 @@ def _compute_file_hash(file_path: Path) -> str:
     return sha256.hexdigest()
 
 
+def _load_staged_metrics(flair_dir: Path) -> dict | None:
+    """Load staged metrics from .flair/metrics.json when present."""
+    metrics_file = flair_dir / "metrics.json"
+    if not metrics_file.exists():
+        return None
+
+    try:
+        with open(metrics_file, "r") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            console.print("[yellow]Warning: .flair/metrics.json is not a JSON object; ignoring staged metrics.[/yellow]")
+            return None
+        return data
+    except Exception as e:
+        console.print(f"[yellow]Warning: Failed to read .flair/metrics.json: {e}[/yellow]")
+        return None
+
+
+def _delete_staged_metrics(flair_dir: Path) -> None:
+    """Delete staged metrics file after successful commit finalization."""
+    metrics_file = flair_dir / "metrics.json"
+    if not metrics_file.exists():
+        return
+    try:
+        metrics_file.unlink()
+        console.print("[dim]Cleared staged metrics (.flair/metrics.json)[/dim]")
+    except Exception as e:
+        console.print(f"[yellow]Warning: Commit finalized but failed to delete staged metrics: {e}[/yellow]")
+
+
 @app.command()
 def finalize(
     message: str = typer.Option("Update model", "-m", "--message", help="Commit message")
@@ -440,6 +470,10 @@ def finalize(
 
         if commit_type == "CHECKPOINT" and architecture_changed:
             commit_data["deltaParams"] = None
+
+        staged_metrics = _load_staged_metrics(flair_dir)
+        if staged_metrics is not None:
+            commit_data["metrics"] = staged_metrics
         
         commit_file = commit_dir / "commit.json"
         with open(commit_file, 'w') as f:
@@ -464,6 +498,8 @@ def finalize(
         else:
             console.print(f"  [dim]Uploading: delta parameters (delta_params)[/dim]")
             console.print(f"  [dim]Retained: full parameters (for reconstruction)[/dim]")
+
+        _delete_staged_metrics(flair_dir)
         
         console.print(f"\n[dim]Next step:[/dim]")
         console.print(f"  Run 'flair push' to upload commit to repository")

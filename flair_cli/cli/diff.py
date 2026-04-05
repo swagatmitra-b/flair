@@ -464,8 +464,11 @@ Cosine similarity between models: {overall_stats['cosine_similarity']:.4f}"""
     if metric_changes:
         console.print("[bold]Metrics:[/bold]")
         for key, (old, new) in metric_changes.items():
-            change_indicator = "[green]↑[/green]" if new > old else "[red]↓[/red]"
-            console.print(f"  {key}: {old} -> {new} {change_indicator}")
+            if isinstance(old, (int, float)) and isinstance(new, (int, float)):
+                change_indicator = "[green]↑[/green]" if new > old else "[red]↓[/red]"
+                console.print(f"  {key}: {old} -> {new} {change_indicator}")
+            else:
+                console.print(f"  {key}: {old} -> {new}")
         console.print()
     
     # Federated merge readiness
